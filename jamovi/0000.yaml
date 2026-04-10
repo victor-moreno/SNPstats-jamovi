@@ -1,0 +1,36 @@
+---
+title: Basic Genetic Epidemiology Analyses
+name: SNPstats
+version: 0.1.0
+jms: '1.0'
+authors:
+  - Victor Moreno
+maintainer: Victor Moreno <v.moreno@iconcologa.net>
+date: '2026-04-10'
+type: R
+description: >
+  SNP association analysis for genetic epidemiology. Computes allele/genotype
+  frequencies, Hardy-Weinberg equilibrium, SNP-response association under five
+  genetic models, linkage disequilibrium, and haplotype analysis.
+analyses:
+  - title: SNP Analysis
+    name: snpAnalysis
+    ns: SNPstats
+    menuGroup: SNPstats
+    menuTitle: SNP Analysis
+    menuSubgroup: ''
+    description: >
+      Association analysis between SNPs and a response variable, with optional
+      covariate adjustment.
+    category: analyses
+usesNative: true
+minApp: 1.0.8
+datasets:
+  - name: SNPstats_example
+    path: SNPstats_example.csv
+    description: Example SNP dataset
+    tags:
+      - SNP
+      - genetics
+
+...

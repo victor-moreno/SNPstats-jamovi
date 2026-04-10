@@ -1,0 +1,181 @@
+---
+name: snpAnalysis
+title: SNP Analysis
+version: '1.0.0'
+jas: '1.2'
+menuGroup: SNPstats
+menuTitle: SNP Analysis
+
+
+options:
+  - name: data
+    type: Data
+    description:
+      main: >
+        SNP association analysis with allele/genotype frequencies,
+        Hardy-Weinberg equilibrium, and association tests under multiple
+        genetic models.
+      R:
+        dontrun: false
+        usage: |
+          snpAnalysis(
+            data = mydata,
+            response = "status",
+            snps = c("snp1", "snp2", "snp3"),
+            covariates = c("age", "sex")
+          )
+
+  # ── Variable assignment ────────────────────────────────────────
+  - name: response
+    title: Response variable
+    type: Variable
+    suggested:
+      - nominal
+      - continuous
+    permitted:
+      - factor
+      - numeric
+
+  - name: snps
+    title: SNPs
+    type: Variables
+    suggested:
+      - nominal
+    permitted:
+      - factor
+      - id
+
+  - name: covariates
+    title: Covariates
+    type: Variables
+    suggested:
+      - nominal
+      - continuous
+    permitted:
+      - factor
+      - numeric
+    default: ~
+
+  # ── Response type ──────────────────────────────────────────────
+  - name: responseType
+    title: Response type
+    type: List
+    options:
+      - title: Auto-detect
+        name: auto
+      - title: Binary (logistic regression)
+        name: binary
+      - title: Quantitative (linear regression)
+        name: quantitative
+    default: auto
+
+  # ── Subpopulation analysis ─────────────────────────────────────
+  - name: subpop
+    title: Stratify frequency tables by response groups
+    type: Bool
+    default: false
+
+  # ── Covariate description ──────────────────────────────────────
+  - name: covDesc
+    title: Descriptive statistics for covariates
+    type: Bool
+    default: false
+
+# ── SNP Descriptives ───────────────────────────────────────────
+  - name: allFreq
+    title: Allele frequencies
+    type: Bool
+    default: true
+
+  - name: genoFreq
+    title: Genotype frequencies
+    type: Bool
+    default: true
+
+  - name: hweTest
+    title: Hardy-Weinberg equilibrium test
+    type: Bool
+    default: true
+
+    # ── LD analysis ────────────────────────────────────────────────
+  - name: ldAnalysis
+    title: Linkage disequilibrium
+    type: Bool
+    default: false
+
+  - name: ldD
+    title: D
+    type: Bool
+    default: false
+
+  - name: ldDprime
+    title: D'
+    type: Bool
+    default: false
+
+  - name: ldR
+    title: r
+    type: Bool
+    default: false
+
+  - name: ldPval
+    title: P-values
+    type: Bool
+    default: false
+
+# ── Association analysis ───────────────────────────────────────
+  - name: snpAssoc
+    title: SNP-response association
+    type: Bool
+    default: false
+
+  - name: modelCodominant
+    title: Codominant
+    type: Bool
+    default: false
+
+  - name: modelDominant
+    title: Dominant
+    type: Bool
+    default: false
+
+  - name: modelRecessive
+    title: Recessive
+    type: Bool
+    default: false
+
+  - name: modelOverdominant
+    title: Overdominant
+    type: Bool
+    default: false
+
+  - name: modelLogAdditive
+    title: Log-additive
+    type: Bool
+    default: false
+
+  - name: ciWidth
+    title: Confidence interval (%)
+    type: Number
+    min: 50
+    max: 99.9
+    default: 95
+
+  # ── Haplotype analysis ─────────────────────────────────────────
+  - name: haploFreq
+    title: Haplotype frequency estimation
+    type: Bool
+    default: false
+
+  - name: haploFreqMin
+    title: Min freq or rare haplotypes
+    type: Number
+    min: 0
+    max: 0.5
+    default: 0.01
+
+  - name: haploAssoc
+    title: Haplotype-response association
+    type: Bool
+    default: false
+
