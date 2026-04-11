@@ -7,7 +7,7 @@ items:
   - name: validationMsg
     title: ''
     type: Html
-    visible: (validationMsg)
+    visible: true
 
   # ── Covariate descriptives ─────────────────────────────────────
   - name: covDescGroup

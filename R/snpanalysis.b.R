@@ -179,9 +179,9 @@ fit_model <- function(snp_enc, response, covariates_df, model_name,
 
 # ── Main analysis class ────────────────────────────────────────────────────────
 
-snpAnalysisClass <- R6::R6Class(
+snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
   "snpAnalysisClass",
-  inherit = jmvcore::Analysis,
+  inherit = snpAnalysisBase,
   private = list(
 
     .init = function() {
@@ -203,6 +203,7 @@ snpAnalysisClass <- R6::R6Class(
       covariate_vars <- opts$covariates
 
       # ── Validation ──────────────────────────────────────────────
+      self$results$validationMsg$setContent("") # Clear previous errors
       if (is.null(response_var) || response_var == "") {
         self$results$validationMsg$setContent(
           "<b>Please assign a response variable.</b>")
@@ -550,18 +551,27 @@ snpAnalysisClass <- R6::R6Class(
           hap_df$freq <- em_res$hap.prob
 
           # Label haplotypes
-          hap_labels <- apply(hap_df[, snp_names, drop = FALSE], 1,
-                               paste, collapse = "-")
-
+#          hap_labels <- apply(hap_df[, snp_names, drop = FALSE], 1, paste, collapse = "-")
+          hap_labels <- apply(hap_df[,-ncol(hap_df)], 1, paste, collapse = "-")
+          
           # Filter rare
-          is_rare <- hap_df$freq < opts$haploFreqMin
-          for (i in seq_len(nrow(hap_df))) {
-            label <- if (is_rare[i]) "rare" else hap_labels[i]
-            tbl$addRow(rowKey = as.character(i), values = list(
-              haplotype = label,
-              freq      = round(hap_df$freq[i], 4)
-            ))
-          }
+        is_rare <- hap_df$freq < opts$haploFreqMin
+        rare_freq_sum <- sum(hap_df$freq[is_rare], na.rm = TRUE)
+
+        for (i in seq_len(nrow(hap_df))) {
+          if (is_rare[i]) next
+          tbl$addRow(rowKey = paste0("hap_", i), values = list(
+            haplotype = hap_labels[i],
+            freq      = round(hap_df$freq[i], 4)
+          ))
+        }
+        if (rare_freq_sum > 0) {
+          tbl$addRow(rowKey = "rare_combined", values = list(
+            haplotype = "Rare (combined)",
+            freq      = round(rare_freq_sum, 4)
+          ))
+        }
+
         }
       }
 
@@ -622,4 +632,4 @@ snpAnalysisClass <- R6::R6Class(
       }
     }
   )
-)
+)  # end R6Class

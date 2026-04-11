@@ -254,7 +254,7 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                 options=options,
                 name="validationMsg",
                 title="",
-                visible="(validationMsg)"))
+                visible=TRUE))
             self$add(R6::R6Class(
                 inherit = jmvcore::Group,
                 active = list(
