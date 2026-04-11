@@ -85,41 +85,21 @@ options:
   - name: allFreq
     title: Allele frequencies
     type: Bool
-    default: true
+    default: false
 
   - name: genoFreq
     title: Genotype frequencies
     type: Bool
-    default: true
+    default: false
 
   - name: hweTest
     title: Hardy-Weinberg equilibrium test
     type: Bool
-    default: true
+    default: false
 
     # ── LD analysis ────────────────────────────────────────────────
   - name: ldAnalysis
     title: Linkage disequilibrium
-    type: Bool
-    default: false
-
-  - name: ldD
-    title: D
-    type: Bool
-    default: false
-
-  - name: ldDprime
-    title: D'
-    type: Bool
-    default: false
-
-  - name: ldR
-    title: r
-    type: Bool
-    default: false
-
-  - name: ldPval
-    title: P-values
     type: Bool
     default: false
 

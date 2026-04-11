@@ -12,14 +12,10 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
             responseType = "auto",
             subpop = FALSE,
             covDesc = FALSE,
-            allFreq = TRUE,
-            genoFreq = TRUE,
-            hweTest = TRUE,
+            allFreq = FALSE,
+            genoFreq = FALSE,
+            hweTest = FALSE,
             ldAnalysis = FALSE,
-            ldD = FALSE,
-            ldDprime = FALSE,
-            ldR = FALSE,
-            ldPval = FALSE,
             snpAssoc = FALSE,
             modelCodominant = FALSE,
             modelDominant = FALSE,
@@ -83,34 +79,18 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
             private$..allFreq <- jmvcore::OptionBool$new(
                 "allFreq",
                 allFreq,
-                default=TRUE)
+                default=FALSE)
             private$..genoFreq <- jmvcore::OptionBool$new(
                 "genoFreq",
                 genoFreq,
-                default=TRUE)
+                default=FALSE)
             private$..hweTest <- jmvcore::OptionBool$new(
                 "hweTest",
                 hweTest,
-                default=TRUE)
+                default=FALSE)
             private$..ldAnalysis <- jmvcore::OptionBool$new(
                 "ldAnalysis",
                 ldAnalysis,
-                default=FALSE)
-            private$..ldD <- jmvcore::OptionBool$new(
-                "ldD",
-                ldD,
-                default=FALSE)
-            private$..ldDprime <- jmvcore::OptionBool$new(
-                "ldDprime",
-                ldDprime,
-                default=FALSE)
-            private$..ldR <- jmvcore::OptionBool$new(
-                "ldR",
-                ldR,
-                default=FALSE)
-            private$..ldPval <- jmvcore::OptionBool$new(
-                "ldPval",
-                ldPval,
                 default=FALSE)
             private$..snpAssoc <- jmvcore::OptionBool$new(
                 "snpAssoc",
@@ -167,10 +147,6 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
             self$.addOption(private$..genoFreq)
             self$.addOption(private$..hweTest)
             self$.addOption(private$..ldAnalysis)
-            self$.addOption(private$..ldD)
-            self$.addOption(private$..ldDprime)
-            self$.addOption(private$..ldR)
-            self$.addOption(private$..ldPval)
             self$.addOption(private$..snpAssoc)
             self$.addOption(private$..modelCodominant)
             self$.addOption(private$..modelDominant)
@@ -193,10 +169,6 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
         genoFreq = function() private$..genoFreq$value,
         hweTest = function() private$..hweTest$value,
         ldAnalysis = function() private$..ldAnalysis$value,
-        ldD = function() private$..ldD$value,
-        ldDprime = function() private$..ldDprime$value,
-        ldR = function() private$..ldR$value,
-        ldPval = function() private$..ldPval$value,
         snpAssoc = function() private$..snpAssoc$value,
         modelCodominant = function() private$..modelCodominant$value,
         modelDominant = function() private$..modelDominant$value,
@@ -218,10 +190,6 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
         ..genoFreq = NA,
         ..hweTest = NA,
         ..ldAnalysis = NA,
-        ..ldD = NA,
-        ..ldDprime = NA,
-        ..ldR = NA,
-        ..ldPval = NA,
         ..snpAssoc = NA,
         ..modelCodominant = NA,
         ..modelDominant = NA,
@@ -451,25 +419,21 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                                 list(
                                     `name`="D", 
                                     `title`="D", 
-                                    `type`="number", 
-                                    `visible`="(ldD)"),
+                                    `type`="number"),
                                 list(
                                     `name`="Dprime", 
                                     `title`="D'", 
                                     `type`="number", 
-                                    `format`="zto", 
-                                    `visible`="(ldDprime)"),
+                                    `format`="zto"),
                                 list(
                                     `name`="r", 
                                     `title`="r", 
-                                    `type`="number", 
-                                    `visible`="(ldR)"),
+                                    `type`="number"),
                                 list(
                                     `name`="pval", 
                                     `title`="P-value", 
                                     `type`="number", 
-                                    `format`="zto,pvalue", 
-                                    `visible`="(ldPval)"))))}))$new(options=options))
+                                    `format`="zto,pvalue"))))}))$new(options=options))
             self$add(R6::R6Class(
                 inherit = jmvcore::Group,
                 active = list(
@@ -565,10 +529,6 @@ snpAnalysisBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param genoFreq .
 #' @param hweTest .
 #' @param ldAnalysis .
-#' @param ldD .
-#' @param ldDprime .
-#' @param ldR .
-#' @param ldPval .
 #' @param snpAssoc .
 #' @param modelCodominant .
 #' @param modelDominant .
@@ -598,14 +558,10 @@ snpAnalysis <- function(
     responseType = "auto",
     subpop = FALSE,
     covDesc = FALSE,
-    allFreq = TRUE,
-    genoFreq = TRUE,
-    hweTest = TRUE,
+    allFreq = FALSE,
+    genoFreq = FALSE,
+    hweTest = FALSE,
     ldAnalysis = FALSE,
-    ldD = FALSE,
-    ldDprime = FALSE,
-    ldR = FALSE,
-    ldPval = FALSE,
     snpAssoc = FALSE,
     modelCodominant = FALSE,
     modelDominant = FALSE,
@@ -642,10 +598,6 @@ snpAnalysis <- function(
         genoFreq = genoFreq,
         hweTest = hweTest,
         ldAnalysis = ldAnalysis,
-        ldD = ldD,
-        ldDprime = ldDprime,
-        ldR = ldR,
-        ldPval = ldPval,
         snpAssoc = snpAssoc,
         modelCodominant = modelCodominant,
         modelDominant = modelDominant,

@@ -185,6 +185,11 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
   private = list(
 
     .init = function() {
+      # Hide all optional groups immediately — shown only when options are on
+      self$results$covDescGroup$setVisible(FALSE)
+      self$results$ldGroup$setVisible(FALSE)
+      self$results$haploGroup$setVisible(FALSE)
+
       # Initialise the per-SNP array when SNPs are assigned
       snp_names <- self$options$snps
       if (length(snp_names) == 0) return()
@@ -203,19 +208,20 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       covariate_vars <- opts$covariates
 
       # ── Validation ──────────────────────────────────────────────
-      self$results$validationMsg$setContent("") # Clear previous errors
-      if (is.null(response_var) || response_var == "") {
-        self$results$validationMsg$setContent(
-          "<b>Please assign a response variable.</b>")
-        return()
-      }
-      if (length(snp_vars) == 0) {
-        self$results$validationMsg$setContent(
-          "<b>Please assign at least one SNP variable.</b>")
+      self$results$validationMsg$setContent("")
+
+      # Nothing assigned yet — keep results panel empty and silent
+      if (length(snp_vars) == 0) return()
+
+      needs_response <- opts$snpAssoc || opts$haploAssoc || opts$subpop || opts$covDesc
+      if (needs_response && (is.null(response_var) || response_var == "")) {
+        self$results$validationMsg$setContent(paste0(
+          "<b>Please assign a response variable</b> (required for association, ",
+          "stratification, and covariate descriptives)."))
         return()
       }
 
-      response_raw <- data[[response_var]]
+      response_raw <- if (!is.null(response_var) && response_var != "") data[[response_var]] else NULL
 
       # Check SNP columns
       bad_snps <- character(0)
@@ -233,23 +239,29 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
       # ── Determine response type ──────────────────────────────────
       response_type <- opts$responseType
-      if (response_type == "auto") {
+      if (!is.null(response_raw) && response_type == "auto") {
         n_unique <- length(unique(na.omit(response_raw)))
         if (n_unique <= 2) {
           response_type <- "binary"
         } else if (is.numeric(response_raw)) {
           response_type <- "quantitative"
         } else {
-          response_type <- "binary"  # fallback for categorical with >2 levels
+          response_type <- "binary"
         }
+      } else if (is.null(response_raw)) {
+        response_type <- "binary"  # default, won't be used
       }
 
       # Prepare response
-      if (response_type == "binary") {
-        response <- as.integer(as.factor(response_raw)) - 1L
-        response[is.na(response_raw)] <- NA_integer_
+      if (!is.null(response_raw)) {
+        if (response_type == "binary") {
+          response <- as.integer(as.factor(response_raw)) - 1L
+          response[is.na(response_raw)] <- NA_integer_
+        } else {
+          response <- as.numeric(response_raw)
+        }
       } else {
-        response <- as.numeric(response_raw)
+        response <- NULL
       }
 
       # ── Covariates ───────────────────────────────────────────────
@@ -265,8 +277,15 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         cov_df <- NULL
       }
 
+      # ── Show/hide optional result groups ────────────────────────
+      show_cov_desc <- isTRUE(opts$covDesc) && length(covariate_vars) > 0
+      self$results$covDescGroup$setVisible(show_cov_desc)
+      self$results$ldGroup$setVisible(isTRUE(opts$ldAnalysis))
+      self$results$haploGroup$setVisible(
+        isTRUE(opts$haploFreq) || isTRUE(opts$haploAssoc))
+
       # ── Covariate descriptives ───────────────────────────────────
-      if (opts$covDesc && !is.null(cov_df)) {
+      if (show_cov_desc && !is.null(cov_df)) {
         private$.run_cov_desc(cov_df, response_raw, response_type)
       }
 
@@ -294,13 +313,15 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         # Allele frequencies
         if (opts$allFreq) {
           private$.fill_allele_freq(item$allFreqTable, snp_summary,
-                                     snp_nm, response_raw, opts$subpop)
+                                     snp_nm, response_raw, opts$subpop,
+                                     response_type, snp_raw)
         }
 
         # Genotype frequencies
         if (opts$genoFreq) {
           private$.fill_geno_freq(item$genoFreqTable, snp_summary, ref,
-                                   snp_raw, response, response_type, opts$subpop)
+                                   snp_raw, response, response_type, opts$subpop,
+                                   response_raw)
         }
 
         # HWE
@@ -358,35 +379,109 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
     },
 
     # ── Allele frequencies ────────────────────────────────────────
-    .fill_allele_freq = function(tbl, sm, snp_nm, response_raw, subpop) {
+    .fill_allele_freq = function(tbl, sm, snp_nm, response_raw, subpop,
+                                  response_type, snp_raw) {
       af <- sm$allele.freq
+
+      # Stratify by binary response only
+      do_strat <- isTRUE(subpop) && !is.null(response_raw) &&
+                  identical(response_type, "binary")
+      grp_levels <- character(0)
+      if (do_strat) {
+        grp_levels <- sort(unique(na.omit(as.character(response_raw))))
+        if (length(grp_levels) < 2L || length(grp_levels) > 5L)
+          do_strat <- FALSE
+      }
+
+      if (do_strat) {
+        for (g in grp_levels) {
+          safe <- gsub("[^A-Za-z0-9]", "_", g)
+          tbl$addColumn(name   = paste0("count_", safe),
+                        title  = paste0("n (", g, ")"),
+                        type   = "integer")
+          tbl$addColumn(name   = paste0("prop_", safe),
+                        title  = paste0("Prop (", g, ")"),
+                        type   = "number",
+                        format = "zto")
+        }
+      }
+
+      allele_names <- rownames(af)
       for (i in seq_len(sm$nallele)) {
-        tbl$addRow(rowKey = rownames(af)[i], values = list(
-          allele = rownames(af)[i],
+        al <- allele_names[i]
+        row_vals <- list(
+          allele = al,
           count  = as.integer(af[i, "Count"]),
           prop   = round(af[i, "Proportion"], 4)
-        ))
+        )
+        if (do_strat) {
+          for (g in grp_levels) {
+            safe   <- gsub("[^A-Za-z0-9]", "_", g)
+            mask_g <- !is.na(response_raw) & as.character(response_raw) == g
+            # split every diploid genotype into its two alleles
+            all_alleles <- unlist(strsplit(
+              as.character(snp_raw)[mask_g & !is.na(snp_raw)], "/"))
+            n_al  <- sum(all_alleles == al, na.rm = TRUE)
+            n_tot <- length(all_alleles)
+            row_vals[[paste0("count_", safe)]] <- as.integer(n_al)
+            row_vals[[paste0("prop_",  safe)]] <-
+              if (n_tot > 0L) round(n_al / n_tot, 4) else NA_real_
+          }
+        }
+        tbl$addRow(rowKey = al, values = row_vals)
       }
     },
 
     # ── Genotype frequencies ──────────────────────────────────────
     .fill_geno_freq = function(tbl, sm, ref, snp_raw, response,
-                                response_type, subpop) {
+                                response_type, subpop, response_raw) {
       gf <- sm$genotype.freq
       gf <- tryCatch(reorder_geno(gf, ref), error = function(e) gf)
 
+      # Stratify by binary response only
+      do_strat <- isTRUE(subpop) && !is.null(response_raw) &&
+                  identical(response_type, "binary")
+      grp_levels <- character(0)
+      if (do_strat) {
+        grp_levels <- sort(unique(na.omit(as.character(response_raw))))
+        if (length(grp_levels) < 2L || length(grp_levels) > 5L)
+          do_strat <- FALSE
+      }
+
+      # Add dynamic stratification columns before any rows
+      if (do_strat) {
+        for (g in grp_levels) {
+          safe <- gsub("[^A-Za-z0-9]", "_", g)
+          tbl$addColumn(name   = paste0("count_", safe),
+                        title  = paste0("n (", g, ")"),
+                        type   = "integer")
+          tbl$addColumn(name   = paste0("prop_", safe),
+                        title  = paste0("Prop (", g, ")"),
+                        type   = "number",
+                        format = "zto")
+        }
+      }
+
+      # Quantitative: make mean±SE column visible
+      if (response_type == "quantitative") {
+        tbl$getColumn("responseStat")$setVisible(TRUE)
+      }
+
+      snp_char <- as.character(snp_raw)
       for (i in seq_len(nrow(gf))) {
         geno_name <- rownames(gf)[i]
+        if (geno_name == "NA") next          # skip missing-genotype row
+
         cnt  <- as.integer(gf[i, "Count"])
         prop <- if (is.na(gf[i, "Proportion"])) NA_real_
                 else round(gf[i, "Proportion"], 4)
 
         resp_stat <- ""
-        if (response_type == "quantitative" && geno_name != "NA") {
-          mask <- as.character(snp_raw) == geno_name & !is.na(response)
+        if (response_type == "quantitative") {
+          mask <- snp_char == geno_name & !is.na(response)
           if (sum(mask) > 0) {
-            mn  <- mean(response[mask], na.rm = TRUE)
-            se  <- sd(response[mask],  na.rm = TRUE) / sqrt(sum(mask))
+            mn <- mean(response[mask], na.rm = TRUE)
+            se <- sd(response[mask],   na.rm = TRUE) / sqrt(sum(mask))
             resp_stat <- sprintf("%.2f (%.2f)", mn, se)
           }
         }
@@ -397,12 +492,21 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
           prop         = prop,
           responseStat = resp_stat
         )
-        tbl$addRow(rowKey = geno_name, values = row_vals)
-      }
 
-      # Show responseStat column only for quantitative response
-      if (response_type == "quantitative") {
-        tbl$getColumn("responseStat")$setVisible(TRUE)
+        if (do_strat) {
+          for (g in grp_levels) {
+            safe  <- gsub("[^A-Za-z0-9]", "_", g)
+            mask_g <- !is.na(response_raw) & as.character(response_raw) == g
+            n_g    <- sum(mask_g & snp_char == geno_name, na.rm = TRUE)
+            n_tot  <- sum(mask_g & !is.na(snp_raw) & snp_char != "NA",
+                          na.rm = TRUE)
+            row_vals[[paste0("count_", safe)]] <- as.integer(n_g)
+            row_vals[[paste0("prop_",  safe)]] <-
+              if (n_tot > 0L) round(n_g / n_tot, 4) else NA_real_
+          }
+        }
+
+        tbl$addRow(rowKey = geno_name, values = row_vals)
       }
     },
 
@@ -507,10 +611,10 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         row_vals <- list(
           snp1   = pair[1],
           snp2   = pair[2],
-          D      = if (opts$ldD)      round(ld_res$`D`,       4) else NA,
-          Dprime = if (opts$ldDprime) round(ld_res$`D'`,      4) else NA,
-          r      = if (opts$ldR)      round(ld_res$`r`,       4) else NA,
-          pval   = if (opts$ldPval)   ld_res$`P-value`           else NA
+          D      = round(ld_res$`D`,    4),
+          Dprime = round(ld_res$`D'`,   4),
+          r      = round(ld_res$`r`,    4),
+          pval   = ld_res$`P-value`
         )
         tbl$addRow(rowKey = paste(pair, collapse = "_"), values = row_vals)
       }
@@ -521,11 +625,19 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                            cov_df, opts) {
       # Build allele matrix for haplo.stats (2 cols per SNP)
       snp_names <- names(geno_list)
-      allele_mat <- do.call(cbind, lapply(snp_names, function(nm) {
+      allele_list <- lapply(snp_names, function(nm) {
         g <- geno_list[[nm]]
-        al <- genetics::allele(g)  # returns matrix of allele1, allele2
-        al
-      }))
+        genetics::allele(g)  # matrix of allele1, allele2
+      })
+      allele_mat <- do.call(cbind, allele_list)
+
+      # Build a lookup: for each SNP, what are the actual allele labels per code?
+      # haplo.stats encodes alleles as integers; we recover labels from allele matrix
+      get_allele_labels <- function(allele_cols) {
+        vals <- unique(na.omit(c(allele_cols)))
+        sort(vals)
+      }
+      snp_allele_labels <- lapply(allele_list, function(al) get_allele_labels(al))
 
       geno_setup <- tryCatch(
         haplo.stats::setupGeno(allele_mat),
@@ -533,95 +645,171 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       )
       if (is.null(geno_setup)) return()
 
+      # Get the allele label lookup from setupGeno attributes
+      # attr(geno_setup, "unique.alleles") is a list per locus
+      unique_alleles <- attr(geno_setup, "unique.alleles")
+
+      # Helper: decode numeric haplotype row to allele string
+      decode_haplotype <- function(hap_row, unique_alleles) {
+        parts <- character(length(hap_row))
+        for (i in seq_along(hap_row)) {
+          code <- hap_row[i]
+          locus_alleles <- unique_alleles[[i]]
+          if (!is.na(code) && code >= 1 && code <= length(locus_alleles)) {
+            parts[i] <- locus_alleles[code]
+          } else {
+            parts[i] <- as.character(code)
+          }
+        }
+        paste(parts, collapse = "-")
+      }
+
       # Complete cases mask
-      keep <- !is.na(response)
+      keep <- if (!is.null(response)) !is.na(response) else rep(TRUE, nrow(allele_mat))
       if (!is.null(cov_df)) {
         keep <- keep & complete.cases(cov_df)
       }
 
       # Haplotype frequencies
-      if (opts$haploFreq) {
+      em_res <- NULL
+      hap_labels_full <- NULL  # labels for all haplotypes above threshold
+
+      if (opts$haploFreq || opts$haploAssoc) {
         em_res <- tryCatch(
           haplo.stats::haplo.em(geno_setup[keep, ]),
           error = function(e) NULL
         )
         if (!is.null(em_res)) {
-          tbl <- self$results$haploGroup$haploFreqTable
           hap_df <- as.data.frame(em_res$haplotype)
           hap_df$freq <- em_res$hap.prob
 
-          # Label haplotypes
-#          hap_labels <- apply(hap_df[, snp_names, drop = FALSE], 1, paste, collapse = "-")
-          hap_labels <- apply(hap_df[,-ncol(hap_df)], 1, paste, collapse = "-")
-          
-          # Filter rare
-        is_rare <- hap_df$freq < opts$haploFreqMin
-        rare_freq_sum <- sum(hap_df$freq[is_rare], na.rm = TRUE)
+          # Decode haplotype labels using actual allele names
+          if (!is.null(unique_alleles)) {
+            hap_labels_full <- apply(hap_df[, seq_len(ncol(hap_df) - 1), drop = FALSE],
+                                     1, decode_haplotype, unique_alleles = unique_alleles)
+          } else {
+            # Fallback: use allele labels from genetics object
+            hap_labels_full <- apply(hap_df[, seq_len(ncol(hap_df) - 1), drop = FALSE],
+                                     1, paste, collapse = "-")
+          }
 
-        for (i in seq_len(nrow(hap_df))) {
-          if (is_rare[i]) next
-          tbl$addRow(rowKey = paste0("hap_", i), values = list(
-            haplotype = hap_labels[i],
-            freq      = round(hap_df$freq[i], 4)
-          ))
-        }
-        if (rare_freq_sum > 0) {
-          tbl$addRow(rowKey = "rare_combined", values = list(
-            haplotype = "Rare (combined)",
-            freq      = round(rare_freq_sum, 4)
-          ))
-        }
+          if (opts$haploFreq) {
+            tbl <- self$results$haploGroup$haploFreqTable
+            is_rare <- hap_df$freq < opts$haploFreqMin
+            rare_freq_sum <- sum(hap_df$freq[is_rare], na.rm = TRUE)
 
+            for (i in seq_len(nrow(hap_df))) {
+              if (is_rare[i]) next
+              tbl$addRow(rowKey = paste0("hap_", i), values = list(
+                haplotype = hap_labels_full[i],
+                freq      = round(hap_df$freq[i], 4)
+              ))
+            }
+            if (rare_freq_sum > 0) {
+              tbl$addRow(rowKey = "rare_combined", values = list(
+                haplotype = "Rare (combined)",
+                freq      = round(rare_freq_sum, 4)
+              ))
+            }
+          }
         }
       }
 
       # Haplotype association
-      if (opts$haploAssoc) {
+      if (opts$haploAssoc && !is.null(response)) {
         family <- if (response_type == "binary") "binomial" else "gaussian"
         y_sub  <- response[keep]
-        x_sub  <- if (!is.null(cov_df)) cov_df[keep, , drop = FALSE] else NULL
+        x_sub  <- if (!is.null(cov_df)) as.data.frame(cov_df[keep, , drop = FALSE]) else NULL
+
+        # haplo.glm needs the geno matrix subset and y as numeric
+        geno_sub <- geno_setup[keep, , drop = FALSE]
 
         haplo_fit <- tryCatch({
-          if (is.null(x_sub)) {
+          if (is.null(x_sub) || ncol(x_sub) == 0) {
             haplo.stats::haplo.glm(
-              y_sub ~ geno_setup[keep, ],
-              family  = family,
-              haplo.effect = "additive",
-              haplo.freq.min = opts$haploFreqMin
+              y_sub ~ geno_sub,
+              family         = family,
+              haplo.effect   = "additive",
+              haplo.freq.min = opts$haploFreqMin,
+              data           = data.frame(y_sub = y_sub)
             )
           } else {
+            cov_names <- names(x_sub)
+            fit_data  <- cbind(data.frame(y_sub = y_sub), x_sub)
+            cov_formula <- paste(cov_names, collapse = " + ")
+            full_formula <- as.formula(paste("y_sub ~ geno_sub +", cov_formula))
             haplo.stats::haplo.glm(
-              y_sub ~ geno_setup[keep, ] + as.matrix(x_sub),
-              family  = family,
-              haplo.effect = "additive",
-              haplo.freq.min = opts$haploFreqMin
+              full_formula,
+              family         = family,
+              haplo.effect   = "additive",
+              haplo.freq.min = opts$haploFreqMin,
+              data           = fit_data
             )
           }
-        }, error = function(e) NULL)
+        }, error = function(e) {
+          # Capture error for user feedback
+          self$results$validationMsg$setContent(paste0(
+            "<b>Haplotype association error:</b> ", conditionMessage(e)))
+          NULL
+        })
 
         if (!is.null(haplo_fit)) {
           tbl  <- self$results$haploGroup$haploAssocTable
-          coef <- summary(haplo_fit)$coefficients
-          ci   <- tryCatch(confint(haplo_fit), error = function(e)
-                   matrix(NA, nrow = nrow(coef), ncol = 2))
+          coef_mat <- summary(haplo_fit)$coefficients
+          ci   <- tryCatch(
+            confint(haplo_fit, level = opts$ciWidth / 100),
+            error = function(e) matrix(NA_real_, nrow = nrow(coef_mat), ncol = 2,
+                                       dimnames = list(rownames(coef_mat), c("2.5 %", "97.5 %")))
+          )
 
-          haplo_rows <- grep("^haplo", rownames(coef))
-          for (i in haplo_rows) {
-            nm   <- rownames(coef)[i]
-            beta <- coef[i, "Estimate"]
-            pv   <- coef[i, ncol(coef)]
-            if (response_type == "binary") {
-              eff <- exp(beta)
-              ci_lo <- exp(ci[nm, 1])
-              ci_hi <- exp(ci[nm, 2])
-            } else {
-              eff   <- beta
-              ci_lo <- ci[nm, 1]
-              ci_hi <- ci[nm, 2]
+          haplo_rows <- grep("^haplo\\.", rownames(coef_mat))
+
+          # Build haplotype code -> label map from em_res if available
+          haplo_label_map <- list()
+          if (!is.null(em_res) && !is.null(hap_labels_full)) {
+            hap_df <- as.data.frame(em_res$haplotype)
+            hap_df$freq <- em_res$hap.prob
+            for (i in seq_len(nrow(hap_df))) {
+              # haplo.glm uses "haplo.X.X.X" notation matching haplotype codes
+              code_str <- paste(as.integer(hap_df[i, seq_len(ncol(hap_df) - 1)]), collapse = ".")
+              key <- paste0("haplo.", code_str)
+              haplo_label_map[[key]] <- hap_labels_full[i]
             }
-            tbl$addRow(rowKey = nm, values = list(
-              haplotype = sub("^haplo\\.", "", nm),
-              freq      = NA_real_,
+          }
+
+          for (i in haplo_rows) {
+            row_nm <- rownames(coef_mat)[i]
+            beta   <- coef_mat[i, "Estimate"]
+            pv     <- coef_mat[i, ncol(coef_mat)]
+
+            ci_lo <- if (row_nm %in% rownames(ci)) ci[row_nm, 1] else NA_real_
+            ci_hi <- if (row_nm %in% rownames(ci)) ci[row_nm, 2] else NA_real_
+
+            if (response_type == "binary") {
+              eff   <- exp(beta)
+              ci_lo <- if (!is.na(ci_lo)) exp(ci_lo) else NA_real_
+              ci_hi <- if (!is.na(ci_hi)) exp(ci_hi) else NA_real_
+            } else {
+              eff <- beta
+            }
+
+            # Decode label
+            label <- if (!is.null(haplo_label_map[[row_nm]])) {
+              haplo_label_map[[row_nm]]
+            } else {
+              sub("^haplo\\.", "", row_nm)
+            }
+
+            # Get frequency for this haplotype
+            hap_freq <- NA_real_
+            if (!is.null(em_res) && !is.null(haplo_label_map[[row_nm]])) {
+              idx <- which(hap_labels_full == haplo_label_map[[row_nm]])
+              if (length(idx) > 0) hap_freq <- em_res$hap.prob[idx[1]]
+            }
+
+            tbl$addRow(rowKey = row_nm, values = list(
+              haplotype = label,
+              freq      = hap_freq,
               effect    = eff,
               ciLow     = ci_lo,
               ciHigh    = ci_hi,

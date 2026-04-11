@@ -158,21 +158,17 @@ items:
           - name: D
             title: D
             type: number
-            visible: (ldD)
           - name: Dprime
             title: D'
             type: number
             format: zto
-            visible: (ldDprime)
           - name: r
             title: r
             type: number
-            visible: (ldR)
           - name: pval
             title: P-value
             type: number
             format: zto,pvalue
-            visible: (ldPval)
 
   # ── Haplotype frequencies ──────────────────────────────────────
   - name: haploGroup

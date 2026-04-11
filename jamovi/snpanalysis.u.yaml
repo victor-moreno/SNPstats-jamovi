@@ -8,7 +8,7 @@ children:
     stretchFactor: 1
     children:
       - type: TargetLayoutBox
-        label: Response variable
+        label: Response variable (required for association & stratification)
         children:
           - type: VariablesListBox
             name: response
@@ -31,10 +31,13 @@ children:
     children:
       - type: ComboBox
         name: responseType
+        enable: (response)
       - type: CheckBox
         name: subpop
+        enable: (response)
       - type: CheckBox
         name: covDesc
+        enable: (response)
 
 
   - type: LayoutBox
@@ -58,15 +61,6 @@ children:
               name: hweTest
             - type: CheckBox
               name: ldAnalysis
-              children:
-              - type: CheckBox
-                name: ldD
-              - type: CheckBox
-                name: ldDprime
-              - type: CheckBox
-                name: ldR
-              - type: CheckBox
-                name: ldPval
 
       - type: LayoutBox
         cell:
@@ -79,6 +73,7 @@ children:
             children:
               - type: CheckBox
                 name: snpAssoc
+                enable: (response)
                 children:
                 - type: CheckBox
                   name: modelCodominant
