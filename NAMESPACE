@@ -1,5 +1,5 @@
 import(jmvcore)
 import(R6)
 importFrom(genetics, genotype, allele, HWE.exact, LD)
-importFrom(haplo.stats, setupGeno, haplo.em, haplo.glm)
+importFrom(haplo.stats, setupGeno, haplo.em, haplo.glm, na.geno.keep)
 export(snpAnalysis)

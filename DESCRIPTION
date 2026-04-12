@@ -14,6 +14,7 @@ License: GPL-3
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.2.3
+Depends: genetics, haplo.stats
 Imports: 
     jmvcore (>= 1.2.0),
     R6,

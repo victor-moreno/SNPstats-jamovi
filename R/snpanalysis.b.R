@@ -1,8 +1,9 @@
 #' @importFrom R6 R6Class
 #' @import jmvcore
-#' @import genetics
-#' @import haplo.stats
+#' @importFrom genetics genotype allele HWE.exact LD
+#' @importFrom haplo.stats setupGeno hapl.em, haplo.glm, na.geno.keep
 #' @import ggplot2
+
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -1018,10 +1019,22 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       keep <- if (!is.null(response)) !is.na(response) else rep(TRUE, nrow(allele_mat))
       if (!is.null(cov_df)) keep <- keep & complete.cases(cov_df)
 
+      # subset_geno: subset a setupGeno matrix by row while preserving all
+      # attributes (unique.alleles, locus.label, etc.) that [.matrix strips.
+      subset_geno <- function(gs, idx) {
+        saved_attr <- attributes(gs)
+        gs2        <- gs[idx, , drop = FALSE]
+        # Restore every attribute except dim/dimnames which [.matrix sets correctly
+        for (att in setdiff(names(saved_attr), c("dim", "dimnames"))) {
+          attr(gs2, att) <- saved_attr[[att]]
+        }
+        gs2
+      }
+
       # 1. Haplotype Frequencies (EM)
       if (opts$haploFreq) {
         em_res <- tryCatch(
-          haplo.stats::haplo.em(geno_setup[keep, ], locus.label = snp_names),
+          haplo.stats::haplo.em(subset_geno(geno_setup, keep), locus.label = snp_names),
           error = function(e) NULL
         )
         
@@ -1043,98 +1056,207 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
           }
           if (rare_sum > 0) {
             tbl$addRow(rowKey = "rare_freq", values = list(
-              haplotype = "Rare (combined)",
+              haplotype = paste0("Rare (<", opts$haploFreqMin, ")"),
               freq      = round(rare_sum, 4)
             ))
           }
         }
       }
 
- # 2. Association Table (Fixes Empty Table Issue)
+    # ── Haplotype association ─────────────────────────────────────
     if (opts$haploAssoc && !is.null(response)) {
-        family <- if (response_type == "binary") binomial else gaussian
-        y_sub  <- if (response_type == "binary") as.numeric(as.factor(response[keep])) - 1 else response[keep]
-        
-        # Merge geno_setup and covariates into one data frame
-        # We name the geno_setup column explicitly to match the formula
-        m_model <- data.frame(y = y_sub)
-        m_model$geno <- geno_setup
-        if (!is.null(cov_df)) {
-            m_model <- cbind(m_model, cov_df[keep, , drop = FALSE])
-            cov_names <- names(cov_df)
-            formula_str <- paste("y ~ geno +", paste(cov_names, collapse = " + "))
-        } else {
-            formula_str <- "y ~ geno"
+
+      # ── Inline helpers (work around haplo.stats import issues on macOS) ──
+      na.geno.keep <- function(m) {
+        mf.gindx <- function(m) {
+          nvars    <- length(m)
+          typevars <- rep(0, nvars)
+          for (i in seq_len(nvars)) typevars[i] <- data.class(m[[i]])
+          gindx <- seq_len(nvars)[typevars == "model.matrix" | typevars == "matrix"]
+          if (length(gindx) == 0) stop("No geno matrix in data frame")
+          if (length(gindx) >  1) stop("More than 1 geno matrix in data frame")
+          gindx
         }
-        haplo_fit <- tryCatch({
-          haplo.stats::haplo.glm(
-            as.formula(formula_str),
-            family   = family,
-            data     = m_model,
-            na.action = "na.geno.keep", 
-            control  = haplo.stats::haplo.glm.control(haplo.freq.min = opts$haploFreqMin)
-          )
-        }, error = function(e) {
-          self$results$validationMsg$setContent(paste0("Haplotype GLM Error: ", e$message))
-          NULL
-        })
-        if (!is.null(haplo_fit)) {
-          tbl <- self$results$haploGroup$haploAssocTable
-
-          # DEBUG DUMP
-          dbg <- c()
-          dbg <- c(dbg, paste0("<b>names(haplo_fit):</b> ", paste(names(haplo_fit), collapse=", ")))
-          dbg <- c(dbg, paste0("<b>coef names:</b> ", paste(names(coefficients(haplo_fit)), collapse=", ")))
-          dbg <- c(dbg, paste0("<b>haplo.common:</b> ", paste(haplo_fit$haplo.common, collapse=", ")))
-          dbg <- c(dbg, paste0("<b>haplo.base:</b> ",   paste(haplo_fit$haplo.base,   collapse=", ")))
-          dbg <- c(dbg, paste0("<b>haplo.rare:</b> ",   paste(haplo_fit$haplo.rare,   collapse=", ")))
-          dbg <- c(dbg, paste0("<b>haplo.freq (len):</b> ", length(haplo_fit$haplo.freq)))
-          dbg <- c(dbg, paste0("<b>names(haplo.freq):</b> ", paste(names(haplo_fit$haplo.freq), collapse=", ")))
-          dbg <- c(dbg, paste0("<b>names(haplo_fit$haplo):</b> ", paste(names(haplo_fit$haplo), collapse=", ")))
-          if (!is.null(haplo_fit$var.mat))
-            dbg <- c(dbg, paste0("<b>var.mat rownames:</b> ", paste(rownames(haplo_fit$var.mat), collapse=", ")))
-          hd_str <- tryCatch({
-            hd2 <- haplo.stats::haplo.df(haplo_fit)
-            paste0("dim=", nrow(hd2), "x", ncol(hd2), " cols:", paste(colnames(hd2), collapse="|"), "<br>",
-                   paste(capture.output(print(head(hd2))), collapse="<br>"))
-          }, error = function(e) paste("haplo.df ERROR:", e$message))
-          dbg <- c(dbg, paste0("<b>haplo.df():</b><br>", hd_str))
-          self$results$validationMsg$setContent(paste(dbg, collapse="<br>"))
-          # END DEBUG
-
-          # Using haplo.df correctly extracts coefficients regardless of naming convention
-          h_df <- haplo.stats::haplo.df(haplo_fit)
-          ci   <- tryCatch(confint(haplo_fit, level = opts$ciWidth/100), error = function(e) NULL)
-          
-          n_snps <- length(snp_names)
-          for (i in 1:nrow(h_df)) {
-            codes <- h_df[i, 1:n_snps]
-            label <- decode_haplo_row(codes, u_alleles)
-            beta  <- h_df[i, "Estimate"]
-            
-            row_vals <- list(
-              haplotype = label,
-              freq      = h_df[i, "Hap-Freq"],
-              pval      = h_df[i, "p-value"]
-            )
-
-            if (!is.na(beta)) {
-              row_vals$effect <- if (response_type == "binary") exp(beta) else beta
-              # Map CI by identifying the correct coefficient row name
-              target <- if (any(codes == "*")) "geno_setup.rare" else paste0("geno_setup.", paste(as.numeric(codes), collapse="."))
-              if (!is.null(ci) && target %in% rownames(ci)) {
-                row_vals$ciLow  <- if (response_type == "binary") exp(ci[target, 1]) else ci[target, 1]
-                row_vals$ciHigh <- if (response_type == "binary") exp(ci[target, 2]) else ci[target, 2]
-              }
-            } else {
-              # This is the reference group
-              row_vals$effect <- if (response_type == "binary") 1.0 else 0.0
-              row_vals$haplotype <- paste0(label, " (Ref)")
-            }
-            tbl$addRow(rowKey = paste0("assoc", i), values = row_vals)
-          }
+        gindx    <- mf.gindx(m)
+        yxmiss   <- apply(is.na(m[, -gindx, drop = FALSE]), 1, any)
+        gmiss    <- apply(is.na(m[,  gindx, drop = FALSE]), 1, all)
+        genoAttr <- attributes(m[, gindx])
+        allmiss  <- yxmiss | gmiss
+        m        <- m[!allmiss, ]
+        genoAttr$dim[1] <- genoAttr$dim[1] - sum(allmiss)
+        nloc <- ncol(m[, gindx]) / 2
+        for (k in seq_len(nloc)) {
+          ualleles <- unique(c(m[, gindx][, 2*k-1], m[, gindx][, 2*k]))
+          nalleles <- length(genoAttr$unique.alleles[[k]])
+          if (length(ualleles) < nalleles)
+            genoAttr$unique.alleles[[k]] <-
+              genoAttr$unique.alleles[[k]][!is.na(match(seq_len(nalleles), ualleles))]
         }
+        for (att in names(genoAttr)) attr(m[, gindx], att) <- genoAttr[[att]]
+        attr(m, "yxmiss") <- yxmiss
+        attr(m, "gmiss")  <- gmiss
+        m
       }
+
+      family     <- if (response_type == "binary") "binomial" else "gaussian"
+      y_sub      <- if (response_type == "binary") {
+        as.numeric(as.factor(response[keep])) - 1L
+      } else {
+        response[keep]
+      }
+
+      m_model      <- data.frame(y = y_sub)
+      m_model$geno <- subset_geno(geno_setup, keep)
+      if (!is.null(cov_df)) {
+        m_model    <- cbind(m_model, cov_df[keep, , drop = FALSE])
+        formula_str <- paste("y ~ geno +", paste(names(cov_df), collapse = " + "))
+      } else {
+        formula_str <- "y ~ geno"
+      }
+
+      haplo_fit <- tryCatch(
+        haplo.stats::haplo.glm(
+          as.formula(formula_str),
+          family    = family,
+          data      = m_model,
+          na.action = na.geno.keep,
+          control   = haplo.stats::haplo.glm.control(
+                        haplo.freq.min = opts$haploFreqMin)
+        ),
+        error = function(e) {
+          self$results$validationMsg$setContent(
+            paste0("<b>Haplotype GLM error:</b> ", e$message))
+          NULL
+        }
+      )
+
+      if (!is.null(haplo_fit)) {
+        tbl <- self$results$haploGroup$haploAssocTable
+
+        # Set effect column title to match response type
+        tbl$getColumn("effect")$setTitle(
+          if (response_type == "binary") "OR" else "β")
+
+        # ── Decode haplotype label from haplo.unique row ────────────
+        # haplo.unique stores allele characters directly (e.g. "C", "T", "A"),
+        # one per locus — confirmed from diagnostic output.
+        label_from_unique_row <- function(row_vec) {
+          paste(as.character(row_vec), collapse = "-")
+        }
+
+        # ── Pull coefficients and CIs ───────────────────────────────
+        # haplo.glm model matrix column names for haplotype terms are stored
+        # in haplo_fit$haplo.names.  The actual rownames of coef() follow the
+        # convention "geno" + haplo.names (the model frame column is "geno").
+        # We match positionally rather than by name to be robust to separator
+        # differences across haplo.stats versions.
+        coef_vec <- tryCatch(coef(haplo_fit),       error = function(e) NULL)
+        coef_sum <- tryCatch(summary(haplo_fit)$coefficients, error = function(e) NULL)
+        ci_mat   <- tryCatch(confint(haplo_fit, level = opts$ciWidth / 100),
+                             error = function(e) NULL)
+
+        # summary(haplo_fit)$coefficients columns are: coef | se | t.stat | pval
+        # (haplo.glm uses its own summary method, not summary.glm)
+        # haplo_rows: positions of geno.* rows in coef_sum (intercept is row 1)
+        haplo_rows <- if (!is.null(coef_sum)) {
+          grep("^geno", rownames(coef_sum))
+        } else integer(0)
+
+        # Helper: get beta, se, pval, ci for haplo-term at position pos
+        # (1-based within haplo_rows, matching order of haplo.common).
+        get_stats <- function(pos) {
+          row_idx <- if (!is.na(pos) && pos >= 1L && pos <= length(haplo_rows))
+                       haplo_rows[pos] else NA_integer_
+          if (is.na(row_idx) || is.null(coef_sum) ||
+              row_idx < 1L || row_idx > nrow(coef_sum)) {
+            return(list(beta = NA_real_, se = NA_real_, pval = NA_real_,
+                        ci_lo = NA_real_, ci_hi = NA_real_))
+          }
+          rn   <- rownames(coef_sum)[row_idx]
+          beta <- coef_sum[row_idx, "coef"]
+          se   <- coef_sum[row_idx, "se"]
+          pval <- coef_sum[row_idx, "pval"]
+          # CI from ci_mat if available, otherwise Wald ± z * se
+          if (!is.null(ci_mat) && rn %in% rownames(ci_mat)) {
+            ci_lo <- ci_mat[rn, 1]
+            ci_hi <- ci_mat[rn, 2]
+          } else {
+            z     <- qnorm(1 - (1 - opts$ciWidth / 100) / 2)
+            ci_lo <- beta - z * se
+            ci_hi <- beta + z * se
+          }
+          list(beta = beta, se = se, pval = pval, ci_lo = ci_lo, ci_hi = ci_hi)
+        }
+
+        make_row <- function(label, freq, stats) {
+          b  <- stats$beta
+          lo <- stats$ci_lo
+          hi <- stats$ci_hi
+          list(
+            haplotype = label,
+            freq      = round(freq, 4),
+            effect    = if (response_type == "binary") exp(b)  else b,
+            ciLow     = if (response_type == "binary") exp(lo) else lo,
+            ciHigh    = if (response_type == "binary") exp(hi) else hi,
+            pval      = stats$pval
+          )
+        }
+
+        # ── Common haplotypes ──────────────────────────────────────
+        # haplo.common: integer index vector into haplo.unique rows,
+        # in the same order as haplo.names / the GLM coefficients.
+        common_idx <- haplo_fit$haplo.common
+        for (j in seq_along(common_idx)) {
+          h_idx   <- common_idx[j]
+          h_label <- label_from_unique_row(haplo_fit$haplo.unique[h_idx, ])
+          h_freq  <- haplo_fit$haplo.freq[h_idx]
+          stats   <- get_stats(j)
+          tbl$addRow(rowKey = paste0("h", j),
+                     values = make_row(h_label, h_freq, stats))
+        }
+
+        # ── Rare combined term ─────────────────────────────────────
+        has_rare <- isTRUE(haplo_fit$haplo.rare.term) ||
+                    (length(haplo_fit$haplo.rare) > 0)
+        if (has_rare) {
+          rare_freq <- sum(haplo_fit$haplo.freq[haplo_fit$haplo.rare])
+          # rare term is the last haplotype coefficient
+          stats     <- get_stats(length(common_idx) + 1L)
+          tbl$addRow(rowKey = "rare",
+                     values = make_row(
+                       paste0("Rare (<", opts$haploFreqMin, ")"),
+                       rare_freq, stats))
+        }
+
+        # ── Reference haplotype (OR = 1 by definition) ────────────
+        base_idx   <- haplo_fit$haplo.base
+        base_label <- label_from_unique_row(haplo_fit$haplo.unique[base_idx, ])
+        base_freq  <- haplo_fit$haplo.freq[base_idx]
+        tbl$addRow(rowKey = "base", values = list(
+          haplotype = paste0(base_label, " (Ref)"),
+          freq      = round(base_freq, 4),
+          effect    = if (response_type == "binary") 1.0 else 0.0,
+          ciLow     = '',
+          ciHigh    = '',
+          pval      = ''
+        ))
+              # ── Add covariate note ─────────────────────────────
+        note_key <- "covariates"
+        if (!is.null(cov_df) && ncol(cov_df) > 0) {
+          cov_names <- names(cov_df)
+          cov_names <- sapply(cov_names, function(x) {
+            if (!is.null(self$data[[x]])) {
+              attr(self$data[[x]], "label") %||% x
+            } else x
+          })
+          note_txt <- paste0("Model adjusted for: ", paste(cov_names, collapse = ", "))
+          tbl$setNote(note = note_txt, key = note_key)
+        } else {
+          tbl$setNote(note = NULL, key = note_key)
+        }
+
+      }
+    }
     },
 
     # ── Private LD storage for plot render ────────────────────────

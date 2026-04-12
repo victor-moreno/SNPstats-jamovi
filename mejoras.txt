@@ -1,0 +1,12 @@
+If response categorical but > 2 cats show warning
+
+SNP summary table
+	Hide column Group if not stratified
+
+when SNP-response is clicked, all models except overdominant clicked if unclicked, all unclicked
+
+if stratify, also covariates if exist
+
+Check that sample size is adjusted if covariates have missing values
+
+haplotype interaction
