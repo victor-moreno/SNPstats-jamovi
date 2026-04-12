@@ -71,15 +71,9 @@ options:
 
   # ── Subpopulation analysis ─────────────────────────────────────
   - name: subpop
-    title: Stratify frequency tables by response groups
+    title: Stratify by response groups
     type: Bool
     default: false
-
-  # ── SNP summary table ──────────────────────────────────────────
-  - name: snpSummary
-    title: SNP summary table (N, MAF, genotype counts, HWE)
-    type: Bool
-    default: true
 
   # ── Covariate description ──────────────────────────────────────
   - name: covDesc
@@ -87,7 +81,12 @@ options:
     type: Bool
     default: false
 
-# ── SNP Descriptives ───────────────────────────────────────────
+  # ── SNP Descriptives ───────────────────────────────────────────
+  - name: snpSummary
+    title: SNP summary table
+    type: Bool
+    default: true
+
   - name: allFreq
     title: Allele frequencies
     type: Bool
@@ -99,17 +98,39 @@ options:
     default: false
 
   - name: hweTest
-    title: Hardy-Weinberg equilibrium test
+    title: Hardy-Weinberg equilibrium
     type: Bool
     default: false
 
-    # ── LD analysis ────────────────────────────────────────────────
+  # ── LD analysis ────────────────────────────────────────────────
   - name: ldAnalysis
     title: Linkage disequilibrium
     type: Bool
     default: false
 
-# ── Association analysis ───────────────────────────────────────
+  - name: ldMatrix
+    title: LD matrix
+    type: Bool
+    default: false
+
+  - name: ldMetric
+    title: Metric
+    type: List
+    options:
+      - title: r²
+        name: r2
+      - title: D'
+        name: Dprime
+      - title: D
+        name: D
+    default: r2
+
+  - name: ldPlot
+    title: LD heatmap
+    type: Bool
+    default: false
+
+  # ── Association analysis ───────────────────────────────────────
   - name: snpAssoc
     title: SNP-response association
     type: Bool
@@ -164,4 +185,3 @@ options:
     title: Haplotype-response association
     type: Bool
     default: false
-

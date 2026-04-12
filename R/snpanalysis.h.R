@@ -11,12 +11,15 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
             covariates = NULL,
             responseType = "auto",
             subpop = FALSE,
-            snpSummary = TRUE,
             covDesc = FALSE,
+            snpSummary = TRUE,
             allFreq = FALSE,
             genoFreq = FALSE,
             hweTest = FALSE,
             ldAnalysis = FALSE,
+            ldMatrix = FALSE,
+            ldMetric = "r2",
+            ldPlot = FALSE,
             snpAssoc = FALSE,
             modelCodominant = FALSE,
             modelDominant = FALSE,
@@ -73,14 +76,14 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                 "subpop",
                 subpop,
                 default=FALSE)
-            private$..snpSummary <- jmvcore::OptionBool$new(
-                "snpSummary",
-                snpSummary,
-                default=TRUE)
             private$..covDesc <- jmvcore::OptionBool$new(
                 "covDesc",
                 covDesc,
                 default=FALSE)
+            private$..snpSummary <- jmvcore::OptionBool$new(
+                "snpSummary",
+                snpSummary,
+                default=TRUE)
             private$..allFreq <- jmvcore::OptionBool$new(
                 "allFreq",
                 allFreq,
@@ -96,6 +99,22 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
             private$..ldAnalysis <- jmvcore::OptionBool$new(
                 "ldAnalysis",
                 ldAnalysis,
+                default=FALSE)
+            private$..ldMatrix <- jmvcore::OptionBool$new(
+                "ldMatrix",
+                ldMatrix,
+                default=FALSE)
+            private$..ldMetric <- jmvcore::OptionList$new(
+                "ldMetric",
+                ldMetric,
+                options=list(
+                    "r2",
+                    "Dprime",
+                    "D"),
+                default="r2")
+            private$..ldPlot <- jmvcore::OptionBool$new(
+                "ldPlot",
+                ldPlot,
                 default=FALSE)
             private$..snpAssoc <- jmvcore::OptionBool$new(
                 "snpAssoc",
@@ -147,12 +166,15 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
             self$.addOption(private$..covariates)
             self$.addOption(private$..responseType)
             self$.addOption(private$..subpop)
-            self$.addOption(private$..snpSummary)
             self$.addOption(private$..covDesc)
+            self$.addOption(private$..snpSummary)
             self$.addOption(private$..allFreq)
             self$.addOption(private$..genoFreq)
             self$.addOption(private$..hweTest)
             self$.addOption(private$..ldAnalysis)
+            self$.addOption(private$..ldMatrix)
+            self$.addOption(private$..ldMetric)
+            self$.addOption(private$..ldPlot)
             self$.addOption(private$..snpAssoc)
             self$.addOption(private$..modelCodominant)
             self$.addOption(private$..modelDominant)
@@ -170,12 +192,15 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
         covariates = function() private$..covariates$value,
         responseType = function() private$..responseType$value,
         subpop = function() private$..subpop$value,
-        snpSummary = function() private$..snpSummary$value,
         covDesc = function() private$..covDesc$value,
+        snpSummary = function() private$..snpSummary$value,
         allFreq = function() private$..allFreq$value,
         genoFreq = function() private$..genoFreq$value,
         hweTest = function() private$..hweTest$value,
         ldAnalysis = function() private$..ldAnalysis$value,
+        ldMatrix = function() private$..ldMatrix$value,
+        ldMetric = function() private$..ldMetric$value,
+        ldPlot = function() private$..ldPlot$value,
         snpAssoc = function() private$..snpAssoc$value,
         modelCodominant = function() private$..modelCodominant$value,
         modelDominant = function() private$..modelDominant$value,
@@ -192,12 +217,15 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
         ..covariates = NA,
         ..responseType = NA,
         ..subpop = NA,
-        ..snpSummary = NA,
         ..covDesc = NA,
+        ..snpSummary = NA,
         ..allFreq = NA,
         ..genoFreq = NA,
         ..hweTest = NA,
         ..ldAnalysis = NA,
+        ..ldMatrix = NA,
+        ..ldMetric = NA,
+        ..ldPlot = NA,
         ..snpAssoc = NA,
         ..modelCodominant = NA,
         ..modelDominant = NA,
@@ -216,7 +244,7 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
     active = list(
         validationMsg = function() private$.items[["validationMsg"]],
         covDescGroup = function() private$.items[["covDescGroup"]],
-        snpSummaryTable = function() private$.items[["snpSummaryTable"]],
+        snpSummaryTablesGroup = function() private$.items[["snpSummaryTablesGroup"]],
         snpResults = function() private$.items[["snpResults"]],
         ldGroup = function() private$.items[["ldGroup"]],
         haploGroup = function() private$.items[["haploGroup"]]),
@@ -264,38 +292,53 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                                     `name`="stat", 
                                     `title`="Statistic", 
                                     `type`="text"))))}))$new(options=options))
-            self$add(jmvcore::Table$new(
-                options=options,
-                name="snpSummaryTable",
-                title="SNP Summary",
-                visible="(snpSummary)",
-                columns=list(
-                    list(
-                        `name`="snp", 
-                        `title`="SNP", 
-                        `type`="text"),
-                    list(
-                        `name`="group", 
-                        `title`="Group", 
-                        `type`="text"),
-                    list(
-                        `name`="n", 
-                        `title`="N", 
-                        `type`="integer"),
-                    list(
-                        `name`="maf", 
-                        `title`="MAF", 
-                        `type`="number", 
-                        `format`="zto,dp=3"),
-                    list(
-                        `name`="genoCounts", 
-                        `title`="AA / AB / BB", 
-                        `type`="text"),
-                    list(
-                        `name`="hwePval", 
-                        `title`="HWE p-value", 
-                        `type`="number", 
-                        `format`="zto,pvalue"))))
+            self$add(R6::R6Class(
+                inherit = jmvcore::Group,
+                active = list(
+                    snpSummaryTable = function() private$.items[["snpSummaryTable"]]),
+                private = list(),
+                public=list(
+                    initialize=function(options) {
+                        super$initialize(
+                            options=options,
+                            name="snpSummaryTablesGroup",
+                            title="SNP Descriptive")
+                        self$add(jmvcore::Table$new(
+                            options=options,
+                            name="snpSummaryTable",
+                            title="SNP Summary Table",
+                            visible="(snpSummary)",
+                            columns=list(
+                                list(
+                                    `name`="snp", 
+                                    `title`="SNP", 
+                                    `type`="text"),
+                                list(
+                                    `name`="alleles", 
+                                    `title`="Alleles (A/B)", 
+                                    `type`="text"),
+                                list(
+                                    `name`="group", 
+                                    `title`="Group", 
+                                    `type`="text"),
+                                list(
+                                    `name`="n", 
+                                    `title`="N", 
+                                    `type`="integer"),
+                                list(
+                                    `name`="maf", 
+                                    `title`="MAF (B)", 
+                                    `type`="number", 
+                                    `format`="zto,dp=3"),
+                                list(
+                                    `name`="genoCounts", 
+                                    `title`="AA / AB / BB", 
+                                    `type`="text"),
+                                list(
+                                    `name`="hwePval", 
+                                    `title`="HWE p-value", 
+                                    `type`="number", 
+                                    `format`="zto,pvalue"))))}))$new(options=options))
             self$add(jmvcore::Array$new(
                 options=options,
                 name="snpResults",
@@ -318,7 +361,8 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                             self$add(jmvcore::Html$new(
                                 options=options,
                                 name="typingRate",
-                                title=""))
+                                title="",
+                                visible="(allFreq || genoFreq || hweTest)"))
                             self$add(jmvcore::Table$new(
                                 options=options,
                                 name="allFreqTable",
@@ -393,7 +437,7 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                                 options=options,
                                 name="assocTable",
                                 title="Association with Response",
-                                visible="(snpAssoc)",
+                                visible="(snpAssoc && (modelCodominant || modelDominant || modelRecessive || modelOverdominant || modelLogAdditive))",
                                 columns=list(
                                     list(
                                         `name`="model", 
@@ -428,7 +472,9 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
             self$add(R6::R6Class(
                 inherit = jmvcore::Group,
                 active = list(
-                    ldTable = function() private$.items[["ldTable"]]),
+                    ldTable = function() private$.items[["ldTable"]],
+                    ldMatrixTable = function() private$.items[["ldMatrixTable"]],
+                    ldPlotImage = function() private$.items[["ldPlotImage"]]),
                 private = list(),
                 public=list(
                     initialize=function(options) {
@@ -440,6 +486,7 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                             options=options,
                             name="ldTable",
                             title="Pairwise LD",
+                            visible="(ldAnalysis)",
                             columns=list(
                                 list(
                                     `name`="snp1", 
@@ -450,23 +497,43 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                                     `title`="SNP 2", 
                                     `type`="text"),
                                 list(
-                                    `name`="D", 
-                                    `title`="D", 
-                                    `type`="number"),
+                                    `name`="r2", 
+                                    `title`="r\u00B2", 
+                                    `type`="number", 
+                                    `format`="zto"),
                                 list(
                                     `name`="Dprime", 
                                     `title`="D'", 
                                     `type`="number", 
                                     `format`="zto"),
                                 list(
-                                    `name`="r", 
-                                    `title`="r", 
-                                    `type`="number"),
+                                    `name`="D", 
+                                    `title`="D", 
+                                    `type`="number", 
+                                    `format`="zto"),
                                 list(
                                     `name`="pval", 
                                     `title`="P-value", 
                                     `type`="number", 
-                                    `format`="zto,pvalue"))))}))$new(options=options))
+                                    `format`="zto,pvalue"))))
+                        self$add(jmvcore::Table$new(
+                            options=options,
+                            name="ldMatrixTable",
+                            title="LD Matrix",
+                            visible="(ldMatrix)",
+                            columns=list(
+                                list(
+                                    `name`="snp", 
+                                    `title`="SNP", 
+                                    `type`="text"))))
+                        self$add(jmvcore::Image$new(
+                            options=options,
+                            name="ldPlotImage",
+                            title="LD Heatmap",
+                            visible="(ldPlot)",
+                            renderFun=".render_ld_plot",
+                            width=500,
+                            height=450))}))$new(options=options))
             self$add(R6::R6Class(
                 inherit = jmvcore::Group,
                 active = list(
@@ -557,12 +624,15 @@ snpAnalysisBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param covariates .
 #' @param responseType .
 #' @param subpop .
-#' @param snpSummary .
 #' @param covDesc .
+#' @param snpSummary .
 #' @param allFreq .
 #' @param genoFreq .
 #' @param hweTest .
 #' @param ldAnalysis .
+#' @param ldMatrix .
+#' @param ldMetric .
+#' @param ldPlot .
 #' @param snpAssoc .
 #' @param modelCodominant .
 #' @param modelDominant .
@@ -577,18 +647,14 @@ snpAnalysisBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' \tabular{llllll}{
 #'   \code{results$validationMsg} \tab \tab \tab \tab \tab a html \cr
 #'   \code{results$covDescGroup$covDescTable} \tab \tab \tab \tab \tab a table \cr
-#'   \code{results$snpSummaryTable} \tab \tab \tab \tab \tab a table \cr
+#'   \code{results$snpSummaryTablesGroup$snpSummaryTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$snpResults} \tab \tab \tab \tab \tab Results for each SNP \cr
 #'   \code{results$ldGroup$ldTable} \tab \tab \tab \tab \tab a table \cr
+#'   \code{results$ldGroup$ldMatrixTable} \tab \tab \tab \tab \tab a table \cr
+#'   \code{results$ldGroup$ldPlotImage} \tab \tab \tab \tab \tab an image \cr
 #'   \code{results$haploGroup$haploFreqTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$haploGroup$haploAssocTable} \tab \tab \tab \tab \tab a table \cr
 #' }
-#'
-#' Tables can be converted to data frames with \code{asDF} or \code{\link{as.data.frame}}. For example:
-#'
-#' \code{results$snpSummaryTable$asDF}
-#'
-#' \code{as.data.frame(results$snpSummaryTable)}
 #'
 #' @export
 snpAnalysis <- function(
@@ -598,12 +664,15 @@ snpAnalysis <- function(
     covariates = NULL,
     responseType = "auto",
     subpop = FALSE,
-    snpSummary = TRUE,
     covDesc = FALSE,
+    snpSummary = TRUE,
     allFreq = FALSE,
     genoFreq = FALSE,
     hweTest = FALSE,
     ldAnalysis = FALSE,
+    ldMatrix = FALSE,
+    ldMetric = "r2",
+    ldPlot = FALSE,
     snpAssoc = FALSE,
     modelCodominant = FALSE,
     modelDominant = FALSE,
@@ -635,12 +704,15 @@ snpAnalysis <- function(
         covariates = covariates,
         responseType = responseType,
         subpop = subpop,
-        snpSummary = snpSummary,
         covDesc = covDesc,
+        snpSummary = snpSummary,
         allFreq = allFreq,
         genoFreq = genoFreq,
         hweTest = hweTest,
         ldAnalysis = ldAnalysis,
+        ldMatrix = ldMatrix,
+        ldMetric = ldMetric,
+        ldPlot = ldPlot,
         snpAssoc = snpAssoc,
         modelCodominant = modelCodominant,
         modelDominant = modelDominant,

@@ -33,31 +33,39 @@ items:
             type: text
 
   # ── SNP summary table ─────────────────────────────────────────
-  - name: snpSummaryTable
-    title: SNP Summary
-    type: Table
-    visible: (snpSummary)
-    columns:
-      - name: snp
-        title: SNP
-        type: text
-      - name: group
-        title: Group
-        type: text
-      - name: n
-        title: N
-        type: integer
-      - name: maf
-        title: MAF
-        type: number
-        format: zto,dp=3
-      - name: genoCounts
-        title: AA / AB / BB
-        type: text
-      - name: hwePval
-        title: HWE p-value
-        type: number
-        format: zto,pvalue
+  - name: snpSummaryTablesGroup
+    title: SNP Descriptive
+    type: Group
+    visible: (snpSummary || allFreq || genoFreq || hweTest)
+    items:
+      - name: snpSummaryTable
+        title: SNP Summary Table
+        type: Table
+        visible: (snpSummary)
+        columns:
+          - name: snp
+            title: SNP
+            type: text
+          - name: alleles
+            title: Alleles (A/B)
+            type: text
+          - name: group
+            title: Group
+            type: text
+          - name: n
+            title: N
+            type: integer
+          - name: maf
+            title: MAF (B)
+            type: number
+            format: zto,dp=3
+          - name: genoCounts
+            title: AA / AB / BB
+            type: text
+          - name: hwePval
+            title: HWE p-value
+            type: number
+            format: zto,pvalue
 
   # ── Per-SNP results (array) ────────────────────────────────────
   - name: snpResults
@@ -68,10 +76,10 @@ items:
       title: $key
       type: Group
       items:
-
         - name: typingRate
           title: ''
           type: Html
+          visible: (allFreq || genoFreq || hweTest)
 
         - name: allFreqTable
           title: Allele Frequencies
@@ -126,21 +134,16 @@ items:
             - name: n22
               title: N22
               type: integer
-            # - name: n1
-            #   title: N1
-            #   type: integer
-            # - name: n2
-            #   title: N2
-            #   type: integer
             - name: pval
               title: P-value
               type: number
               format: zto,pvalue
 
+  # ── Per-SNP results (array) ────────────────────────────────────
         - name: assocTable
           title: Association with Response
           type: Table
-          visible: (snpAssoc)
+          visible: (snpAssoc && (modelCodominant || modelDominant || modelRecessive || modelOverdominant || modelLogAdditive))
           columns:
             - name: model
               title: Model
@@ -166,15 +169,16 @@ items:
               type: number
               format: zto,dp=2
 
-  # ── LD matrix ──────────────────────────────────────────────────
+  # ── Linkage disequilibrium ─────────────────────────────────────
   - name: ldGroup
     title: Linkage Disequilibrium
     type: Group
-    visible: (ldAnalysis)
+    visible: (ldAnalysis || ldMatrix || ldPlot)
     items:
       - name: ldTable
         title: Pairwise LD
         type: Table
+        visible: (ldAnalysis)
         columns:
           - name: snp1
             title: SNP 1
@@ -182,20 +186,39 @@ items:
           - name: snp2
             title: SNP 2
             type: text
-          - name: D
-            title: D
+          - name: r2
+            title: r²
             type: number
+            format: zto
           - name: Dprime
             title: D'
             type: number
             format: zto
-          - name: r
-            title: r
+          - name: D
+            title: D
             type: number
+            format: zto
           - name: pval
             title: P-value
             type: number
             format: zto,pvalue
+
+      - name: ldMatrixTable
+        title: LD Matrix
+        type: Table
+        visible: (ldMatrix)
+        columns:
+          - name: snp
+            title: SNP
+            type: text
+
+      - name: ldPlotImage
+        title: LD Heatmap
+        type: Image
+        visible: (ldPlot)
+        renderFun: .render_ld_plot
+        width: 500
+        height: 450
 
   # ── Haplotype frequencies ──────────────────────────────────────
   - name: haploGroup

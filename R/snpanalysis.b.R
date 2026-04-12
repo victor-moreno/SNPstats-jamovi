@@ -2,6 +2,7 @@
 #' @import jmvcore
 #' @import genetics
 #' @import haplo.stats
+#' @import ggplot2
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -199,10 +200,10 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
     .init = function() {
       # Hide all optional groups immediately — shown only when options are on
       self$results$covDescGroup$setVisible(FALSE)
+      self$results$snpSummaryTablesGroup$setVisible(isTRUE(self$options$snpSummary))
       self$results$ldGroup$setVisible(FALSE)
       self$results$haploGroup$setVisible(FALSE)
-      self$results$snpSummaryTable$setVisible(isTRUE(self$options$snpSummary))
-
+      
       # Initialise the per-SNP array when SNPs are assigned
       snp_names <- self$options$snps
       if (length(snp_names) == 0) return()
@@ -296,7 +297,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       # ── Show/hide optional result groups ────────────────────────
       show_cov_desc <- isTRUE(opts$covDesc) && length(covariate_vars) > 0
       self$results$covDescGroup$setVisible(show_cov_desc)
-      self$results$ldGroup$setVisible(isTRUE(opts$ldAnalysis))
+      self$results$ldGroup$setVisible(isTRUE(opts$ldAnalysis) || isTRUE(opts$ldMatrix) || isTRUE(opts$ldPlot))
       self$results$haploGroup$setVisible(
         isTRUE(opts$haploFreq) || isTRUE(opts$haploAssoc))
 
@@ -359,7 +360,8 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       }
 
       # ── LD analysis ──────────────────────────────────────────────
-      if (opts$ldAnalysis && length(geno_list) >= 2) {
+      needs_ld <- (isTRUE(opts$ldAnalysis) || isTRUE(opts$ldMatrix) || isTRUE(opts$ldPlot))
+      if (needs_ld && length(geno_list) >= 2) {
         private$.run_ld(geno_list, opts)
       }
 
@@ -403,7 +405,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
     # ── SNP summary table ─────────────────────────────────────────
     .fill_snp_summary = function(data, snp_vars, response_raw, response_type, subpop) {
-      tbl <- self$results$snpSummaryTable
+      tbl <- self$results$snpSummaryTablesGroup$snpSummaryTable
 
       do_strat <- isTRUE(subpop) &&
                   !is.null(response_raw) &&
@@ -425,6 +427,14 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         sm  <- summary(geno_obj)
         ref <- get_ref_genotype(geno_obj)
 
+        # Derive allele labels: A = major (ref allele), B = minor
+        af_all       <- sm$allele.freq
+        allele_nms   <- rownames(af_all)
+        ref_allele   <- strsplit(ref, "/")[[1]][1]
+        alt_allele   <- allele_nms[allele_nms != ref_allele]
+        alt_allele   <- if (length(alt_allele) > 0) alt_allele[1] else "?"
+        alleles_label <- paste0(ref_allele, "/", alt_allele)  # e.g. "C/T"
+
         # Helper: compute summary stats for a subset mask (NULL = all)
         compute_row <- function(mask) {
           snp_sub  <- if (is.null(mask)) snp_raw  else snp_raw[mask]
@@ -436,10 +446,15 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
           # N typed (non-missing)
           n_typed <- sm_sub$n.typed
 
-          # Allele frequencies → MAF
+          # Allele frequencies → MAF defined as freq of B (alt/minor) allele
           af <- sm_sub$allele.freq
           props <- af[, "Proportion"]
-          maf <- if (length(props) >= 2) min(props, na.rm = TRUE) else NA_real_
+          # B allele is alt_allele (defined in outer scope via <<- / parent env)
+          maf <- if (alt_allele %in% rownames(af)) {
+            af[alt_allele, "Proportion"]
+          } else if (length(props) >= 2) {
+            min(props, na.rm = TRUE)
+          } else NA_real_
 
           # Genotype counts in ref/het/alt order
           gf <- sm_sub$genotype.freq
@@ -464,12 +479,13 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
           list(n = n_typed, maf = maf, genoCounts = geno_str, hwePval = hwe_p)
         }
 
-        # Overall row
+        # Overall row — show alleles label here only
         res_all <- compute_row(NULL)
         if (!is.null(res_all)) {
           row_key <- row_key + 1L
           tbl$addRow(rowKey = as.character(row_key), values = list(
             snp        = snp_nm,
+            alleles    = alleles_label,
             group      = if (do_strat) "All" else "",
             n          = res_all$n,
             maf        = round(res_all$maf, 4),
@@ -478,7 +494,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
           ))
         }
 
-        # Stratified rows (binary response only, when subpop is ticked)
+        # Stratified rows — alleles blank (already shown on All row)
         if (do_strat) {
           for (lvl in grp_levels) {
             mask_lvl <- !is.na(response_raw) & as.character(response_raw) == lvl
@@ -487,6 +503,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             row_key <- row_key + 1L
             tbl$addRow(rowKey = as.character(row_key), values = list(
               snp        = "",
+              alleles    = "",
               group      = as.character(lvl),
               n          = res_lvl$n,
               maf        = round(res_lvl$maf, 4),
@@ -640,8 +657,6 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         n11   = as.integer(st["N11"]),
         n12   = as.integer(st["N12"]),
         n22   = as.integer(st["N22"]),
-        # n1    = as.integer(pr["N1"]),
-        # n2    = as.integer(pr["N2"]),
         pval  = hw$p.value
       ))
 
@@ -662,8 +677,6 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
               n11   = as.integer(st2["N11"]),
               n12   = as.integer(st2["N12"]),
               n22   = as.integer(st2["N22"]),
-              #n1    = as.integer(pr2["N1"]),
-              # n2    = as.integer(pr2["N2"]),
               pval  = hw_sub$p.value
             ))
           }
@@ -671,9 +684,228 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       }
     },
 
+    # ── Linkage disequilibrium ────────────────────────────────────
+    .run_ld = function(geno_list, opts) {
+      nms   <- names(geno_list)
+      n     <- length(nms)
+      pairs <- combn(nms, 2, simplify = FALSE)
+
+      # Compute all pairwise LD results once
+      ld_store <- list()   # keyed by "snp1___snp2"
+      for (pair in pairs) {
+        key    <- paste(pair, collapse = "___")
+        ld_res <- tryCatch(genetics::LD(geno_list[[pair[1]]], geno_list[[pair[2]]]),
+                           error = function(e) NULL)
+        if (!is.null(ld_res)) ld_store[[key]] <- ld_res
+      }
+
+      # ── Pairwise table ─────────────────────────────────────────
+      if (isTRUE(opts$ldAnalysis)) {
+        tbl <- self$results$ldGroup$ldTable
+        for (pair in pairs) {
+          key    <- paste(pair, collapse = "___")
+          ld_res <- ld_store[[key]]
+          if (is.null(ld_res)) next
+          tbl$addRow(rowKey = paste(pair, collapse = "_"), values = list(
+            snp1   = pair[1],
+            snp2   = pair[2],
+            r2     = round(ld_res$`r`^2,  3),
+            Dprime = round(ld_res$`D'`,   3),
+            D      = round(ld_res$`D`,    3),
+            pval   = ld_res$`P-value`
+          ))
+        }
+      }
+
+      # ── LD matrix ─────────────────────────────────────────────
+      if (isTRUE(opts$ldMatrix)) {
+        mtbl   <- self$results$ldGroup$ldMatrixTable
+        metric <- opts$ldMetric   # "r2", "Dprime", or "D"
+
+        # Add one column per SNP (beyond the row-label column already defined)
+        for (nm in nms) {
+          safe_nm <- gsub("[^A-Za-z0-9_]", "_", nm)
+          mtbl$addColumn(name = safe_nm, title = nm, type = "text")
+        }
+
+        # Build n×n value matrices
+        upper_mat <- matrix("", n, n, dimnames = list(nms, nms))
+        lower_mat <- matrix("", n, n, dimnames = list(nms, nms))
+        diag(upper_mat) <- nms
+        diag(lower_mat) <- nms
+
+        for (pair in pairs) {
+          key    <- paste(pair, collapse = "___")
+          ld_res <- ld_store[[key]]
+          if (is.null(ld_res)) next
+
+          p_val <- ld_res$`P-value`
+          p_str <- if (!is.na(p_val)) {
+            if (p_val < 0.001) "< .001" else sprintf("%.3f", p_val)
+          } else ""
+
+          up_val <- switch(metric,
+            Dprime = sprintf("%.3f", round(ld_res$`D'`, 3)),
+            r2      = sprintf("%.3f", round(ld_res$`r`^2,   3)),
+            D      = sprintf("%.3f", round(ld_res$`D`,   3))
+          )
+
+          upper_mat[pair[1], pair[2]] <- up_val
+          upper_mat[pair[2], pair[1]] <- ""          # will be lower
+          lower_mat[pair[1], pair[2]] <- ""
+          lower_mat[pair[2], pair[1]] <- p_str
+        }
+
+        for (i in seq_len(n)) {
+          row_vals <- list(snp = nms[i])
+          for (j in seq_len(n)) {
+            safe_nm <- gsub("[^A-Za-z0-9_]", "_", nms[j])
+            if (i == j) {
+              row_vals[[safe_nm]] <- nms[i]
+            } else if (j > i) {
+              row_vals[[safe_nm]] <- upper_mat[i, j]
+            } else {
+              row_vals[[safe_nm]] <- lower_mat[i, j]
+            }
+          }
+          mtbl$addRow(rowKey = paste0("row_", i), values = row_vals)
+        }
+        # Add footnote explaining the layout
+        metric_label <- switch(metric,
+          Dprime = "D\'", r2 = "r²", D = "D")
+        mtbl$setNote(
+          key  = "layout",
+          note = paste0("Upper triangle: ", metric_label,
+                        ". Lower triangle: P-value. Diagonal: SNP name."))
+      }
+
+      # ── Store LD data for heatmap plot ──────────────────────────
+      if (isTRUE(opts$ldPlot)) {
+        private$.ld_store  <- ld_store
+        private$.ld_nms    <- nms
+        private$.ld_metric <- opts$ldMetric
+        self$results$ldGroup$ldPlotImage$setState(list(
+          ld_store = ld_store, nms = nms, metric = opts$ldMetric))
+      }
+    },
+
+    # ── LD heatmap render ─────────────────────────────────────────
+    .render_ld_plot = function(image, ggtheme, theme, ...) {
+      state <- image$state
+      if (is.null(state)) return(FALSE)
+
+      ld_store <- state$ld_store
+      nms      <- state$nms
+      metric   <- state$metric
+      n        <- length(nms)
+
+      # Build a data frame for ggplot (full symmetric matrix for heatmap)
+      metric_label <- switch(metric, Dprime = "D'", r2 = "r²", D = "D")
+      df_rows <- list()
+      for (i in seq_len(n)) {
+        for (j in seq_len(n)) {
+          if (i == j) {
+            val <- 1.0
+          } else {
+            key <- if (i < j) paste(c(nms[i], nms[j]), collapse = "___")
+                   else        paste(c(nms[j], nms[i]), collapse = "___")
+            ld_res <- ld_store[[key]]
+            val <- if (!is.null(ld_res)) {
+              switch(metric,
+                Dprime = abs(as.numeric(ld_res$`D'`)),
+                r2     = as.numeric(ld_res$`r`)^2,
+                D      = abs(as.numeric(ld_res$`D`))
+              )
+            } else NA_real_
+          }
+          df_rows[[length(df_rows) + 1L]] <- data.frame(
+            SNP1  = factor(nms[i], levels = rev(nms)),
+            SNP2  = factor(nms[j], levels = nms),
+            value = val,
+            stringsAsFactors = FALSE
+          )
+        }
+      }
+      df <- do.call(rbind, df_rows)
+
+      # Value string for lower-triangle annotation (p-values)
+      p_mat <- matrix(NA_real_, n, n, dimnames = list(nms, nms))
+      for (pair_key in names(ld_store)) {
+        parts <- strsplit(pair_key, "___")[[1]]
+        pv    <- ld_store[[pair_key]]$`P-value`
+        p_mat[parts[1], parts[2]] <- pv
+        p_mat[parts[2], parts[1]] <- pv
+      }
+
+      df$label <- ""
+      for (k in seq_len(nrow(df))) {
+        i_nm <- as.character(df$SNP1[k])
+        j_nm <- as.character(df$SNP2[k])
+        i_idx <- which(nms == i_nm)
+        j_idx <- which(nms == j_nm)
+        if (i_idx > j_idx) {   # lower triangle → p-value
+          pv <- p_mat[i_nm, j_nm]
+          df$label[k] <- if (!is.na(pv)) {
+            if (pv < 0.001) "<.001" else sprintf("%.3f", pv)
+          } else ""
+        } else if (i_idx < j_idx) {  # upper triangle → metric value
+          key <- paste(c(nms[min(i_idx, j_idx)], nms[max(i_idx, j_idx)]),
+                       collapse = "___")
+          ld_res <- ld_store[[key]]
+          if (!is.null(ld_res)) {
+            raw <- switch(metric,
+              r2      = ld_res$`r`^2,
+              Dprime = ld_res$`D'`,
+              D      = ld_res$`D`
+            )
+            df$label[k] <- sprintf("%.3f", round(as.numeric(raw), 3))
+          }
+        } else {
+          df$label[k] <- i_nm   # diagonal
+        }
+      }
+
+      colour_label <- switch(metric,
+        Dprime = "|D'|", r2 = "r²", D = "|D|")
+
+      # Use scale_fill_gradientn with explicit continuous colours to avoid
+      # jamovi theme interfering with the fill scale via ggPalette()
+      p <- ggplot2::ggplot(df, ggplot2::aes(x = SNP2, y = SNP1, fill = value)) +
+        ggplot2::geom_tile(colour = "white", linewidth = 0.5) +
+        ggplot2::geom_text(ggplot2::aes(label = label),
+                           size = 3, colour = "grey10") +
+        ggplot2::scale_fill_gradientn(
+          colours  = c("#f7f7f7", "#fddbc7", "#f4a582", "#d6604d", "#b2182b"),
+          limits   = c(0, 1),
+          na.value = "grey85",
+          name     = colour_label
+        ) +
+        ggplot2::scale_x_discrete(position = "bottom") +
+        ggplot2::scale_y_discrete() +
+        ggplot2::labs(
+          title = paste0("LD Heatmap  •  upper: ", metric_label,
+                         "  |  lower: p-value"),
+          x = NULL, y = NULL
+        ) +
+        ggplot2::theme_minimal(base_size = 11) +
+        ggplot2::theme(
+          axis.text.x     = ggplot2::element_text(angle = 45, hjust = 1, vjust = 1),
+          axis.text.y     = ggplot2::element_text(hjust = 1),
+          panel.grid      = ggplot2::element_blank(),
+          legend.position = "right",
+          plot.title      = ggplot2::element_text(size = 11, face = "bold",
+                                                  margin = ggplot2::margin(b = 8))
+        )
+
+      print(p)
+      TRUE
+    },
+
     # ── SNP association ───────────────────────────────────────────
     .fill_assoc = function(tbl, snp_raw, ref, response, cov_df,
                             response_type, opts) {
+
+#      tbl <- self$results$assocGroup$assocTable
 
       # ── Dynamic column header ─────────────────────────
       effect_col <- tbl$getColumn("effect")
@@ -756,30 +988,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       }
     },
 
-    # ── Linkage disequilibrium ────────────────────────────────────
-    .run_ld = function(geno_list, opts) {
-      tbl   <- self$results$ldGroup$ldTable
-      nms   <- names(geno_list)
-      pairs <- combn(nms, 2, simplify = FALSE)
-
-      for (pair in pairs) {
-        g1 <- geno_list[[pair[1]]]
-        g2 <- geno_list[[pair[2]]]
-        ld_res <- tryCatch(genetics::LD(g1, g2), error = function(e) NULL)
-        if (is.null(ld_res)) next
-
-        row_vals <- list(
-          snp1   = pair[1],
-          snp2   = pair[2],
-          D      = round(ld_res$`D`,    4),
-          Dprime = round(ld_res$`D'`,   4),
-          r      = round(ld_res$`r`,    4),
-          pval   = ld_res$`P-value`
-        )
-        tbl$addRow(rowKey = paste(pair, collapse = "_"), values = row_vals)
-      }
-    },
-.run_haplo = function(geno_list, data, response, response_type,
+    .run_haplo = function(geno_list, data, response, response_type,
                            cov_df, opts) {
       
       snp_names <- names(geno_list)
@@ -926,6 +1135,11 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
           }
         }
       }
-    }
+    },
+
+    # ── Private LD storage for plot render ────────────────────────
+    .ld_store  = NULL,
+    .ld_nms    = NULL,
+    .ld_metric = NULL
   )
 )  # end R6Class

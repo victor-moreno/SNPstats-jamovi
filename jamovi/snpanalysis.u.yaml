@@ -8,7 +8,7 @@ children:
     stretchFactor: 1
     children:
       - type: TargetLayoutBox
-        label: Response variable (required for association & stratification)
+        label: Response variable
         children:
           - type: VariablesListBox
             name: response
@@ -26,6 +26,7 @@ children:
           - type: VariablesListBox
             name: covariates
             isTarget: true
+
   - type: LayoutBox
     margin: large
     children:
@@ -33,41 +34,61 @@ children:
         name: responseType
         enable: (response)
       - type: CheckBox
-        name: snpSummary
-      - type: CheckBox
         name: subpop
         enable: (response)
       - type: CheckBox
         name: covDesc
         enable: (response)
 
-
   - type: LayoutBox
     margin: large
     stretchFactor: 1
     children:
+
+      # ── Column 0: SNP descriptive ──────────────────────────────
       - type: LayoutBox
         cell:
-            column: 0
-            row: 0
+          column: 0
+          row: 0
         stretchFactor: 1
         children:
-        - type: Label
-          label: SNP descriptive
-          children:
-            - type: CheckBox
-              name: allFreq
-            - type: CheckBox
-              name: genoFreq
-            - type: CheckBox
-              name: hweTest
-            - type: CheckBox
-              name: ldAnalysis
+          - type: Label
+            label: SNP descriptive
+            children:
+              - type: CheckBox
+                name: snpSummary
+              - type: CheckBox
+                name: allFreq
+              - type: CheckBox
+                name: genoFreq
+              - type: CheckBox
+                name: hweTest
 
+      # ── Column 1: Linkage disequilibrium ──────────────────────
       - type: LayoutBox
         cell:
-            column: 1
-            row: 0
+          column: 0
+          row: 1
+        stretchFactor: 1
+        children:
+          - type: Label
+            label: Linkage disequilibrium
+            children:
+              - type: CheckBox
+                name: ldAnalysis
+              - type: CheckBox
+                name: ldMatrix
+                children:
+                  - type: ComboBox
+                    name: ldMetric
+              - type: CheckBox
+                name: ldPlot
+
+      # ── Column 2 row 0: SNP association ───────────────────────
+      - type: LayoutBox
+        cell:
+          column: 1
+          row: 0
         stretchFactor: 1
         children:
           - type: Label
@@ -77,28 +98,35 @@ children:
                 name: snpAssoc
                 enable: (response)
                 children:
-                - type: CheckBox
-                  name: modelCodominant
-                - type: CheckBox
-                  name: modelDominant
-                - type: CheckBox
-                  name: modelRecessive
-                - type: CheckBox
-                  name: modelOverdominant
-                - type: CheckBox
-                  name: modelLogAdditive
-                - type: TextBox
-                  name: ciWidth
-                  format: number
+                  - type: CheckBox
+                    name: modelCodominant
+                  - type: CheckBox
+                    name: modelDominant
+                  - type: CheckBox
+                    name: modelRecessive
+                  - type: CheckBox
+                    name: modelOverdominant
+                  - type: CheckBox
+                    name: modelLogAdditive
+                  - type: TextBox
+                    name: ciWidth
+                    format: number
 
+      # ── Column 2 row 1: Haplotype analysis ────────────────────
+      - type: LayoutBox
+        cell:
+          column: 1
+          row: 1
+        stretchFactor: 1
+        children:
           - type: Label
             label: Haplotype analysis
             children:
               - type: CheckBox
                 name: haploFreq
                 children:
-                - type: TextBox
-                  name: haploFreqMin
-                  format: number
+                  - type: TextBox
+                    name: haploFreqMin
+                    format: number
               - type: CheckBox
                 name: haploAssoc
