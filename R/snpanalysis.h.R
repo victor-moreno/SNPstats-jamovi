@@ -11,6 +11,7 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
             covariates = NULL,
             responseType = "auto",
             subpop = FALSE,
+            snpSummary = TRUE,
             covDesc = FALSE,
             allFreq = FALSE,
             genoFreq = FALSE,
@@ -72,6 +73,10 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                 "subpop",
                 subpop,
                 default=FALSE)
+            private$..snpSummary <- jmvcore::OptionBool$new(
+                "snpSummary",
+                snpSummary,
+                default=TRUE)
             private$..covDesc <- jmvcore::OptionBool$new(
                 "covDesc",
                 covDesc,
@@ -142,6 +147,7 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
             self$.addOption(private$..covariates)
             self$.addOption(private$..responseType)
             self$.addOption(private$..subpop)
+            self$.addOption(private$..snpSummary)
             self$.addOption(private$..covDesc)
             self$.addOption(private$..allFreq)
             self$.addOption(private$..genoFreq)
@@ -164,6 +170,7 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
         covariates = function() private$..covariates$value,
         responseType = function() private$..responseType$value,
         subpop = function() private$..subpop$value,
+        snpSummary = function() private$..snpSummary$value,
         covDesc = function() private$..covDesc$value,
         allFreq = function() private$..allFreq$value,
         genoFreq = function() private$..genoFreq$value,
@@ -185,6 +192,7 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
         ..covariates = NA,
         ..responseType = NA,
         ..subpop = NA,
+        ..snpSummary = NA,
         ..covDesc = NA,
         ..allFreq = NA,
         ..genoFreq = NA,
@@ -208,6 +216,7 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
     active = list(
         validationMsg = function() private$.items[["validationMsg"]],
         covDescGroup = function() private$.items[["covDescGroup"]],
+        snpSummaryTable = function() private$.items[["snpSummaryTable"]],
         snpResults = function() private$.items[["snpResults"]],
         ldGroup = function() private$.items[["ldGroup"]],
         haploGroup = function() private$.items[["haploGroup"]]),
@@ -255,6 +264,38 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                                     `name`="stat", 
                                     `title`="Statistic", 
                                     `type`="text"))))}))$new(options=options))
+            self$add(jmvcore::Table$new(
+                options=options,
+                name="snpSummaryTable",
+                title="SNP Summary",
+                visible="(snpSummary)",
+                columns=list(
+                    list(
+                        `name`="snp", 
+                        `title`="SNP", 
+                        `type`="text"),
+                    list(
+                        `name`="group", 
+                        `title`="Group", 
+                        `type`="text"),
+                    list(
+                        `name`="n", 
+                        `title`="N", 
+                        `type`="integer"),
+                    list(
+                        `name`="maf", 
+                        `title`="MAF", 
+                        `type`="number", 
+                        `format`="zto,dp=3"),
+                    list(
+                        `name`="genoCounts", 
+                        `title`="AA / AB / BB", 
+                        `type`="text"),
+                    list(
+                        `name`="hwePval", 
+                        `title`="HWE p-value", 
+                        `type`="number", 
+                        `format`="zto,pvalue"))))
             self$add(jmvcore::Array$new(
                 options=options,
                 name="snpResults",
@@ -290,13 +331,13 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                                         `type`="text"),
                                     list(
                                         `name`="count", 
-                                        `title`="Count", 
+                                        `title`="N", 
                                         `type`="integer"),
                                     list(
                                         `name`="prop", 
-                                        `title`="Proportion", 
+                                        `title`="%", 
                                         `type`="number", 
-                                        `format`="zto"))))
+                                        `format`="dp=1"))))
                             self$add(jmvcore::Table$new(
                                 options=options,
                                 name="genoFreqTable",
@@ -309,13 +350,13 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                                         `type`="text"),
                                     list(
                                         `name`="count", 
-                                        `title`="Count", 
+                                        `title`="N", 
                                         `type`="integer"),
                                     list(
                                         `name`="prop", 
-                                        `title`="Proportion", 
+                                        `title`="%", 
                                         `type`="number", 
-                                        `format`="zto"),
+                                        `format`="dp=1"),
                                     list(
                                         `name`="responseStat", 
                                         `title`="Response (mean \u00B1 SE)", 
@@ -342,14 +383,6 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                                     list(
                                         `name`="n22", 
                                         `title`="N22", 
-                                        `type`="integer"),
-                                    list(
-                                        `name`="n1", 
-                                        `title`="N1", 
-                                        `type`="integer"),
-                                    list(
-                                        `name`="n2", 
-                                        `title`="N2", 
                                         `type`="integer"),
                                     list(
                                         `name`="pval", 
@@ -388,10 +421,10 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                                         `type`="number", 
                                         `format`="zto,pvalue"),
                                     list(
-                                        `name`="globalP", 
-                                        `title`="Global P", 
+                                        `name`="AIC", 
+                                        `title`="AIC", 
                                         `type`="number", 
-                                        `format`="zto,pvalue"))))}))$new(options=options)))
+                                        `format`="zto,dp=2"))))}))$new(options=options)))
             self$add(R6::R6Class(
                 inherit = jmvcore::Group,
                 active = list(
@@ -524,6 +557,7 @@ snpAnalysisBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param covariates .
 #' @param responseType .
 #' @param subpop .
+#' @param snpSummary .
 #' @param covDesc .
 #' @param allFreq .
 #' @param genoFreq .
@@ -543,11 +577,18 @@ snpAnalysisBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' \tabular{llllll}{
 #'   \code{results$validationMsg} \tab \tab \tab \tab \tab a html \cr
 #'   \code{results$covDescGroup$covDescTable} \tab \tab \tab \tab \tab a table \cr
+#'   \code{results$snpSummaryTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$snpResults} \tab \tab \tab \tab \tab Results for each SNP \cr
 #'   \code{results$ldGroup$ldTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$haploGroup$haploFreqTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$haploGroup$haploAssocTable} \tab \tab \tab \tab \tab a table \cr
 #' }
+#'
+#' Tables can be converted to data frames with \code{asDF} or \code{\link{as.data.frame}}. For example:
+#'
+#' \code{results$snpSummaryTable$asDF}
+#'
+#' \code{as.data.frame(results$snpSummaryTable)}
 #'
 #' @export
 snpAnalysis <- function(
@@ -557,6 +598,7 @@ snpAnalysis <- function(
     covariates = NULL,
     responseType = "auto",
     subpop = FALSE,
+    snpSummary = TRUE,
     covDesc = FALSE,
     allFreq = FALSE,
     genoFreq = FALSE,
@@ -593,6 +635,7 @@ snpAnalysis <- function(
         covariates = covariates,
         responseType = responseType,
         subpop = subpop,
+        snpSummary = snpSummary,
         covDesc = covDesc,
         allFreq = allFreq,
         genoFreq = genoFreq,

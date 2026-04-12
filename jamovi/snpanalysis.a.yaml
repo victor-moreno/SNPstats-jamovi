@@ -75,6 +75,12 @@ options:
     type: Bool
     default: false
 
+  # ── SNP summary table ──────────────────────────────────────────
+  - name: snpSummary
+    title: SNP summary table (N, MAF, genotype counts, HWE)
+    type: Bool
+    default: true
+
   # ── Covariate description ──────────────────────────────────────
   - name: covDesc
     title: Descriptive statistics for covariates

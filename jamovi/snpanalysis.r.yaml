@@ -32,6 +32,33 @@ items:
             title: Statistic
             type: text
 
+  # ── SNP summary table ─────────────────────────────────────────
+  - name: snpSummaryTable
+    title: SNP Summary
+    type: Table
+    visible: (snpSummary)
+    columns:
+      - name: snp
+        title: SNP
+        type: text
+      - name: group
+        title: Group
+        type: text
+      - name: n
+        title: N
+        type: integer
+      - name: maf
+        title: MAF
+        type: number
+        format: zto,dp=3
+      - name: genoCounts
+        title: AA / AB / BB
+        type: text
+      - name: hwePval
+        title: HWE p-value
+        type: number
+        format: zto,pvalue
+
   # ── Per-SNP results (array) ────────────────────────────────────
   - name: snpResults
     title: SNP Results
@@ -55,12 +82,12 @@ items:
               title: Allele
               type: text
             - name: count
-              title: Count
+              title: N
               type: integer
             - name: prop
-              title: Proportion
+              title: '%'
               type: number
-              format: zto
+              format: dp=1
 
         - name: genoFreqTable
           title: Genotype Frequencies
@@ -71,12 +98,12 @@ items:
               title: Genotype
               type: text
             - name: count
-              title: Count
+              title: N
               type: integer
             - name: prop
-              title: Proportion
+              title: '%'
               type: number
-              format: zto
+              format: dp=1
             - name: responseStat
               title: Response (mean ± SE)
               type: text
@@ -99,12 +126,12 @@ items:
             - name: n22
               title: N22
               type: integer
-            - name: n1
-              title: N1
-              type: integer
-            - name: n2
-              title: N2
-              type: integer
+            # - name: n1
+            #   title: N1
+            #   type: integer
+            # - name: n2
+            #   title: N2
+            #   type: integer
             - name: pval
               title: P-value
               type: number
@@ -134,10 +161,10 @@ items:
               title: P-value
               type: number
               format: zto,pvalue
-            - name: globalP
-              title: Global P
+            - name: AIC
+              title: AIC
               type: number
-              format: zto,pvalue
+              format: zto,dp=2
 
   # ── LD matrix ──────────────────────────────────────────────────
   - name: ldGroup

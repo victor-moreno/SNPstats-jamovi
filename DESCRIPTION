@@ -19,5 +19,3 @@ Imports:
     R6,
     genetics,
     haplo.stats
-Suggests:
-    testthat (>= 3.0.0)

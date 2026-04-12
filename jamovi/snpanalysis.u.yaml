@@ -33,6 +33,8 @@ children:
         name: responseType
         enable: (response)
       - type: CheckBox
+        name: snpSummary
+      - type: CheckBox
         name: subpop
         enable: (response)
       - type: CheckBox
