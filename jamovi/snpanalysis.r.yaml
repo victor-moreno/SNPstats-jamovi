@@ -177,6 +177,39 @@ items:
               type: number
               format: zto,dp=2
 
+        - name: interactionTable
+          title: SNP × Covariate Interaction
+          type: Table
+          visible: (snpInteraction && (modelCodominant || modelDominant || modelRecessive || modelOverdominant || modelLogAdditive))
+          columns:
+            - name: model
+              title: Model
+              type: text
+            - name: term
+              title: Term
+              type: text
+            - name: effect
+              title: OR / β
+              type: number
+            - name: ciLow
+              title: Lower CI
+              type: number
+            - name: ciHigh
+              title: Upper CI
+              type: number
+            - name: pval
+              title: P-value
+              type: number
+              format: zto,pvalue
+            - name: pvalInteraction
+              title: P (interaction)
+              type: number
+              format: zto,pvalue
+            - name: AIC
+              title: AIC
+              type: number
+              format: zto,dp=2
+
   # ── Linkage disequilibrium ─────────────────────────────────────
   - name: ldGroup
     title: Linkage Disequilibrium
@@ -270,5 +303,31 @@ items:
             type: number
           - name: pval
             title: P-value
+            type: number
+            format: zto,pvalue
+
+      - name: haploInteractionTable
+        title: Haplotype × Covariate Interaction
+        type: Table
+        visible: (haploInteraction)
+        columns:
+          - name: term
+            title: Term
+            type: text
+          - name: effect
+            title: OR / β
+            type: number
+          - name: ciLow
+            title: Lower CI
+            type: number
+          - name: ciHigh
+            title: Upper CI
+            type: number
+          - name: pval
+            title: P-value
+            type: number
+            format: zto,pvalue
+          - name: pvalInteraction
+            title: P (interaction)
             type: number
             format: zto,pvalue

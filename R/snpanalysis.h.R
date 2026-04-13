@@ -27,9 +27,11 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
             modelOverdominant = FALSE,
             modelLogAdditive = FALSE,
             ciWidth = 95,
+            snpInteraction = FALSE,
             haploFreq = FALSE,
             haploFreqMin = 0.01,
-            haploAssoc = FALSE, ...) {
+            haploAssoc = FALSE,
+            haploInteraction = FALSE, ...) {
 
             super$initialize(
                 package="SNPstats",
@@ -146,6 +148,10 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                 min=50,
                 max=99.9,
                 default=95)
+            private$..snpInteraction <- jmvcore::OptionBool$new(
+                "snpInteraction",
+                snpInteraction,
+                default=FALSE)
             private$..haploFreq <- jmvcore::OptionBool$new(
                 "haploFreq",
                 haploFreq,
@@ -159,6 +165,10 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
             private$..haploAssoc <- jmvcore::OptionBool$new(
                 "haploAssoc",
                 haploAssoc,
+                default=FALSE)
+            private$..haploInteraction <- jmvcore::OptionBool$new(
+                "haploInteraction",
+                haploInteraction,
                 default=FALSE)
 
             self$.addOption(private$..response)
@@ -182,9 +192,11 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
             self$.addOption(private$..modelOverdominant)
             self$.addOption(private$..modelLogAdditive)
             self$.addOption(private$..ciWidth)
+            self$.addOption(private$..snpInteraction)
             self$.addOption(private$..haploFreq)
             self$.addOption(private$..haploFreqMin)
             self$.addOption(private$..haploAssoc)
+            self$.addOption(private$..haploInteraction)
         }),
     active = list(
         response = function() private$..response$value,
@@ -208,9 +220,11 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
         modelOverdominant = function() private$..modelOverdominant$value,
         modelLogAdditive = function() private$..modelLogAdditive$value,
         ciWidth = function() private$..ciWidth$value,
+        snpInteraction = function() private$..snpInteraction$value,
         haploFreq = function() private$..haploFreq$value,
         haploFreqMin = function() private$..haploFreqMin$value,
-        haploAssoc = function() private$..haploAssoc$value),
+        haploAssoc = function() private$..haploAssoc$value,
+        haploInteraction = function() private$..haploInteraction$value),
     private = list(
         ..response = NA,
         ..snps = NA,
@@ -233,9 +247,11 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
         ..modelOverdominant = NA,
         ..modelLogAdditive = NA,
         ..ciWidth = NA,
+        ..snpInteraction = NA,
         ..haploFreq = NA,
         ..haploFreqMin = NA,
-        ..haploAssoc = NA)
+        ..haploAssoc = NA,
+        ..haploInteraction = NA)
 )
 
 snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
@@ -362,7 +378,8 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                         allFreqTable = function() private$.items[["allFreqTable"]],
                         genoFreqTable = function() private$.items[["genoFreqTable"]],
                         hweTable = function() private$.items[["hweTable"]],
-                        assocTable = function() private$.items[["assocTable"]]),
+                        assocTable = function() private$.items[["assocTable"]],
+                        interactionTable = function() private$.items[["interactionTable"]]),
                     private = list(),
                     public=list(
                         initialize=function(options) {
@@ -480,6 +497,47 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                                         `name`="AIC", 
                                         `title`="AIC", 
                                         `type`="number", 
+                                        `format`="zto,dp=2"))))
+                            self$add(jmvcore::Table$new(
+                                options=options,
+                                name="interactionTable",
+                                title="SNP \u00D7 Covariate Interaction",
+                                visible="(snpInteraction && (modelCodominant || modelDominant || modelRecessive || modelOverdominant || modelLogAdditive))",
+                                columns=list(
+                                    list(
+                                        `name`="model", 
+                                        `title`="Model", 
+                                        `type`="text"),
+                                    list(
+                                        `name`="term", 
+                                        `title`="Term", 
+                                        `type`="text"),
+                                    list(
+                                        `name`="effect", 
+                                        `title`="OR / \u03B2", 
+                                        `type`="number"),
+                                    list(
+                                        `name`="ciLow", 
+                                        `title`="Lower CI", 
+                                        `type`="number"),
+                                    list(
+                                        `name`="ciHigh", 
+                                        `title`="Upper CI", 
+                                        `type`="number"),
+                                    list(
+                                        `name`="pval", 
+                                        `title`="P-value", 
+                                        `type`="number", 
+                                        `format`="zto,pvalue"),
+                                    list(
+                                        `name`="pvalInteraction", 
+                                        `title`="P (interaction)", 
+                                        `type`="number", 
+                                        `format`="zto,pvalue"),
+                                    list(
+                                        `name`="AIC", 
+                                        `title`="AIC", 
+                                        `type`="number", 
                                         `format`="zto,dp=2"))))}))$new(options=options)))
             self$add(R6::R6Class(
                 inherit = jmvcore::Group,
@@ -550,7 +608,8 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                 inherit = jmvcore::Group,
                 active = list(
                     haploFreqTable = function() private$.items[["haploFreqTable"]],
-                    haploAssocTable = function() private$.items[["haploAssocTable"]]),
+                    haploAssocTable = function() private$.items[["haploAssocTable"]],
+                    haploInteractionTable = function() private$.items[["haploInteractionTable"]]),
                 private = list(),
                 public=list(
                     initialize=function(options) {
@@ -604,6 +663,38 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                                     `name`="pval", 
                                     `title`="P-value", 
                                     `type`="number", 
+                                    `format`="zto,pvalue"))))
+                        self$add(jmvcore::Table$new(
+                            options=options,
+                            name="haploInteractionTable",
+                            title="Haplotype \u00D7 Covariate Interaction",
+                            visible="(haploInteraction)",
+                            columns=list(
+                                list(
+                                    `name`="term", 
+                                    `title`="Term", 
+                                    `type`="text"),
+                                list(
+                                    `name`="effect", 
+                                    `title`="OR / \u03B2", 
+                                    `type`="number"),
+                                list(
+                                    `name`="ciLow", 
+                                    `title`="Lower CI", 
+                                    `type`="number"),
+                                list(
+                                    `name`="ciHigh", 
+                                    `title`="Upper CI", 
+                                    `type`="number"),
+                                list(
+                                    `name`="pval", 
+                                    `title`="P-value", 
+                                    `type`="number", 
+                                    `format`="zto,pvalue"),
+                                list(
+                                    `name`="pvalInteraction", 
+                                    `title`="P (interaction)", 
+                                    `type`="number", 
                                     `format`="zto,pvalue"))))}))$new(options=options))}))
 
 snpAnalysisBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
@@ -652,9 +743,11 @@ snpAnalysisBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param modelOverdominant .
 #' @param modelLogAdditive .
 #' @param ciWidth .
+#' @param snpInteraction .
 #' @param haploFreq .
 #' @param haploFreqMin .
 #' @param haploAssoc .
+#' @param haploInteraction .
 #' @return A results object containing:
 #' \tabular{llllll}{
 #'   \code{results$validationMsgSNP} \tab \tab \tab \tab \tab a html \cr
@@ -668,6 +761,7 @@ snpAnalysisBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'   \code{results$ldGroup$ldPlotImage} \tab \tab \tab \tab \tab an image \cr
 #'   \code{results$haploGroup$haploFreqTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$haploGroup$haploAssocTable} \tab \tab \tab \tab \tab a table \cr
+#'   \code{results$haploGroup$haploInteractionTable} \tab \tab \tab \tab \tab a table \cr
 #' }
 #'
 #' @export
@@ -694,9 +788,11 @@ snpAnalysis <- function(
     modelOverdominant = FALSE,
     modelLogAdditive = FALSE,
     ciWidth = 95,
+    snpInteraction = FALSE,
     haploFreq = FALSE,
     haploFreqMin = 0.01,
-    haploAssoc = FALSE) {
+    haploAssoc = FALSE,
+    haploInteraction = FALSE) {
 
     if ( ! requireNamespace("jmvcore", quietly=TRUE))
         stop("snpAnalysis requires jmvcore to be installed (restart may be required)")
@@ -734,9 +830,11 @@ snpAnalysis <- function(
         modelOverdominant = modelOverdominant,
         modelLogAdditive = modelLogAdditive,
         ciWidth = ciWidth,
+        snpInteraction = snpInteraction,
         haploFreq = haploFreq,
         haploFreqMin = haploFreqMin,
-        haploAssoc = haploAssoc)
+        haploAssoc = haploAssoc,
+        haploInteraction = haploInteraction)
 
     analysis <- snpAnalysisClass$new(
         options = options,

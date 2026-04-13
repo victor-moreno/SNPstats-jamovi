@@ -168,6 +168,11 @@ options:
     max: 99.9
     default: 95
 
+  - name: snpInteraction
+    title: SNP × covariate interaction (first covariate)
+    type: Bool
+    default: false
+
   # ── Haplotype analysis ─────────────────────────────────────────
   - name: haploFreq
     title: Haplotype frequency estimation
@@ -183,5 +188,10 @@ options:
 
   - name: haploAssoc
     title: Haplotype-response association
+    type: Bool
+    default: false
+
+  - name: haploInteraction
+    title: Haplotype × covariate interaction (first covariate)
     type: Bool
     default: false

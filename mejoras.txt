@@ -13,8 +13,13 @@ haplotype interaction
 
 add sample datasets
 
-revise SNP formats & allele order 
+revise SNP formats & allele order  AA A/A A|A
 
+si no covariate, remove interaction tables
+
+check bugs when bad data: zeros, monoallelic, no BB, ...
+
+replace values > 1000 by Inf or ---
 
 # 
 

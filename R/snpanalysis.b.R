@@ -191,6 +191,105 @@ fit_model <- function(snp_enc, response, covariates_df, model_name,
 }
 
 
+#' Fit SNP × covariate interaction model under one genetic model.
+#' Returns a list of rows: main SNP terms, interaction term(s), plus
+#' a p_interaction (LRT of model-with-interaction vs model-without).
+fit_interaction_model <- function(snp_enc, response, covariates_df,
+                                  interaction_var, model_name,
+                                  response_type, ci_width) {
+  alpha <- 1 - ci_width / 100
+
+  df <- data.frame(resp = response, snp = snp_enc)
+  if (!is.null(covariates_df) && ncol(covariates_df) > 0) {
+    df <- cbind(df, covariates_df)
+    adj_covs <- setdiff(names(covariates_df), interaction_var)
+  } else {
+    adj_covs <- character(0)
+  }
+
+  if (!(interaction_var %in% names(df))) return(NULL)
+
+  df <- df[complete.cases(df), , drop = FALSE]
+  if (nrow(df) < 5) return(NULL)
+
+  adj_part <- if (length(adj_covs) > 0)
+    paste("+", paste(adj_covs, collapse = "+"))
+  else ""
+
+  # model with interaction
+  formula_int  <- as.formula(
+    paste("resp ~ snp *", interaction_var, adj_part))
+  # model without interaction (for LRT)
+  formula_main <- as.formula(
+    paste("resp ~ snp +", interaction_var, adj_part))
+
+  tryCatch({
+    if (response_type == "binary") {
+      fit_int  <- glm(formula_int,  data = df, family = binomial())
+      fit_main <- glm(formula_main, data = df, family = binomial())
+      pval_col <- "Pr(>|z|)"
+      lrtest   <- "Chisq"; lrtest_label <- "Pr(>Chi)"
+    } else {
+      fit_int  <- lm(formula_int,  data = df)
+      fit_main <- lm(formula_main, data = df)
+      pval_col <- "Pr(>|t|)"
+      lrtest   <- "F"; lrtest_label <- "Pr(>F)"
+    }
+
+    lrt      <- tryCatch(anova(fit_main, fit_int, test = lrtest),
+                         error = function(e) NULL)
+    p_inter  <- if (!is.null(lrt)) lrt[2, lrtest_label] else NA_real_
+    aic_val  <- AIC(fit_int)
+
+    coefs <- summary(fit_int)$coefficients
+    ci    <- tryCatch(
+      confint(fit_int, level = ci_width / 100),
+      error = function(e) matrix(NA, nrow = nrow(coefs), ncol = 2,
+                                  dimnames = list(rownames(coefs), c("lo","hi")))
+    )
+
+    # rows of interest: SNP main effect(s) and interaction term(s)
+    all_rows    <- rownames(coefs)
+    snp_rows    <- grep("^snp",                  all_rows)
+    inter_rows  <- grep(paste0("^snp.*:", interaction_var,
+                               "|^", interaction_var, ":.*snp"),
+                        all_rows)
+    keep_rows   <- unique(c(snp_rows, inter_rows))
+    if (length(keep_rows) == 0) return(NULL)
+
+    results <- lapply(keep_rows, function(r) {
+      beta  <- coefs[r, "Estimate"]
+      pval  <- coefs[r, pval_col]
+      ci_lo <- ci[r, 1]
+      ci_hi <- ci[r, 2]
+      term  <- all_rows[r]
+      is_inter_term <- r %in% inter_rows
+
+      if (response_type == "binary") {
+        list(term            = term,
+             effect          = exp(beta),
+             ci_low          = exp(ci_lo),
+             ci_high         = exp(ci_hi),
+             pval            = pval,
+             pval_interaction = if (is_inter_term) p_inter else NA_real_,
+             aic             = aic_val,
+             is_first        = (r == keep_rows[1]))
+      } else {
+        list(term            = term,
+             effect          = beta,
+             ci_low          = ci_lo,
+             ci_high         = ci_hi,
+             pval            = pval,
+             pval_interaction = if (is_inter_term) p_inter else NA_real_,
+             aic             = aic_val,
+             is_first        = (r == keep_rows[1]))
+      }
+    })
+    results
+  }, error = function(e) NULL)
+}
+
+
 # ── Main analysis class ────────────────────────────────────────────────────────
 
 snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
@@ -293,6 +392,20 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         cov_df <- NULL
       }
 
+      # ── Validate interaction covariate ───────────────────────────
+      # Interaction uses covariates[1] automatically; just need at least one.
+      if (isTRUE(opts$snpInteraction) || isTRUE(opts$haploInteraction)) {
+        if (length(covariate_vars) == 0) {
+          self$results$validationMsg$setContent(
+            "<b>Interaction:</b> At least one covariate is required. The first covariate will be used as the interaction term.")
+          self$results$validationMsg$setVisible(TRUE)
+        } else {
+          self$results$validationMsg$setVisible(FALSE)
+        }
+      } else {
+        self$results$validationMsg$setVisible(FALSE)
+      }
+
       # ── Show/hide optional result groups ────────────────────────
       show_cov_desc <- isTRUE(opts$covDesc) && length(covariate_vars) > 0
       self$results$covDescGroup$setVisible(show_cov_desc)
@@ -356,6 +469,15 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
           private$.fill_assoc(item$assocTable, snp_raw, ref, response,
                                cov_df, response_type, opts)
         }
+
+        # SNP × covariate interaction — uses covariates[1] as interaction term
+        if (isTRUE(opts$snpInteraction) && !is.null(cov_df) &&
+            ncol(cov_df) >= 1) {
+          private$.fill_interaction(item$interactionTable, snp_raw, ref,
+                                     response, cov_df,
+                                     names(cov_df)[1],
+                                     response_type, opts)
+        }
       }
 
       # ── LD analysis ──────────────────────────────────────────────
@@ -365,7 +487,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       }
 
       # ── Haplotype analysis ───────────────────────────────────────
-      if ((opts$haploFreq || opts$haploAssoc) && length(geno_list) >= 2) {
+      if ((opts$haploFreq || opts$haploAssoc || opts$haploInteraction) && length(geno_list) >= 2) {
         private$.run_haplo(geno_list, data, response, response_type,
                             cov_df, opts)
       }
@@ -987,9 +1109,101 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       }
     },
 
+    # ── SNP × covariate interaction ───────────────────────────────
+    .fill_interaction = function(tbl, snp_raw, ref, response, cov_df,
+                                  interaction_var, response_type, opts) {
+
+      effect_col <- tbl$getColumn("effect")
+      if (response_type == "binary") {
+        effect_col$setTitle("OR")
+      } else {
+        effect_col$setTitle("\u03B2")
+      }
+
+      # Note: interaction variable + remaining adjusters
+      adj_vars <- setdiff(names(cov_df), interaction_var)
+      note_parts <- paste0("Interaction covariate: ", interaction_var)
+      if (length(adj_vars) > 0)
+        note_parts <- paste0(note_parts, ". Adjusted for: ",
+                             paste(adj_vars, collapse = ", "))
+      tbl$setNote(note = note_parts, key = "intcov")
+
+      models <- c()
+      if (opts$modelCodominant)   models <- c(models, "codominant")
+      if (opts$modelDominant)     models <- c(models, "dominant")
+      if (opts$modelRecessive)    models <- c(models, "recessive")
+      if (opts$modelOverdominant) models <- c(models, "overdominant")
+      if (opts$modelLogAdditive)  models <- c(models, "logadditive")
+
+      model_labels <- c(
+        codominant   = "Codominant",
+        dominant     = "Dominant",
+        recessive    = "Recessive",
+        overdominant = "Overdominant",
+        logadditive  = "Log-additive"
+      )
+
+      row_key <- 0L
+      for (mdl in models) {
+        snp_enc  <- encode_model(as.character(snp_raw), ref, mdl)
+        res_list <- fit_interaction_model(snp_enc, response, cov_df,
+                                          interaction_var, mdl,
+                                          response_type, opts$ciWidth)
+        if (is.null(res_list)) next
+
+        first_row <- TRUE
+        for (res in res_list) {
+          row_key <- row_key + 1L
+          tbl$addRow(rowKey = as.character(row_key), values = list(
+            model           = if (first_row) model_labels[mdl] else "",
+            term            = res$term,
+            effect          = res$effect,
+            ciLow           = res$ci_low,
+            ciHigh          = res$ci_high,
+            pval            = res$pval,
+            pvalInteraction = if (!is.na(res$pval_interaction)) res$pval_interaction else "",
+            AIC             = if (first_row && !is.nan(res$aic)) res$aic else ""
+          ))
+          first_row <- FALSE
+        }
+      }
+    },
+
     .run_haplo = function(geno_list, data, response, response_type,
                            cov_df, opts) {
       
+      # ── Inline helper (hoisted so haploAssoc and haploInteraction can share) ──
+      na.geno.keep <- function(m) {
+        mf.gindx <- function(m) {
+          nvars    <- length(m)
+          typevars <- rep(0, nvars)
+          for (i in seq_len(nvars)) typevars[i] <- data.class(m[[i]])
+          gindx <- seq_len(nvars)[typevars == "model.matrix" | typevars == "matrix"]
+          if (length(gindx) == 0) stop("No geno matrix in data frame")
+          if (length(gindx) >  1) stop("More than 1 geno matrix in data frame")
+          gindx
+        }
+        gindx    <- mf.gindx(m)
+        yxmiss   <- apply(is.na(m[, -gindx, drop = FALSE]), 1, any)
+        gmiss    <- apply(is.na(m[,  gindx, drop = FALSE]), 1, all)
+        genoAttr <- attributes(m[, gindx])
+        allmiss  <- yxmiss | gmiss
+        m        <- m[!allmiss, ]
+        genoAttr$dim[1] <- genoAttr$dim[1] - sum(allmiss)
+        nloc <- ncol(m[, gindx]) / 2
+        for (k in seq_len(nloc)) {
+          ualleles <- unique(c(m[, gindx][, 2*k-1], m[, gindx][, 2*k]))
+          nalleles <- length(genoAttr$unique.alleles[[k]])
+          if (length(ualleles) < nalleles)
+            genoAttr$unique.alleles[[k]] <-
+              genoAttr$unique.alleles[[k]][!is.na(match(seq_len(nalleles), ualleles))]
+        }
+        for (att in names(genoAttr)) attr(m[, gindx], att) <- genoAttr[[att]]
+        attr(m, "yxmiss") <- yxmiss
+        attr(m, "gmiss")  <- gmiss
+        m
+      }
+
       snp_names <- names(geno_list)
       allele_list <- lapply(snp_names, function(nm) genetics::allele(geno_list[[nm]]))
       allele_mat  <- do.call(cbind, allele_list)
@@ -1063,38 +1277,6 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
     # ── Haplotype association ─────────────────────────────────────
     if (opts$haploAssoc && !is.null(response)) {
-
-      # ── Inline helpers (work around haplo.stats import issues on macOS) ──
-      na.geno.keep <- function(m) {
-        mf.gindx <- function(m) {
-          nvars    <- length(m)
-          typevars <- rep(0, nvars)
-          for (i in seq_len(nvars)) typevars[i] <- data.class(m[[i]])
-          gindx <- seq_len(nvars)[typevars == "model.matrix" | typevars == "matrix"]
-          if (length(gindx) == 0) stop("No geno matrix in data frame")
-          if (length(gindx) >  1) stop("More than 1 geno matrix in data frame")
-          gindx
-        }
-        gindx    <- mf.gindx(m)
-        yxmiss   <- apply(is.na(m[, -gindx, drop = FALSE]), 1, any)
-        gmiss    <- apply(is.na(m[,  gindx, drop = FALSE]), 1, all)
-        genoAttr <- attributes(m[, gindx])
-        allmiss  <- yxmiss | gmiss
-        m        <- m[!allmiss, ]
-        genoAttr$dim[1] <- genoAttr$dim[1] - sum(allmiss)
-        nloc <- ncol(m[, gindx]) / 2
-        for (k in seq_len(nloc)) {
-          ualleles <- unique(c(m[, gindx][, 2*k-1], m[, gindx][, 2*k]))
-          nalleles <- length(genoAttr$unique.alleles[[k]])
-          if (length(ualleles) < nalleles)
-            genoAttr$unique.alleles[[k]] <-
-              genoAttr$unique.alleles[[k]][!is.na(match(seq_len(nalleles), ualleles))]
-        }
-        for (att in names(genoAttr)) attr(m[, gindx], att) <- genoAttr[[att]]
-        attr(m, "yxmiss") <- yxmiss
-        attr(m, "gmiss")  <- gmiss
-        m
-      }
 
       family     <- if (response_type == "binary") "binomial" else "gaussian"
       y_sub      <- if (response_type == "binary") {
@@ -1255,6 +1437,242 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
       }
     }
+
+# ── Haplotype × covariate interaction ─────────────────────────
+if (isTRUE(opts$haploInteraction) && !is.null(cov_df) &&
+    ncol(cov_df) >= 1) {
+
+  int_var  <- names(cov_df)[1]   # first covariate is always the interaction term
+  adj_vars <- setdiff(names(cov_df), int_var)
+
+  tbl_int <- self$results$haploGroup$haploInteractionTable
+  tbl_int$getColumn("effect")$setTitle(
+    if (response_type == "binary") "OR" else "\u03B2")
+
+  note_parts <- paste0("Interaction covariate: ", int_var)
+  if (length(adj_vars) > 0)
+    note_parts <- paste0(note_parts, ". Adjusted for: ",
+                         paste(adj_vars, collapse = ", "))
+  tbl_int$setNote(note = note_parts, key = "intcov")
+
+  family_int <- if (response_type == "binary") "binomial" else "gaussian"
+  y_int      <- if (response_type == "binary") {
+    as.numeric(as.factor(response[keep])) - 1L
+  } else {
+    response[keep]
+  }
+
+  m_int      <- data.frame(y = y_int)
+  m_int$geno <- subset_geno(geno_setup, keep)
+  if (!is.null(cov_df))
+    m_int <- cbind(m_int, cov_df[keep, , drop = FALSE])
+
+  adj_part <- if (length(adj_vars) > 0)
+    paste("+", paste(adj_vars, collapse = "+")) else ""
+
+  formula_int_str  <- paste("y ~ geno *", int_var, adj_part)
+  formula_main_str <- paste("y ~ geno +", int_var, adj_part)
+
+  haplo_int_fit <- tryCatch(
+    haplo.stats::haplo.glm(
+      as.formula(formula_int_str),
+      family    = family_int,
+      data      = m_int,
+      na.action = na.geno.keep,
+      control   = haplo.stats::haplo.glm.control(
+                    haplo.freq.min = opts$haploFreqMin)
+    ),
+    error = function(e) {
+      self$results$validationMsg$setContent(
+        paste0("<b>Haplotype interaction GLM error:</b> ", e$message))
+      NULL
+    }
+  )
+  haplo_main_fit <- tryCatch(
+    haplo.stats::haplo.glm(
+      as.formula(formula_main_str),
+      family    = family_int,
+      data      = m_int,
+      na.action = na.geno.keep,
+      control   = haplo.stats::haplo.glm.control(
+                    haplo.freq.min = opts$haploFreqMin)
+    ),
+    error = function(e) NULL
+  )
+
+  if (!is.null(haplo_int_fit) && !is.null(haplo_main_fit)) {
+
+    # ── LRT for the overall interaction ───────────────────────
+    lrt_haplo <- tryCatch(anova(haplo_main_fit, haplo_int_fit),
+                           error = function(e) NULL)
+    p_inter_haplo <- if (!is.null(lrt_haplo) && nrow(lrt_haplo) >= 2) {
+      pchisq(abs(lrt_haplo[2, "Deviance"]),
+             df  = abs(lrt_haplo[2, "Df"]),
+             lower.tail = FALSE)
+    } else NA_real_
+
+    coef_sum_int <- tryCatch(summary(haplo_int_fit)$coefficients,
+                              error = function(e) NULL)
+    ci_int       <- tryCatch(confint(haplo_int_fit, level = opts$ciWidth / 100),
+                              error = function(e) NULL)
+
+    if (!is.null(coef_sum_int)) {
+      all_rows_int <- rownames(coef_sum_int)
+
+      # ── Build a map: raw coef rowname → human-readable label ──
+      # Decode haplotype labels from haplo.unique rows (same as association table)
+      decode_haplo_label <- function(row_vec) {
+        paste(as.character(row_vec), collapse = "-")
+      }
+
+      # Get the common haplotypes and their indices
+      common_idx_i <- haplo_int_fit$haplo.common
+      base_idx_i   <- haplo_int_fit$haplo.base
+      base_label_i <- decode_haplo_label(haplo_int_fit$haplo.unique[base_idx_i, ])
+      
+      # Build a mapping from position in haplo.common to haplotype label
+      pos_to_label <- list()
+      for (j in seq_along(common_idx_i)) {
+        h_idx <- common_idx_i[j]
+        h_label <- decode_haplo_label(haplo_int_fit$haplo.unique[h_idx, ])
+        pos_to_label[[j]] <- h_label
+      }
+      
+      # Also track the rare term position
+      rare_pos <- NULL
+      rare_label <- paste0("Rare (<", opts$haploFreqMin, ")")
+      
+      # Build mapping from coefficient name to display label
+      # haplo_int_fit$haplo.names gives suffixes like "C-T-A", "rare", etc.
+      # These correspond positionally to: common haplotypes first, then rare term
+      raw_to_label <- character(0)
+      
+      if (!is.null(haplo_int_fit$haplo.names)) {
+        for (j in seq_along(haplo_int_fit$haplo.names)) {
+          haplo_suffix <- haplo_int_fit$haplo.names[j]
+          
+          # Determine the display label
+          if (grepl("rare", haplo_suffix, ignore.case = TRUE)) {
+            display_label <- rare_label
+            rare_pos <- j
+          } else if (j <= length(common_idx_i)) {
+            # Common haplotype - use the pre-computed label
+            display_label <- pos_to_label[[j]]
+          } else {
+            # Fallback - try to parse the suffix directly if it's in allele format
+            # Some versions of haplo.stats return the actual haplotype string
+            if (grepl("-", haplo_suffix)) {
+              display_label <- haplo_suffix
+            } else {
+              display_label <- paste0("Haplotype ", j)
+            }
+          }
+          
+          # Create mapping for main effect and interaction term
+          raw_main  <- paste0("geno", haplo_suffix)
+          raw_inter <- paste0("geno", haplo_suffix, ":", int_var)
+          raw_to_label[raw_main]  <- display_label
+          raw_to_label[raw_inter] <- paste0(display_label, " \u00D7 ", int_var)
+        }
+      }
+      
+      # Alternative: If haplo.names not available or incomplete, 
+      # build mapping from coefficient names by parsing the haplotype strings
+      # directly from the model frame attributes
+      if (length(raw_to_label) == 0 && !is.null(haplo_int_fit$haplo.unique)) {
+        # Try to extract haplotype strings from coefficient names
+        for (rn in all_rows_int) {
+          if (grepl("^geno", rn)) {
+            # Extract the part after "geno" and before ":" if present
+            suffix <- sub("^geno", "", rn)
+            suffix <- sub(paste0(":", int_var, "$"), "", suffix)
+            
+            # Check if suffix looks like a haplotype pattern (contains hyphens)
+            if (grepl("-", suffix)) {
+              display_label <- suffix
+            } else if (grepl("rare", suffix, ignore.case = TRUE)) {
+              display_label <- rare_label
+            } else if (grepl("^[0-9]+$", suffix)) {
+              # Numeric suffix - try to map to haplotype by position
+              pos <- as.numeric(suffix)
+              if (!is.na(pos) && pos <= length(common_idx_i)) {
+                display_label <- decode_haplo_label(haplo_int_fit$haplo.unique[common_idx_i[pos], ])
+              } else {
+                display_label <- paste0("Haplotype ", suffix)
+              }
+            } else {
+              display_label <- suffix
+            }
+            
+            if (grepl(paste0(":", int_var, "$"), rn)) {
+              raw_to_label[rn] <- paste0(display_label, " \u00D7 ", int_var)
+            } else {
+              raw_to_label[rn] <- display_label
+            }
+          }
+        }
+      }
+
+      # ── Identify main-effect and interaction rows ──────────
+      main_rows  <- grep("^geno[^:]+$",               all_rows_int)
+      inter_rows <- grep(paste0("^geno.*:", int_var,
+                                "|^", int_var, ":.*geno"),
+                         all_rows_int)
+      show_rows  <- c(main_rows, inter_rows)
+
+      # p_interaction printed only on the first interaction-term row
+      first_inter_row <- TRUE
+
+      for (r in show_rows) {
+        raw_nm  <- all_rows_int[r]
+        
+        # Get the display label
+        label <- raw_to_label[raw_nm]
+        if (is.na(label) || length(label) == 0) {
+          # Fallback: try to create a sensible label
+          suffix <- sub("^geno", "", raw_nm)
+          suffix <- sub(paste0(":", int_var, "$"), "", suffix)
+          if (grepl("-", suffix)) {
+            label <- suffix
+          } else if (grepl("rare", suffix, ignore.case = TRUE)) {
+            label <- rare_label
+          } else {
+            label <- suffix
+          }
+          if (grepl(paste0(":", int_var, "$"), raw_nm)) {
+            label <- paste0(label, " \u00D7 ", int_var)
+          }
+        }
+
+        beta <- coef_sum_int[r, "coef"]
+        pval <- coef_sum_int[r, "pval"]
+        if (!is.null(ci_int) && raw_nm %in% rownames(ci_int)) {
+          ci_lo <- ci_int[raw_nm, 1]; ci_hi <- ci_int[raw_nm, 2]
+        } else {
+          z     <- qnorm(1 - (1 - opts$ciWidth / 100) / 2)
+          se    <- coef_sum_int[r, "se"]
+          ci_lo <- beta - z * se; ci_hi <- beta + z * se
+        }
+
+        is_inter_term <- r %in% inter_rows
+        tbl_int$addRow(
+          rowKey = paste0("hi", r),
+          values = list(
+            term            = label,
+            effect          = if (response_type == "binary") exp(beta)  else beta,
+            ciLow           = if (response_type == "binary") exp(ci_lo) else ci_lo,
+            ciHigh          = if (response_type == "binary") exp(ci_hi) else ci_hi,
+            pval            = pval,
+            pvalInteraction = if (is_inter_term && first_inter_row &&
+                                  !is.na(p_inter_haplo))
+                                    p_inter_haplo else ""
+          )
+        )
+        if (is_inter_term) first_inter_row <- FALSE
+      }
+    }
+  }
+}
     },
 
     # ── Private LD storage for plot render ────────────────────────

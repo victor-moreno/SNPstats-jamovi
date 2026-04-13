@@ -111,6 +111,9 @@ children:
                   - type: TextBox
                     name: ciWidth
                     format: number
+              - type: CheckBox
+                name: snpInteraction
+                enable: (snpAssoc && covariates)
 
       # ── Column 2 row 1: Haplotype analysis ────────────────────
       - type: LayoutBox
@@ -130,3 +133,6 @@ children:
                     format: number
               - type: CheckBox
                 name: haploAssoc
+              - type: CheckBox
+                name: haploInteraction
+                enable: (haploAssoc && covariates)
