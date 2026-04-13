@@ -321,54 +321,133 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       snp_vars       <- opts$snps
       covariate_vars <- opts$covariates
 
-      # ── Validation ──────────────────────────────────────────────
-      if ( length(snp_vars) == 0 ) {
+      # Initialize flags for what will actually run
+      run_snpSummary <- isTRUE(opts$snpSummary)
+      run_allFreq <- isTRUE(opts$allFreq)
+      run_genoFreq <- isTRUE(opts$genoFreq)
+      run_hweTest <- isTRUE(opts$hweTest)
+      run_ldAnalysis <- isTRUE(opts$ldAnalysis)
+      run_ldMatrix <- isTRUE(opts$ldMatrix)
+      run_ldPlot <- isTRUE(opts$ldPlot)
+      run_snpAssoc <- isTRUE(opts$snpAssoc)
+      run_snpInteraction <- isTRUE(opts$snpInteraction)
+      run_haploFreq <- isTRUE(opts$haploFreq)
+      run_haploAssoc <- isTRUE(opts$haploAssoc)
+      run_haploInteraction <- isTRUE(opts$haploInteraction)
+      run_subpop <- isTRUE(opts$subpop)
+      run_covDesc <- isTRUE(opts$covDesc)
+
+      # ── Validation 1: SNPs required ──────────────────────────────
+      if (length(snp_vars) == 0) {
         self$results$validationMsgSNP$setContent(paste0(
-            "<b>Please add at least one SNP. Response variable is needed for stratification or association.</b>"))
+            "<p style='color:red;'> Please add at least one SNP variable.</p>"))
         self$results$validationMsgSNP$setVisible(TRUE)
-        return() # do not continue with analysis if no SNPs assigned
+        return()
       } else {
         self$results$validationMsgSNP$setVisible(FALSE)
       }
 
-      # Nothing assigned yet — keep results panel empty and silent
-      if (length(snp_vars) == 0) return()      
-
-      response_raw <- if (!is.null(response_var) && response_var != "") data[[response_var]] else NULL
-
-      # Check SNP columns
-      bad_snps <- character(0)
-      for (v in snp_vars) {
-        if (!is_snp_column(data[[v]])) bad_snps <- c(bad_snps, v)
-      }
-      if (length(bad_snps) > 0) {
-        self$results$validationMsgGeno$setContent(paste0(
-          "<b>Warning:</b> The following columns do not appear to contain ",
-          "diploid genotypes (X/Y format): ",
-          paste(bad_snps, collapse = ", "),
-          ". They will be skipped."))
-        snp_vars <- setdiff(snp_vars, bad_snps)
+      # ── Validation 2: Minimum SNPs for LD/haplotype ──────────────
+      if (length(snp_vars) < 2) {
+        if (run_ldAnalysis || run_ldMatrix || run_ldPlot || 
+            run_haploFreq || run_haploAssoc) {
+          self$results$validationMsg$setContent(
+            "<p style='color:red;'> LD and haplotype analyses require at least 2 SNPs.</p>")
+          self$results$validationMsg$setVisible(TRUE)
+          # Disable by setting flags to FALSE
+          run_ldAnalysis <- run_ldMatrix <- run_ldPlot <- 
+            run_haploFreq <- run_haploAssoc <- FALSE
+        }
       } else {
-        self$results$validationMsgGeno$setVisible(FALSE)
+        # Hide validation message if conditions are met
+        if (!run_ldAnalysis && !run_ldMatrix && !run_ldPlot &&
+            !run_haploFreq && !run_haploAssoc) {
+          self$results$validationMsg$setVisible(FALSE)
+        }
+      }
+
+      # ── Validation 3: Response required for certain tests ────────
+      if ((run_snpAssoc || run_subpop) && 
+          (is.null(response_var) || response_var == "")) {
+        self$results$validationMsg$setContent(
+          "<p style='color:red;'> Association tests and stratification require a response variable.</p>")
+        self$results$validationMsg$setVisible(TRUE)
+        run_snpAssoc <- run_subpop <- FALSE
       }
 
       # ── Determine response type ──────────────────────────────────
+      response_raw <- if (!is.null(response_var) && response_var != "") 
+                        data[[response_var]] else NULL
+        
       response_type <- opts$responseType
       if (!is.null(response_raw) && response_type == "auto") {
         n_unique <- length(unique(na.omit(response_raw)))
-        if (n_unique <= 2) {
+        if (n_unique == 2) {
           response_type <- "binary"
         } else if (is.numeric(response_raw)) {
           response_type <- "quantitative"
         } else {
           response_type <- "binary"
         }
-      } else if (is.null(response_raw)) {
-        response_type <- "binary"  # default, won't be used
       }
 
-      # Prepare response
-      if (!is.null(response_raw)) {
+      # ── Validation 4: Subpop compatibility ───────────────────────
+      if (run_subpop && response_type == "quantitative") {
+        self$results$validationMsg$setContent(
+          "<p style='color:red;'> Subpopulation analysis is only available for binary responses.</p>")
+        self$results$validationMsg$setVisible(TRUE)
+        run_subpop <- FALSE
+      }
+
+      # ── Validation 5: Covariates required for interactions ───────
+      if (run_snpInteraction && length(covariate_vars) == 0) {
+        self$results$validationMsg$setContent(
+          "<p style='color:red;'> SNP × covariate interaction requires at least one covariate.</p>")
+        self$results$validationMsg$setVisible(TRUE)
+        run_snpInteraction <- FALSE
+      }
+      
+      if (run_haploInteraction && length(covariate_vars) == 0) {
+        self$results$validationMsg$setContent(
+          "<p style='color:red;'> Haplotype × covariate interaction requires at least one covariate.</p>")
+        self$results$validationMsg$setVisible(TRUE)
+        run_haploInteraction <- FALSE
+      }
+
+      # ── Validation 6: Haplotype association requires response ────
+      if (run_haploAssoc && (is.null(response_raw) || response_raw == "")) {
+        self$results$validationMsg$setContent(
+          "<p style='color:red;'> Haplotype association requires a response variable.</p>")
+        self$results$validationMsg$setVisible(TRUE)
+        run_haploAssoc <- FALSE
+      }
+
+      # ── Validation 7: Check SNP columns format ───────────────────
+      bad_snps <- character(0)
+      for (v in snp_vars) {
+        if (!is_snp_column(data[[v]])) bad_snps <- c(bad_snps, v)
+      }
+      if (length(bad_snps) > 0) {
+        self$results$validationMsgGeno$setContent(paste0(
+          "<p style='color:red;'> The following columns do not appear to contain ",
+          "diploid genotypes (format: A/G or A/G): ",
+          paste(bad_snps, collapse = ", "),
+          ". They will be skipped.</p>"))
+        snp_vars <- setdiff(snp_vars, bad_snps)
+        self$results$validationMsgGeno$setVisible(TRUE)
+        
+        if (length(snp_vars) == 0) {
+          self$results$validationMsgSNP$setContent(
+            "<p style='color:red;'> No valid SNP columns found. Please check your data format.</p>")
+          self$results$validationMsgSNP$setVisible(TRUE)
+          return()
+        }
+      } else {
+        self$results$validationMsgGeno$setVisible(FALSE)
+      }
+
+      # ── Prepare response ─────────────────────────────────────────
+      if (!is.null(response_raw) && response_var != "") {
         if (response_type == "binary") {
           response <- as.integer(as.factor(response_raw)) - 1L
           response[is.na(response_raw)] <- NA_integer_
@@ -382,7 +461,6 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       # ── Covariates ───────────────────────────────────────────────
       if (length(covariate_vars) > 0) {
         cov_df <- data[, covariate_vars, drop = FALSE]
-        # Convert factors appropriately
         for (v in covariate_vars) {
           if (!is.numeric(cov_df[[v]])) {
             cov_df[[v]] <- as.factor(cov_df[[v]])
@@ -392,40 +470,25 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         cov_df <- NULL
       }
 
-      # ── Validate interaction covariate ───────────────────────────
-      # Interaction uses covariates[1] automatically; just need at least one.
-      if (isTRUE(opts$snpInteraction) || isTRUE(opts$haploInteraction)) {
-        if (length(covariate_vars) == 0) {
-          self$results$validationMsg$setContent(
-            "<b>Interaction:</b> At least one covariate is required. The first covariate will be used as the interaction term.")
-          self$results$validationMsg$setVisible(TRUE)
-        } else {
-          self$results$validationMsg$setVisible(FALSE)
-        }
-      } else {
-        self$results$validationMsg$setVisible(FALSE)
-      }
-
-      # ── Show/hide optional result groups ────────────────────────
-      show_cov_desc <- isTRUE(opts$covDesc) && length(covariate_vars) > 0
-      self$results$covDescGroup$setVisible(show_cov_desc)
-      self$results$ldGroup$setVisible(isTRUE(opts$ldAnalysis) || isTRUE(opts$ldMatrix) || isTRUE(opts$ldPlot))
-      self$results$haploGroup$setVisible(
-        isTRUE(opts$haploFreq) || isTRUE(opts$haploAssoc))
+      # ── Show/hide optional result groups based on flags ──────────
+      self$results$covDescGroup$setVisible(run_covDesc && length(covariate_vars) > 0)
+      self$results$snpSummaryTablesGroup$setVisible(run_snpSummary)
+      self$results$ldGroup$setVisible(run_ldAnalysis || run_ldMatrix || run_ldPlot)
+      self$results$haploGroup$setVisible(run_haploFreq || run_haploAssoc || run_haploInteraction)
 
       # ── Covariate descriptives ───────────────────────────────────
-      if (show_cov_desc && !is.null(cov_df)) {
+      if (run_covDesc && !is.null(cov_df) && length(covariate_vars) > 0) {
         private$.run_cov_desc(cov_df, response_raw, response_type)
       }
 
       # ── SNP summary table ─────────────────────────────────────────
-      if (isTRUE(opts$snpSummary)) {
-        private$.fill_snp_summary(data, snp_vars, response_raw, response_type, opts$subpop)
+      if (run_snpSummary) {
+        private$.fill_snp_summary(data, snp_vars, response_raw, response_type, run_subpop)
       }
 
       # ── Per-SNP analyses ─────────────────────────────────────────
       arr <- self$results$snpResults
-      geno_list <- list()  # for LD/haplotype later
+      geno_list <- list()
 
       for (snp_nm in snp_vars) {
         snp_raw  <- data[[snp_nm]]
@@ -445,51 +508,48 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ref <- get_ref_genotype(geno_obj)
 
         # Allele frequencies
-        if (opts$allFreq) {
+        if (run_allFreq) {
           private$.fill_allele_freq(item$allFreqTable, snp_summary,
-                                     snp_nm, response_raw, opts$subpop,
-                                     response_type, snp_raw)
+                                    snp_nm, response_raw, run_subpop,
+                                    response_type, snp_raw)
         }
 
         # Genotype frequencies
-        if (opts$genoFreq) {
+        if (run_genoFreq) {
           private$.fill_geno_freq(item$genoFreqTable, snp_summary, ref,
-                                   snp_raw, response, response_type, opts$subpop,
-                                   response_raw)
+                                  snp_raw, response, response_type, run_subpop,
+                                  response_raw)
         }
 
         # HWE
-        if (opts$hweTest) {
+        if (run_hweTest) {
           private$.fill_hwe(item$hweTable, geno_obj, snp_nm,
-                             response_raw, opts$subpop)
+                            response_raw, run_subpop)
         }
 
         # Association
-        if (opts$snpAssoc) {
-            private$.fill_assoc(item$assocTable, snp_raw, ref, response,
-                                cov_df, response_type, opts)
+        if (run_snpAssoc && !is.null(response)) {
+          private$.fill_assoc(item$assocTable, snp_raw, ref, response,
+                              cov_df, response_type, opts, run_snpAssoc)
         }
 
-        # SNP × covariate interaction — uses covariates[1] as interaction term
-        if (isTRUE(opts$snpInteraction) && !is.null(cov_df) &&
-            ncol(cov_df) >= 1) {
+        # SNP × covariate interaction
+        if (run_snpInteraction && !is.null(cov_df) && ncol(cov_df) >= 1 && !is.null(response)) {
           private$.fill_interaction(item$interactionTable, snp_raw, ref,
-                                     response, cov_df,
-                                     names(cov_df)[1],
-                                     response_type, opts)
+                                    response, cov_df, names(cov_df)[1],
+                                    response_type, opts)
         }
       }
 
       # ── LD analysis ──────────────────────────────────────────────
-      needs_ld <- (isTRUE(opts$ldAnalysis) || isTRUE(opts$ldMatrix) || isTRUE(opts$ldPlot))
-      if (needs_ld && length(geno_list) >= 2) {
-        private$.run_ld(geno_list, opts)
+      if ((run_ldAnalysis || run_ldMatrix || run_ldPlot) && length(geno_list) >= 2) {
+        private$.run_ld(geno_list, opts, run_ldAnalysis, run_ldMatrix, run_ldPlot)
       }
 
       # ── Haplotype analysis ───────────────────────────────────────
-      if ((opts$haploFreq || opts$haploAssoc || opts$haploInteraction) && length(geno_list) >= 2) {
-        private$.run_haplo(geno_list, data, response, response_type,
-                            cov_df, opts)
+      if ((run_haploFreq || run_haploAssoc || run_haploInteraction) && length(geno_list) >= 2) {
+        private$.run_haplo(geno_list, data, response, response_type, cov_df, 
+                          opts, run_haploFreq, run_haploAssoc, run_haploInteraction)
       }
     },
 
@@ -693,6 +753,29 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 # ── Genotype frequencies ──────────────────────────────────────
     .fill_geno_freq = function(tbl, sm, ref, snp_raw, response,
                                 response_type, subpop, response_raw) {
+      
+      if (response_type == "quantitative") {
+        tbl$getColumn("responseStat")$setVisible(TRUE)
+        
+        # Fix: Ensure response is numeric
+        if (!is.numeric(response)) {
+          response <- as.numeric(as.character(response))
+        }
+      }
+      
+      # In the row creation loop:
+      resp_stat <- ""
+      if (response_type == "quantitative" && !is.null(response)) {
+        mask <- (snp_char == geno_name) & !is.na(response) & !is.na(snp_raw)
+        if (sum(mask, na.rm = TRUE) > 0) {
+          mn <- mean(response[mask], na.rm = TRUE)
+          se <- sd(response[mask], na.rm = TRUE) / sqrt(sum(mask, na.rm = TRUE))
+          if (!is.na(mn) && !is.na(se)) {
+            resp_stat <- sprintf("%.2f (%.2f)", mn, se)
+          }
+        }
+      }
+          
       gf <- sm$genotype.freq
       gf <- tryCatch(reorder_geno(gf, ref), error = function(e) gf)
 
@@ -806,22 +889,22 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
     },
 
     # ── Linkage disequilibrium ────────────────────────────────────
-    .run_ld = function(geno_list, opts) {
+    .run_ld = function(geno_list, opts, run_ldAnalysis, run_ldMatrix, run_ldPlot) {
       nms   <- names(geno_list)
       n     <- length(nms)
       pairs <- combn(nms, 2, simplify = FALSE)
 
       # Compute all pairwise LD results once
-      ld_store <- list()   # keyed by "snp1___snp2"
+      ld_store <- list()
       for (pair in pairs) {
         key    <- paste(pair, collapse = "___")
         ld_res <- tryCatch(genetics::LD(geno_list[[pair[1]]], geno_list[[pair[2]]]),
-                           error = function(e) NULL)
+                          error = function(e) NULL)
         if (!is.null(ld_res)) ld_store[[key]] <- ld_res
       }
 
-      # ── Pairwise table ─────────────────────────────────────────
-      if (isTRUE(opts$ldAnalysis)) {
+      # Pairwise table
+      if (run_ldAnalysis) {
         tbl <- self$results$ldGroup$ldTable
         for (pair in pairs) {
           key    <- paste(pair, collapse = "___")
@@ -839,7 +922,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       }
 
       # ── LD matrix ─────────────────────────────────────────────
-      if (isTRUE(opts$ldMatrix)) {
+      if (run_ldMatrix) {
         mtbl   <- self$results$ldGroup$ldMatrixTable
         metric <- opts$ldMetric   # "r2", "Dprime", or "D"
 
@@ -901,7 +984,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       }
 
       # ── Store LD data for heatmap plot ──────────────────────────
-      if (isTRUE(opts$ldPlot)) {
+      if (run_ldPlot) {
         private$.ld_store  <- ld_store
         private$.ld_nms    <- nms
         private$.ld_metric <- opts$ldMetric
@@ -1024,9 +1107,22 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
     # ── SNP association ───────────────────────────────────────────
     .fill_assoc = function(tbl, snp_raw, ref, response, cov_df,
-                            response_type, opts) {
+                        response_type, opts, run_snpAssoc) {
 
-#      tbl <- self$results$assocGroup$assocTable
+      if (!run_snpAssoc) return()
+      
+      # Validate response for binary models
+      if (response_type == "binary") {
+        # Check if response has exactly 2 levels after removing NAs
+        resp_clean <- response[!is.na(response)]
+        if (length(unique(resp_clean)) != 2) {
+          tbl$setNote(
+            key = "response_error",
+            note = "Binary response requires exactly 2 categories. ",
+            "Consider using quantitative response type or check your data.")
+          return()
+        }
+      }
 
       # ── Dynamic column header ─────────────────────────
       effect_col <- tbl$getColumn("effect")
@@ -1169,9 +1265,9 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       }
     },
 
-    .run_haplo = function(geno_list, data, response, response_type,
-                           cov_df, opts) {
-      
+    .run_haplo = function(geno_list, data, response, response_type, cov_df, 
+                       opts, run_haploFreq, run_haploAssoc, run_haploInteraction) {
+            
       # ── Inline helper (hoisted so haploAssoc and haploInteraction can share) ──
       na.geno.keep <- function(m) {
         mf.gindx <- function(m) {
@@ -1203,6 +1299,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         attr(m, "gmiss")  <- gmiss
         m
       }
+      # ── Inline helper end ───────────────────────────────────────────────
 
       snp_names <- names(geno_list)
       allele_list <- lapply(snp_names, function(nm) genetics::allele(geno_list[[nm]]))
@@ -1244,7 +1341,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       }
 
       # 1. Haplotype Frequencies (EM)
-      if (opts$haploFreq) {
+      if (run_haploFreq) {
         em_res <- tryCatch(
           haplo.stats::haplo.em(subset_geno(geno_setup, keep), locus.label = snp_names),
           error = function(e) NULL
@@ -1276,7 +1373,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       }
 
     # ── Haplotype association ─────────────────────────────────────
-    if (opts$haploAssoc && !is.null(response)) {
+    if (run_haploAssoc && !is.null(response)) {
 
       family     <- if (response_type == "binary") "binomial" else "gaussian"
       y_sub      <- if (response_type == "binary") {
@@ -1330,7 +1427,6 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         # convention "geno" + haplo.names (the model frame column is "geno").
         # We match positionally rather than by name to be robust to separator
         # differences across haplo.stats versions.
-#        coef_vec <- tryCatch(coef(haplo_fit),       error = function(e) NULL)
         coef_sum <- tryCatch(summary(haplo_fit)$coefficients, error = function(e) NULL)
         ci_mat   <- tryCatch(confint(haplo_fit, level = opts$ciWidth / 100),
                              error = function(e) NULL)
@@ -1439,8 +1535,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
     }
 
 # ── Haplotype × covariate interaction ─────────────────────────
-if (isTRUE(opts$haploInteraction) && !is.null(cov_df) &&
-    ncol(cov_df) >= 1) {
+if (run_haploInteraction && !is.null(cov_df) && ncol(cov_df) >= 1 && !is.null(response)) {
 
   int_var  <- names(cov_df)[1]   # first covariate is always the interaction term
   adj_vars <- setdiff(names(cov_df), int_var)
