@@ -342,7 +342,15 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         self$results$validationMsgSNP$setContent(paste0(
             "<p style='color:red;'> Please add at least one SNP variable.</p>"))
         self$results$validationMsgSNP$setVisible(TRUE)
-        return()
+        run_snpSummary <- FALSE
+        run_ldAnalysis <- FALSE
+        run_ldMatrix <- FALSE
+        run_ldPlot <- FALSE
+        run_snpAssoc <- FALSE
+        run_snpInteraction <- FALSE
+        run_haploFreq <- FALSE
+        run_haploAssoc <- FALSE
+        run_haploInteraction <- FALSE
       } else {
         self$results$validationMsgSNP$setVisible(FALSE)
       }
@@ -387,7 +395,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         } else if (is.numeric(response_raw)) {
           response_type <- "quantitative"
         } else {
-          response_type <- "binary"
+          response_type <- NULL
         }
       }
 

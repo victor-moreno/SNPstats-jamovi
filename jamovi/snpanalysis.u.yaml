@@ -149,7 +149,7 @@ children:
                     format: number
               - type: CheckBox
                 name: haploAssoc
-                enable: (snps)
+                enable: (response && snps)
               - type: CheckBox
                 name: haploInteraction
-                enable: (snps && covariates)
+                enable: (haploAssoc && covariates)
