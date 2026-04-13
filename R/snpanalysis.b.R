@@ -1330,7 +1330,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         # convention "geno" + haplo.names (the model frame column is "geno").
         # We match positionally rather than by name to be robust to separator
         # differences across haplo.stats versions.
-        coef_vec <- tryCatch(coef(haplo_fit),       error = function(e) NULL)
+#        coef_vec <- tryCatch(coef(haplo_fit),       error = function(e) NULL)
         coef_sum <- tryCatch(summary(haplo_fit)$coefficients, error = function(e) NULL)
         ci_mat   <- tryCatch(confint(haplo_fit, level = opts$ciWidth / 100),
                              error = function(e) NULL)
