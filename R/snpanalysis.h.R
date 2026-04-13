@@ -12,7 +12,7 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
             responseType = "auto",
             subpop = FALSE,
             covDesc = FALSE,
-            snpSummary = TRUE,
+            snpSummary = FALSE,
             allFreq = FALSE,
             genoFreq = FALSE,
             hweTest = FALSE,
@@ -83,7 +83,7 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
             private$..snpSummary <- jmvcore::OptionBool$new(
                 "snpSummary",
                 snpSummary,
-                default=TRUE)
+                default=FALSE)
             private$..allFreq <- jmvcore::OptionBool$new(
                 "allFreq",
                 allFreq,
@@ -242,6 +242,8 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
     "snpAnalysisResults",
     inherit = jmvcore::Group,
     active = list(
+        validationMsgSNP = function() private$.items[["validationMsgSNP"]],
+        validationMsgGeno = function() private$.items[["validationMsgGeno"]],
         validationMsg = function() private$.items[["validationMsg"]],
         covDescGroup = function() private$.items[["covDescGroup"]],
         snpSummaryTablesGroup = function() private$.items[["snpSummaryTablesGroup"]],
@@ -255,6 +257,16 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                 options=options,
                 name="",
                 title="SNP Analysis")
+            self$add(jmvcore::Html$new(
+                options=options,
+                name="validationMsgSNP",
+                title="",
+                visible=TRUE))
+            self$add(jmvcore::Html$new(
+                options=options,
+                name="validationMsgGeno",
+                title="",
+                visible=TRUE))
             self$add(jmvcore::Html$new(
                 options=options,
                 name="validationMsg",
@@ -645,6 +657,8 @@ snpAnalysisBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param haploAssoc .
 #' @return A results object containing:
 #' \tabular{llllll}{
+#'   \code{results$validationMsgSNP} \tab \tab \tab \tab \tab a html \cr
+#'   \code{results$validationMsgGeno} \tab \tab \tab \tab \tab a html \cr
 #'   \code{results$validationMsg} \tab \tab \tab \tab \tab a html \cr
 #'   \code{results$covDescGroup$covDescTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$snpSummaryTablesGroup$snpSummaryTable} \tab \tab \tab \tab \tab a table \cr
@@ -665,7 +679,7 @@ snpAnalysis <- function(
     responseType = "auto",
     subpop = FALSE,
     covDesc = FALSE,
-    snpSummary = TRUE,
+    snpSummary = FALSE,
     allFreq = FALSE,
     genoFreq = FALSE,
     hweTest = FALSE,

@@ -1,7 +1,7 @@
 #' @importFrom R6 R6Class
 #' @import jmvcore
 #' @importFrom genetics genotype allele HWE.exact LD
-#' @importFrom haplo.stats setupGeno hapl.em, haplo.glm, na.geno.keep
+#' @importFrom haplo.stats setupGeno hapl.em, haplo.glm
 #' @import ggplot2
 
 
@@ -223,21 +223,17 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       covariate_vars <- opts$covariates
 
       # ── Validation ──────────────────────────────────────────────
-      self$results$validationMsg$setContent("")
+      if ( length(snp_vars) == 0 ) {
+        self$results$validationMsgSNP$setContent(paste0(
+            "<b>Please add at least one SNP. Response variable is needed for stratification or association.</b>"))
+        self$results$validationMsgSNP$setVisible(TRUE)
+        return() # do not continue with analysis if no SNPs assigned
+      } else {
+        self$results$validationMsgSNP$setVisible(FALSE)
+      }
 
       # Nothing assigned yet — keep results panel empty and silent
-      if (length(snp_vars) == 0) return()
-
-      needs_response <- opts$snpAssoc || opts$haploAssoc || opts$subpop
-      if (needs_response && (is.null(response_var) || response_var == "")) {
-        self$results$validationMsg$setContent(paste0(
-          "<b>Please assign a response variable</b> (required for association or ",
-          "stratification)."))
-        return()
-      } else{
-          self$results$validationMsg$setContent(NULL)
-      } 
-      
+      if (length(snp_vars) == 0) return()      
 
       response_raw <- if (!is.null(response_var) && response_var != "") data[[response_var]] else NULL
 
@@ -247,12 +243,14 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         if (!is_snp_column(data[[v]])) bad_snps <- c(bad_snps, v)
       }
       if (length(bad_snps) > 0) {
-        self$results$validationMsg$setContent(paste0(
+        self$results$validationMsgGeno$setContent(paste0(
           "<b>Warning:</b> The following columns do not appear to contain ",
           "diploid genotypes (X/Y format): ",
           paste(bad_snps, collapse = ", "),
           ". They will be skipped."))
         snp_vars <- setdiff(snp_vars, bad_snps)
+      } else {
+        self$results$validationMsgGeno$setVisible(FALSE)
       }
 
       # ── Determine response type ──────────────────────────────────

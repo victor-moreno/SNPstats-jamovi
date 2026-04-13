@@ -10,3 +10,17 @@ if stratify, also covariates if exist
 Check that sample size is adjusted if covariates have missing values
 
 haplotype interaction
+
+add sample datasets
+
+revise SNP formats & allele order 
+
+
+# 
+
+options(repos = c(CRAN = "https://packagemanager.posit.co/cran/2025-05-25"))
+
+.libPaths(c(
+"/Users/h501uvma/Downloads/claude-code/snpstats/jamovi/SNPstats/build/R4.5.0-x64-macos",
+ "~/R/library/4.5"
+)

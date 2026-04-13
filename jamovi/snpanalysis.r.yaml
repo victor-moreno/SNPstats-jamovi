@@ -4,6 +4,14 @@ title: SNP Analysis
 jrs: '1.1'
 
 items:
+  - name: validationMsgSNP
+    title: ''
+    type: Html
+    visible: true
+  - name: validationMsgGeno
+    title: ''
+    type: Html
+    visible: true
   - name: validationMsg
     title: ''
     type: Html
