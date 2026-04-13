@@ -423,7 +423,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       }
 
       # ── Validation 6: Haplotype association requires response ────
-      if (run_haploAssoc && (is.null(response_raw) || response_raw == "")) {
+      if (run_haploAssoc && (is.null(response_var) || response_var == "")) {
         self$results$validationMsg$setContent(
           "<p style='color:red;'> Haplotype association requires a response variable.</p>")
         self$results$validationMsg$setVisible(TRUE)
@@ -1622,98 +1622,46 @@ if (run_haploInteraction && !is.null(cov_df) && ncol(cov_df) >= 1 && !is.null(re
     if (!is.null(coef_sum_int)) {
       all_rows_int <- rownames(coef_sum_int)
 
-      # ── Build a map: raw coef rowname → human-readable label ──
-      # Decode haplotype labels from haplo.unique rows (same as association table)
+      # ── Build coef-name → display-label map ───────────────────
+      # haplo.glm names interaction-model coefficients as geno.1, geno.2, ...
+      # (and geno.1:int_var, geno.2:int_var for interaction terms).
+      # The numeric suffix is a 1-based position into haplo.common (excluding
+      # the base haplotype), with an optional trailing "rare" term.
+      # We reconstruct allele labels the same way the association table does:
+      # positionally via haplo.common → haplo.unique.
       decode_haplo_label <- function(row_vec) {
         paste(as.character(row_vec), collapse = "-")
       }
 
-      # Get the common haplotypes and their indices
-      common_idx_i <- haplo_int_fit$haplo.common
-      base_idx_i   <- haplo_int_fit$haplo.base
-      base_label_i <- decode_haplo_label(haplo_int_fit$haplo.unique[base_idx_i, ])
-      
-      # Build a mapping from position in haplo.common to haplotype label
-      pos_to_label <- list()
-      for (j in seq_along(common_idx_i)) {
-        h_idx <- common_idx_i[j]
-        h_label <- decode_haplo_label(haplo_int_fit$haplo.unique[h_idx, ])
-        pos_to_label[[j]] <- h_label
-      }
-      
-      # Also track the rare term position
-      rare_pos <- NULL
       rare_label <- paste0("Rare (<", opts$haploFreqMin, ")")
-      
-      # Build mapping from coefficient name to display label
-      # haplo_int_fit$haplo.names gives suffixes like "C-T-A", "rare", etc.
-      # These correspond positionally to: common haplotypes first, then rare term
-      raw_to_label <- character(0)
-      
-      if (!is.null(haplo_int_fit$haplo.names)) {
-        for (j in seq_along(haplo_int_fit$haplo.names)) {
-          haplo_suffix <- haplo_int_fit$haplo.names[j]
-          
-          # Determine the display label
-          if (grepl("rare", haplo_suffix, ignore.case = TRUE)) {
-            display_label <- rare_label
-            rare_pos <- j
-          } else if (j <= length(common_idx_i)) {
-            # Common haplotype - use the pre-computed label
-            display_label <- pos_to_label[[j]]
-          } else {
-            # Fallback - try to parse the suffix directly if it's in allele format
-            # Some versions of haplo.stats return the actual haplotype string
-            if (grepl("-", haplo_suffix)) {
-              display_label <- haplo_suffix
-            } else {
-              display_label <- paste0("Haplotype ", j)
-            }
-          }
-          
-          # Create mapping for main effect and interaction term
-          raw_main  <- paste0("geno", haplo_suffix)
-          raw_inter <- paste0("geno", haplo_suffix, ":", int_var)
-          raw_to_label[raw_main]  <- display_label
-          raw_to_label[raw_inter] <- paste0(display_label, " \u00D7 ", int_var)
+
+      # haplo.names holds the full coefficient names, e.g. "geno.5", "geno.6",
+      # "geno.rare".  The numeric suffix IS the row index into haplo.unique —
+      # confirmed from debug output.  Build the map from every geno main-effect
+      # row to its allele label, then add the matching interaction row.
+      geno_main_rows <- grep("^geno[^:]+$", all_rows_int, value = TRUE)
+      raw_to_label   <- character(0)
+
+      for (rn in geno_main_rows) {
+        suffix <- sub("^geno\\.", "", rn)   # "5", "6", "rare", …
+
+        display_label <- if (grepl("^[0-9]+$", suffix)) {
+          idx <- as.integer(suffix)
+          if (!is.na(idx) && idx >= 1L && idx <= nrow(haplo_int_fit$haplo.unique)) {
+            decode_haplo_label(haplo_int_fit$haplo.unique[idx, ])
+          } else paste0("Haplotype ", suffix)
+        } else if (grepl("rare", suffix, ignore.case = TRUE)) {
+          rare_label
+        } else {
+          suffix   # already an allele string in older haplo.stats builds
         }
-      }
-      
-      # Alternative: If haplo.names not available or incomplete, 
-      # build mapping from coefficient names by parsing the haplotype strings
-      # directly from the model frame attributes
-      if (length(raw_to_label) == 0 && !is.null(haplo_int_fit$haplo.unique)) {
-        # Try to extract haplotype strings from coefficient names
-        for (rn in all_rows_int) {
-          if (grepl("^geno", rn)) {
-            # Extract the part after "geno" and before ":" if present
-            suffix <- sub("^geno", "", rn)
-            suffix <- sub(paste0(":", int_var, "$"), "", suffix)
-            
-            # Check if suffix looks like a haplotype pattern (contains hyphens)
-            if (grepl("-", suffix)) {
-              display_label <- suffix
-            } else if (grepl("rare", suffix, ignore.case = TRUE)) {
-              display_label <- rare_label
-            } else if (grepl("^[0-9]+$", suffix)) {
-              # Numeric suffix - try to map to haplotype by position
-              pos <- as.numeric(suffix)
-              if (!is.na(pos) && pos <= length(common_idx_i)) {
-                display_label <- decode_haplo_label(haplo_int_fit$haplo.unique[common_idx_i[pos], ])
-              } else {
-                display_label <- paste0("Haplotype ", suffix)
-              }
-            } else {
-              display_label <- suffix
-            }
-            
-            if (grepl(paste0(":", int_var, "$"), rn)) {
-              raw_to_label[rn] <- paste0(display_label, " \u00D7 ", int_var)
-            } else {
-              raw_to_label[rn] <- display_label
-            }
-          }
-        }
+
+        raw_to_label[rn] <- display_label
+        # Interaction rows are named "geno.5:SEXMale" — the covariate level is
+        # appended, so we can't construct the exact name.  Match by prefix instead.
+        inter_rns <- grep(paste0("^", rn, ":"), all_rows_int, value = TRUE)
+        for (irn in inter_rns)
+          raw_to_label[irn] <- paste0(display_label, " \u00D7 ", sub(paste0("^", rn, ":"), "", irn))
       }
 
       # ── Identify main-effect and interaction rows ──────────

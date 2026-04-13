@@ -89,7 +89,7 @@ children:
                 children:
                   - type: ComboBox
                     name: ldMetric
-                    enable: (snps)
+                    enable: (ldMatrix)
               - type: CheckBox
                 name: ldPlot
                 enable: (snps)
@@ -110,22 +110,23 @@ children:
                 children:
                   - type: CheckBox
                     name: modelCodominant
-                    enable: (response && snps)
+                    enable: (snpAssoc)
                   - type: CheckBox
                     name: modelDominant
-                    enable: (response && snps)
+                    enable: (snpAssoc)
                   - type: CheckBox
                     name: modelRecessive
-                    enable: (response && snps)
+                    enable: (snpAssoc)
                   - type: CheckBox
                     name: modelOverdominant
-                    enable: (response && snps)
+                    enable: (snpAssoc)
                   - type: CheckBox
                     name: modelLogAdditive
-                    enable: (response && snps)
+                    enable: (snpAssoc)
                   - type: TextBox
                     name: ciWidth
                     format: number
+                    enable: (snpAssoc)
               - type: CheckBox
                 name: snpInteraction
                 enable: (snpAssoc && covariates)
@@ -147,6 +148,7 @@ children:
                   - type: TextBox
                     name: haploFreqMin
                     format: number
+                    enable: (haploFreq)
               - type: CheckBox
                 name: haploAssoc
                 enable: (response && snps)
