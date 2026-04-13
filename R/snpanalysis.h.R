@@ -277,17 +277,17 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                 options=options,
                 name="validationMsgSNP",
                 title="",
-                visible=TRUE))
+                visible=FALSE))
             self$add(jmvcore::Html$new(
                 options=options,
                 name="validationMsgGeno",
                 title="",
-                visible=TRUE))
+                visible=FALSE))
             self$add(jmvcore::Html$new(
                 options=options,
                 name="validationMsg",
                 title="",
-                visible=TRUE))
+                visible=FALSE))
             self$add(R6::R6Class(
                 inherit = jmvcore::Group,
                 active = list(
@@ -378,6 +378,7 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                         allFreqTable = function() private$.items[["allFreqTable"]],
                         genoFreqTable = function() private$.items[["genoFreqTable"]],
                         hweTable = function() private$.items[["hweTable"]],
+                        validationMsgSNPass = function() private$.items[["validationMsgSNPass"]],
                         assocTable = function() private$.items[["assocTable"]],
                         interactionTable = function() private$.items[["interactionTable"]]),
                     private = list(),
@@ -462,6 +463,11 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                                         `title`="P-value", 
                                         `type`="number", 
                                         `format`="zto,pvalue"))))
+                            self$add(jmvcore::Html$new(
+                                options=options,
+                                name="validationMsgSNPass",
+                                title="",
+                                visible=FALSE))
                             self$add(jmvcore::Table$new(
                                 options=options,
                                 name="assocTable",

@@ -466,8 +466,8 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
         # Association
         if (opts$snpAssoc) {
-          private$.fill_assoc(item$assocTable, snp_raw, ref, response,
-                               cov_df, response_type, opts)
+            private$.fill_assoc(item$assocTable, snp_raw, ref, response,
+                                cov_df, response_type, opts)
         }
 
         # SNP × covariate interaction — uses covariates[1] as interaction term

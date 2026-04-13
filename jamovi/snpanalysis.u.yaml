@@ -38,7 +38,7 @@ children:
         enable: (response)
       - type: CheckBox
         name: covDesc
-        enable: (response)
+        enable: (covariates)
 
   - type: LayoutBox
     margin: large
@@ -54,15 +54,20 @@ children:
         children:
           - type: Label
             label: SNP descriptive
+            enable: (snps)
             children:
               - type: CheckBox
                 name: snpSummary
+                enable: (snps)
               - type: CheckBox
                 name: allFreq
+                enable: (snps)
               - type: CheckBox
                 name: genoFreq
+                enable: (snps)
               - type: CheckBox
                 name: hweTest
+                enable: (snps)
 
       # ── Column 1: Linkage disequilibrium ──────────────────────
       - type: LayoutBox
@@ -73,16 +78,21 @@ children:
         children:
           - type: Label
             label: Linkage disequilibrium
+            enable: (snps)
             children:
               - type: CheckBox
                 name: ldAnalysis
+                enable: (snps)
               - type: CheckBox
                 name: ldMatrix
+                enable: (snps)
                 children:
                   - type: ComboBox
                     name: ldMetric
+                    enable: (snps)
               - type: CheckBox
                 name: ldPlot
+                enable: (snps)
 
       # ── Column 2 row 0: SNP association ───────────────────────
       - type: LayoutBox
@@ -96,18 +106,23 @@ children:
             children:
               - type: CheckBox
                 name: snpAssoc
-                enable: (response)
+                enable: (response && snps)
                 children:
                   - type: CheckBox
                     name: modelCodominant
+                    enable: (response && snps)
                   - type: CheckBox
                     name: modelDominant
+                    enable: (response && snps)
                   - type: CheckBox
                     name: modelRecessive
+                    enable: (response && snps)
                   - type: CheckBox
                     name: modelOverdominant
+                    enable: (response && snps)
                   - type: CheckBox
                     name: modelLogAdditive
+                    enable: (response && snps)
                   - type: TextBox
                     name: ciWidth
                     format: number
@@ -127,12 +142,14 @@ children:
             children:
               - type: CheckBox
                 name: haploFreq
+                enable: (snps)
                 children:
                   - type: TextBox
                     name: haploFreqMin
                     format: number
               - type: CheckBox
                 name: haploAssoc
+                enable: (snps)
               - type: CheckBox
                 name: haploInteraction
-                enable: (haploAssoc && covariates)
+                enable: (snps && covariates)

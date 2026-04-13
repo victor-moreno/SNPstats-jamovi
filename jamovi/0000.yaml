@@ -26,9 +26,33 @@ analyses:
 usesNative: true
 minApp: 1.0.8
 datasets:
-  - name: SNPstats_example
-    path: SNPstats_example.csv
-    description: Example SNP dataset
+  - name: sample1
+    path: sample1.rda
+    description: Sample SNP dataset 1
+    tags:
+      - SNP
+      - genetics
+  - name: sample2
+    path: sample2.rda
+    description: Sample SNP dataset 2
+    tags:
+      - SNP
+      - genetics
+  - name: sample3
+    path: sample3.rda
+    description: Sample SNP dataset 3
+    tags:
+      - SNP
+      - genetics
+  - name: sample4
+    path: sample4.rda
+    description: Sample SNP dataset 4
+    tags:
+      - SNP
+      - genetics
+  - name: sample5
+    path: sample5.rda
+    description: Sample SNP dataset 5
     tags:
       - SNP
       - genetics

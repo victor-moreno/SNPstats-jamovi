@@ -29,3 +29,8 @@ options(repos = c(CRAN = "https://packagemanager.posit.co/cran/2025-05-25"))
 "/Users/h501uvma/Downloads/claude-code/snpstats/jamovi/SNPstats/build/R4.5.0-x64-macos",
  "~/R/library/4.5"
 )
+
+
+
+sample1 <- read.table("../sample1.txt", header = TRUE)
+save(sample1, file = "data/sample1.rda", version = 2)

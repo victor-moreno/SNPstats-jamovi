@@ -3,19 +3,19 @@ name: snpAnalysis
 title: SNP Analysis
 jrs: '1.1'
 
-items:
+items:  
   - name: validationMsgSNP
     title: ''
     type: Html
-    visible: true
+    visible: false
   - name: validationMsgGeno
     title: ''
     type: Html
-    visible: true
+    visible: false
   - name: validationMsg
     title: ''
     type: Html
-    visible: true
+    visible: false
 
   # ── Covariate descriptives ─────────────────────────────────────
   - name: covDescGroup
@@ -148,6 +148,11 @@ items:
               format: zto,pvalue
 
   # ── Per-SNP results (array) ────────────────────────────────────
+        - name: validationMsgSNPass
+          title: ''
+          type: Html
+          visible: false
+
         - name: assocTable
           title: Association with Response
           type: Table
