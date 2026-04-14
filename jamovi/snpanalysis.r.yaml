@@ -297,6 +297,16 @@ items:
             title: Frequency
             type: number
             format: zto
+          - name: freq_g0
+            title: Group 0
+            type: number
+            format: zto
+            visible: false
+          - name: freq_g1
+            title: Group 1
+            type: number
+            format: zto
+            visible: false
 
       - name: haploAssocTable
         title: Haplotype Association

@@ -29,9 +29,17 @@ remotes::install_version("node", version="1.2", repos="https://repo.jamovi.org")
 install.packages(c("genetics","haplo.stats","arsenal","combinat","gdata","rms","polspline"))
 
 .libPaths(c(
-"/Users/h501uvma/Downloads/claude-code/snpstats/jamovi/SNPstats/build/R4.5.0-x64-macos",
+"/Users/h501uvma/Downloads/SNPstats/build/R4.5.0-x64-macos",
  "~/R/library/4.5"
 ))
+
+.libPaths(c(
+"/Applications/jamovi.app/Contents/Resources/modules/base/R",
+"/Users/h501uvma/Downloads/SNPstats/build/R4.5.0-arm64-macos"
+))
+
+setwd("/Users/h501uvma/Downloads/SNPstats")
+source("~/.Rprofile")
 
 .libPaths()
 getwd()

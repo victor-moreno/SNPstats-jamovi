@@ -653,7 +653,19 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                                     `name`="freq", 
                                     `title`="Frequency", 
                                     `type`="number", 
-                                    `format`="zto"))))
+                                    `format`="zto"),
+                                list(
+                                    `name`="freq_g0", 
+                                    `title`="Group 0", 
+                                    `type`="number", 
+                                    `format`="zto", 
+                                    `visible`=FALSE),
+                                list(
+                                    `name`="freq_g1", 
+                                    `title`="Group 1", 
+                                    `type`="number", 
+                                    `format`="zto", 
+                                    `visible`=FALSE))))
                         self$add(jmvcore::Table$new(
                             options=options,
                             name="haploAssocTable",

@@ -1693,8 +1693,13 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         }
 
         if (do_strat_haplo) {
-          # Add a Group column dynamically
-          tbl$addColumn(name = "group", title = "Group", type = "text", index = 1L)
+          # Add one freq column per group level (appended after the overall freq column)
+          tbl$addColumn(name  = paste0("freq_g0"),
+                        title = as.character(grp_levels_haplo[1]),
+                        type  = "number")
+          tbl$addColumn(name  = paste0("freq_g1"),
+                        title = as.character(grp_levels_haplo[2]),
+                        type  = "number")
         }
 
         # Overall (using the standard keep mask, which excludes resp/cov missings)
@@ -1706,14 +1711,44 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         if (!is.null(em_all)) {
           freqs    <- em_all$hap.prob
           rare_sum <- 0
+
+          # ── Build per-group EM results up-front (needed to fill same rows) ──
+          em_grp <- list()
+          if (do_strat_haplo) {
+            for (gi in seq_along(grp_levels_haplo)) {
+              lvl      <- grp_levels_haplo[gi]
+              keep_lvl <- keep & !is.na(response_raw) &
+                          as.character(response_raw) == lvl
+              if (sum(keep_lvl) < 5) next
+              em_grp[[lvl]] <- tryCatch(
+                haplo.stats::haplo.em(subset_geno(geno_setup, keep_lvl),
+                                      locus.label = snp_names),
+                error = function(e) NULL
+              )
+            }
+
+            # Build label → freq lookup for each group
+            grp_freq <- lapply(em_grp, function(em_g) {
+              if (is.null(em_g)) return(list())
+              setNames(
+                as.list(round(em_g$hap.prob, 4)),
+                sapply(seq_len(nrow(em_g$haplotype)), function(j)
+                  decode_haplo_row(as.numeric(em_g$haplotype[j, ]), u_alleles))
+              )
+            })
+          }
+
           for (i in seq_along(freqs)) {
             if (freqs[i] < opts$haploFreqMin) {
               rare_sum <- rare_sum + freqs[i]
               next
             }
-            label <- decode_haplo_row(as.numeric(em_all$haplotype[i, ]), u_alleles)
+            label    <- decode_haplo_row(as.numeric(em_all$haplotype[i, ]), u_alleles)
             row_vals <- list(haplotype = label, freq = round(freqs[i], 4))
-            if (do_strat_haplo) row_vals$group <- "All"
+            if (do_strat_haplo) {
+              row_vals$freq_g0 <- grp_freq[[grp_levels_haplo[1]]][[label]] %||% NA_real_
+              row_vals$freq_g1 <- grp_freq[[grp_levels_haplo[2]]][[label]] %||% NA_real_
+            }
             tbl$addRow(rowKey = paste0("f", i), values = row_vals)
           }
           if (rare_sum > 0) {
@@ -1721,45 +1756,19 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
               haplotype = paste0("Rare (<", opts$haploFreqMin, ")"),
               freq      = round(rare_sum, 4)
             )
-            if (do_strat_haplo) row_vals$group <- "All"
-            tbl$addRow(rowKey = "rare_freq", values = row_vals)
-          }
-
-          # ── Stratified by response ─────────────────────────────────
-          if (do_strat_haplo) {
-            for (lvl in grp_levels_haplo) {
-              keep_lvl <- keep & !is.na(response_raw) &
-                          as.character(response_raw) == lvl
-              if (sum(keep_lvl) < 5) next
-              em_lvl <- tryCatch(
-                haplo.stats::haplo.em(subset_geno(geno_setup, keep_lvl),
-                                      locus.label = snp_names),
-                error = function(e) NULL
-              )
-              if (is.null(em_lvl)) next
-              freqs_lvl <- em_lvl$hap.prob
-              rare_sum_lvl <- 0
-              row_sep_key  <- paste0("sep_", lvl)
-              for (i in seq_along(freqs_lvl)) {
-                if (freqs_lvl[i] < opts$haploFreqMin) {
-                  rare_sum_lvl <- rare_sum_lvl + freqs_lvl[i]
-                  next
-                }
-                label <- decode_haplo_row(as.numeric(em_lvl$haplotype[i, ]), u_alleles)
-                tbl$addRow(rowKey = paste0("g", lvl, "f", i), values = list(
-                  haplotype = label,
-                  freq      = round(freqs_lvl[i], 4),
-                  group     = as.character(lvl)
-                ))
-              }
-              if (rare_sum_lvl > 0) {
-                tbl$addRow(rowKey = paste0("g", lvl, "_rare"), values = list(
-                  haplotype = paste0("Rare (<", opts$haploFreqMin, ")"),
-                  freq      = round(rare_sum_lvl, 4),
-                  group     = as.character(lvl)
-                ))
-              }
+            if (do_strat_haplo) {
+              em0 <- em_grp[[grp_levels_haplo[1]]]
+              em1 <- em_grp[[grp_levels_haplo[2]]]
+              rare_g0 <- if (!is.null(em0))
+                           round(sum(em0$hap.prob[em0$hap.prob < opts$haploFreqMin]), 4)
+                         else NA_real_
+              rare_g1 <- if (!is.null(em1))
+                           round(sum(em1$hap.prob[em1$hap.prob < opts$haploFreqMin]), 4)
+                         else NA_real_
+              row_vals$freq_g0 <- if (rare_g0 > 0) rare_g0 else NA_real_
+              row_vals$freq_g1 <- if (rare_g1 > 0) rare_g1 else NA_real_
             }
+            tbl$addRow(rowKey = "rare_freq", values = row_vals)
           }
         }
 
