@@ -39,6 +39,8 @@ m <- data.frame(y = as.numeric(as.factor(response[keep])) - 1L)
 m[[int_var]] <- data[[int_var]][keep]
 m$geno <- subset_geno(geno_setup, keep)
 
+m<- m[complete.cases(m), ]
+
 # ── fit ───────────────────────────────────────────────────────
 fit <- haplo.stats::haplo.glm(
   as.formula(paste("y ~ geno *", int_var)),
@@ -48,7 +50,20 @@ fit <- haplo.stats::haplo.glm(
   control   = haplo.stats::haplo.glm.control(haplo.freq.min = 0.05)
 )
 
-# ── debug dump ────────────────────────────────────────────────
+fit0 <- haplo.stats::haplo.glm(
+  as.formula(paste("y ~ geno +", int_var)),
+  family    = "binomial",
+  data      = m,
+  na.action = haplo.stats::na.geno.keep,
+  control   = haplo.stats::haplo.glm.control(haplo.freq.min = 0.05)
+)
+
+fit
+fit0
+
+anova(fit0, fit)
+
+─ debug dump ────────────────────────────────────────────────
 cat("=== coef rownames ===\n");    print(rownames(summary(fit)$coefficients))
 cat("\n=== haplo.common ===\n");   print(fit$haplo.common)
 cat("\n=== haplo.base ===\n");     print(fit$haplo.base)

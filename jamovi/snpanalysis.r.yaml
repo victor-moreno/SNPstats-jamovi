@@ -33,12 +33,22 @@ items:
           - name: level
             title: Level
             type: text
-          - name: n
-            title: n
-            type: integer
-          - name: stat
-            title: Statistic
+          - name: stat_overall
+            title: Overall
             type: text
+          - name: stat_g0
+            title: Group 0
+            type: text
+            visible: false
+          - name: stat_g1
+            title: Group 1
+            type: text
+            visible: false
+          - name: pval
+            title: P-value
+            type: number
+            format: zto,pvalue
+            visible: false
 
   # ── SNP summary table ─────────────────────────────────────────
   - name: snpSummaryTablesGroup
@@ -330,9 +340,5 @@ items:
             type: number
           - name: pval
             title: P-value
-            type: number
-            format: zto,pvalue
-          - name: pvalInteraction
-            title: P (interaction)
             type: number
             format: zto,pvalue

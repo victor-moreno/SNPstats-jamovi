@@ -313,13 +313,25 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                                     `title`="Level", 
                                     `type`="text"),
                                 list(
-                                    `name`="n", 
-                                    `title`="n", 
-                                    `type`="integer"),
+                                    `name`="stat_overall", 
+                                    `title`="Overall", 
+                                    `type`="text"),
                                 list(
-                                    `name`="stat", 
-                                    `title`="Statistic", 
-                                    `type`="text"))))}))$new(options=options))
+                                    `name`="stat_g0", 
+                                    `title`="Group 0", 
+                                    `type`="text", 
+                                    `visible`=FALSE),
+                                list(
+                                    `name`="stat_g1", 
+                                    `title`="Group 1", 
+                                    `type`="text", 
+                                    `visible`=FALSE),
+                                list(
+                                    `name`="pval", 
+                                    `title`="P-value", 
+                                    `type`="number", 
+                                    `format`="zto,pvalue", 
+                                    `visible`=FALSE))))}))$new(options=options))
             self$add(R6::R6Class(
                 inherit = jmvcore::Group,
                 active = list(
@@ -695,11 +707,6 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                                 list(
                                     `name`="pval", 
                                     `title`="P-value", 
-                                    `type`="number", 
-                                    `format`="zto,pvalue"),
-                                list(
-                                    `name`="pvalInteraction", 
-                                    `title`="P (interaction)", 
                                     `type`="number", 
                                     `format`="zto,pvalue"))))}))$new(options=options))}))
 

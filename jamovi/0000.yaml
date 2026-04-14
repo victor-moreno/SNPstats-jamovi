@@ -1,5 +1,5 @@
 ---
-title: Basic Genetic Epidemiology Analyses
+title: Basic Genetic Epidemiology Analyses of SNP data
 name: SNPstats
 version: 0.1.0
 jms: '1.0'
@@ -9,7 +9,7 @@ maintainer: Victor Moreno <v.moreno@iconcologa.net>
 date: '2026-04-10'
 type: R
 description: >
-  SNP association analysis for genetic epidemiology. Computes allele/genotype
+  SNP descriptive and association analysis for genetic epidemiology. Computes allele/genotype
   frequencies, Hardy-Weinberg equilibrium, SNP-response association under five
   genetic models, linkage disequilibrium, and haplotype analysis.
 analyses:
@@ -26,33 +26,39 @@ analyses:
 usesNative: true
 minApp: 1.0.8
 datasets:
-  - name: sample1
+  - name: SNP sample1
     path: sample1.rda
-    description: Sample SNP dataset 1
+    description: >
+      Example SNP dataset 706 individuals, 5 SNPs, case-control status, age,
+      sex,BMI
     tags:
       - SNP
       - genetics
-  - name: sample2
+  - name: SNP sample2
     path: sample2.rda
-    description: Sample SNP dataset 2
+    description: Example SNP dataset 566 individuals, 3 SNPs, case-control status
     tags:
       - SNP
       - genetics
-  - name: sample3
+  - name: SNP sample3
     path: sample3.rda
-    description: Sample SNP dataset 3
+    description: >
+      Example SNP dataset 706 individuals, 8 SNPs, case-control status, age,
+      sex, family history
     tags:
       - SNP
       - genetics
-  - name: sample4
+  - name: SNP sample4
     path: sample4.rda
-    description: Sample SNP dataset 4
+    description: >
+      Example SNP dataset 706 individuals, 9 SNPs, case-control status, age,
+      sex, diet
     tags:
       - SNP
       - genetics
-  - name: sample5
+  - name: SNP sample5
     path: sample5.rda
-    description: Sample SNP dataset 5
+    description: Example SNP dataset 706 individuals, 4 SNPs, case-control, age, sex
     tags:
       - SNP
       - genetics

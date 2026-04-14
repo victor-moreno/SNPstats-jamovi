@@ -7,18 +7,134 @@
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-#' Detect if a character vector looks like diploid genotypes (A/B format)
-is_snp_column <- function(x) {
-  vals <- unique(na.omit(as.character(x)))
-  if (length(vals) == 0 || length(vals) > 3) return(FALSE)
-  all(grepl("^[A-Za-z0-9]+/[A-Za-z0-9]+$", vals))
+#' Split a normalised "A/B" genotype string into its two alleles.
+split_alleles <- function(g) strsplit(g, "/", fixed = TRUE)[[1]]
+
+#' Check that a vector of unique "A/B" genotype strings is biallelic and
+#' well-formed (only AA, AB/BA, BB combinations for exactly two distinct
+#' alleles).  Returns a list:
+#'   $ok      TRUE/FALSE
+#'   $reason  human-readable reason string when ok == FALSE
+#'   $alleles character(2) canonical allele pair when ok == TRUE
+check_biallelic <- function(vals) {
+  # vals: unique non-NA genotype strings already normalised to "A/B" form
+  pairs  <- lapply(vals, split_alleles)
+  bad    <- which(sapply(pairs, length) != 2)
+  if (length(bad) > 0)
+    return(list(ok = FALSE,
+                reason = paste0("cannot split into two alleles: ",
+                                paste(vals[bad], collapse = ", "))))
+
+  alleles <- unique(unlist(pairs))
+  if (length(alleles) > 2)
+    return(list(ok = FALSE,
+                reason = paste0("more than 2 alleles found (",
+                                paste(sort(alleles), collapse = ", "),
+                                "); only biallelic SNPs are supported")))
+
+  # Every observed genotype must be one of AA, AB, BA, BB
+  # (BA will be canonicalised to AB downstream)
+  a <- alleles[1]; b <- if (length(alleles) == 2) alleles[2] else alleles[1]
+  valid <- c(paste0(a,"/",a), paste0(a,"/",b),
+             paste0(b,"/",a), paste0(b,"/",b))
+  bad_geno <- vals[!vals %in% valid]
+  if (length(bad_geno) > 0)
+    return(list(ok = FALSE,
+                reason = paste0("unexpected genotype(s): ",
+                                paste(bad_geno, collapse = ", "))))
+
+  list(ok = TRUE, reason = NULL, alleles = sort(alleles))
 }
 
-#' Parse a SNP column into a genetics::genotype object
-#' Returns NULL if parsing fails.
+#' Detect if a character vector looks like diploid genotypes and return the
+#' separator used, or NULL if the column does not look like genotype data or
+#' fails the biallelic consistency check.
+#'
+#' Supported formats:
+#'   A/B  A|B  A>B   (any allele names, separator is /, | or >)
+#'   AB                (exactly 2 characters, no separator — single-char alleles)
+detect_snp_sep <- function(x) {
+  vals <- unique(na.omit(as.character(x)))
+  if (length(vals) == 0 || length(vals) > 10) return(NULL)
+
+  # Explicit separators: any allele names allowed on either side
+  for (sep in c("/", "|", ">")) {
+    pat <- paste0("^.+", if (sep == "|") "\\|" else sep, ".+$")
+    if (all(grepl(pat, vals))) {
+      # Normalise to "/" for the biallelic check
+      norm <- if (sep == "/") vals else sub(sep, "/", vals, fixed = TRUE)
+      if (!isTRUE(check_biallelic(norm)$ok)) return(NULL)
+      return(sep)
+    }
+  }
+
+  # No-separator two-character format: each value is exactly 2 non-space chars
+  if (all(nchar(vals) == 2) && all(grepl("^[A-Za-z0-9]{2}$", vals))) {
+    norm <- paste0(substr(vals, 1, 1), "/", substr(vals, 2, 2))
+    if (!isTRUE(check_biallelic(norm)$ok)) return(NULL)
+    return("")
+  }
+
+  NULL
+}
+
+#' Return the biallelic check result (including reason) for a raw column.
+#' Used by the validation step to produce a specific error message.
+snp_biallelic_check <- function(x) {
+  vals <- unique(na.omit(as.character(x)))
+  sep  <- NULL
+  for (s in c("/", "|", ">")) {
+    pat <- paste0("^.+", if (s == "|") "\\|" else s, ".+$")
+    if (all(grepl(pat, vals))) { sep <- s; break }
+  }
+  if (is.null(sep) && all(nchar(vals) == 2) &&
+      all(grepl("^[A-Za-z0-9]{2}$", vals))) sep <- ""
+  if (is.null(sep)) return(list(ok = FALSE, reason = "unrecognised format"))
+  norm <- if (sep == "") paste0(substr(vals,1,1),"/",substr(vals,2,2)) else
+          if (sep == "/") vals else sub(sep, "/", vals, fixed = TRUE)
+  check_biallelic(norm)
+}
+
+#' Convenience wrapper: TRUE if column looks like valid biallelic genotype data.
+is_snp_column <- function(x) !is.null(detect_snp_sep(x))
+
+#' Normalise a raw genotype vector to canonical "A/B" format (A <= B
+#' alphabetically, so B/A becomes A/B), then parse via genetics::genotype().
+#' Returns NULL if the format cannot be determined or the column is not
+#' biallelic.
 parse_genotype <- function(x) {
+  sep <- detect_snp_sep(x)
+  if (is.null(sep)) return(NULL)
+
+  x_chr <- as.character(x)
+
+  # Step 1: convert to slash-separated
+  if (sep == "") {
+    x_norm <- ifelse(is.na(x_chr), NA_character_,
+                     paste0(substr(x_chr, 1, 1), "/", substr(x_chr, 2, 2)))
+  } else if (sep == "/") {
+    x_norm <- x_chr
+  } else {
+    x_norm <- ifelse(is.na(x_chr), NA_character_,
+                     sub(sep, "/", x_chr, fixed = TRUE))
+  }
+
+  # Step 2: canonicalise allele order so A/B and B/A become the same genotype.
+  # Use alphabetical order of the two alleles as the canonical form.
+  alleles <- sort(unique(unlist(strsplit(
+    as.character(na.omit(x_norm)), "/", fixed = TRUE))))
+  if (length(alleles) == 2) {
+    a1 <- alleles[1]; a2 <- alleles[2]   # a1 <= a2 alphabetically
+    x_norm <- ifelse(
+      is.na(x_norm), NA_character_,
+      ifelse(x_norm == paste0(a2, "/", a1),
+             paste0(a1, "/", a2),
+             x_norm)
+    )
+  }
+
   tryCatch(
-    genetics::genotype(as.character(x), sep = "/"),
+    genetics::genotype(x_norm, sep = "/"),
     error = function(e) NULL
   )
 }
@@ -430,20 +546,25 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         run_haploAssoc <- FALSE
       }
 
-      # ── Validation 7: Check SNP columns format ───────────────────
-      bad_snps <- character(0)
+      # ── Validation 7: Check SNP columns format and biallelic consistency ──
+      bad_snps  <- character(0)
+      bad_msgs  <- character(0)
       for (v in snp_vars) {
-        if (!is_snp_column(data[[v]])) bad_snps <- c(bad_snps, v)
+        chk <- snp_biallelic_check(data[[v]])
+        if (!isTRUE(chk$ok)) {
+          bad_snps <- c(bad_snps, v)
+          bad_msgs <- c(bad_msgs,
+                        paste0("<b>", v, "</b>: ", chk$reason))
+        }
       }
       if (length(bad_snps) > 0) {
         self$results$validationMsgGeno$setContent(paste0(
-          "<p style='color:red;'> The following columns do not appear to contain ",
-          "diploid genotypes (format: A/G or A/G): ",
-          paste(bad_snps, collapse = ", "),
-          ". They will be skipped.</p>"))
+          "<p style='color:red;'>The following SNP columns were skipped ",
+          "(accepted formats: A/B, A|B, A>B, or AB; exactly 2 alleles required):</p>",
+          "<ul>", paste0("<li>", bad_msgs, "</li>", collapse = ""), "</ul>"))
         snp_vars <- setdiff(snp_vars, bad_snps)
         self$results$validationMsgGeno$setVisible(TRUE)
-        
+
         if (length(snp_vars) == 0) {
           self$results$validationMsgSNP$setContent(
             "<p style='color:red;'> No valid SNP columns found. Please check your data format.</p>")
@@ -486,7 +607,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
       # ── Covariate descriptives ───────────────────────────────────
       if (run_covDesc && !is.null(cov_df) && length(covariate_vars) > 0) {
-        private$.run_cov_desc(cov_df, response_raw, response_type)
+        private$.run_cov_desc(cov_df, response_raw, response_type, run_subpop)
       }
 
       # ── SNP summary table ─────────────────────────────────────────
@@ -562,34 +683,139 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
     },
 
     # ── Covariate descriptives ────────────────────────────────────
-    .run_cov_desc = function(cov_df, response_raw, response_type) {
-      tbl <- self$results$covDescGroup$covDescTable
-      for (v in names(cov_df)) {
-        col <- cov_df[[v]]
-        if (is.factor(col) || is.character(col)) {
-          col <- as.factor(col)
-          lvl_counts <- table(col, useNA = "no")
-          first_row = TRUE
-          for (lvl in names(lvl_counts)) {
-            tbl$addRow(rowKey = paste0(v, "_", lvl), values = list(
-              variable = ifelse(first_row,v,''),
-              level    = lvl,
-              n        = as.integer(lvl_counts[lvl]),
-              stat     = paste0(round(lvl_counts[lvl] / sum(lvl_counts) * 100, 1), "%")
-            ))
-            first_row = FALSE
-          }
+    .run_cov_desc = function(cov_df, response_raw, response_type, subpop = FALSE) {
+      tbl      <- self$results$covDescGroup$covDescTable
+      do_strat <- isTRUE(subpop) && response_type == "binary" && !is.null(response_raw)
+
+      if (do_strat) {
+        grp_lvls <- levels(as.factor(response_raw))
+        if (length(grp_lvls) == 2) {
+          tbl$getColumn("stat_g0")$setTitle(as.character(grp_lvls[1]))
+          tbl$getColumn("stat_g1")$setTitle(as.character(grp_lvls[2]))
+          tbl$getColumn("stat_g0")$setVisible(TRUE)
+          tbl$getColumn("stat_g1")$setVisible(TRUE)
+          tbl$getColumn("pval")$setVisible(TRUE)
         } else {
-          mn  <- mean(col, na.rm = TRUE)
-          sdv <- sd(col,   na.rm = TRUE)
-          tbl$addRow(rowKey = v, values = list(
-            variable = v,
-            level    = "",
-            n        = sum(!is.na(col)),
-            stat     = sprintf("%.2f ± %.2f", mn, sdv)
-          ))
+          do_strat <- FALSE
         }
       }
+
+      fmt_cat  <- function(n, total)
+        sprintf("%d (%.1f%%)", n, if (total > 0) n / total * 100 else 0)
+      fmt_cont <- function(x)
+        sprintf("%.2f \u00B1 %.2f", mean(x, na.rm = TRUE), sd(x, na.rm = TRUE))
+
+      has_cont <- FALSE   # track whether any continuous variable is present
+
+      for (v in names(cov_df)) {
+        col    <- cov_df[[v]]
+        is_cat <- is.factor(col) || is.character(col)
+        if (is_cat) col <- as.factor(col)
+        n_miss <- sum(is.na(col))
+
+        if (is_cat) {
+          lvls     <- levels(col)
+          grp_fac  <- if (do_strat) as.factor(response_raw) else NULL
+          # p-value: chi-square excluding missing as a category
+          pval_cat <- if (do_strat) tryCatch({
+            ct <- table(col[!is.na(response_raw)],
+                        grp_fac[!is.na(response_raw)],
+                        useNA = "no")
+            suppressWarnings(chisq.test(ct)$p.value)
+          }, error = function(e) NA_real_) else NA_real_
+
+          first_row <- TRUE
+          # ── non-missing levels ────────────────────────────────────
+          for (lvl in lvls) {
+            mask    <- !is.na(col) & col == lvl
+            tot_all <- length(col)            # denominator = all rows incl. missing
+
+            row_vals <- list(
+              variable     = if (first_row) v else "",
+              level        = lvl,
+              stat_overall = fmt_cat(sum(mask), tot_all)
+            )
+
+            if (do_strat) {
+              mask0 <- mask & !is.na(response_raw) & grp_fac == grp_lvls[1]
+              mask1 <- mask & !is.na(response_raw) & grp_fac == grp_lvls[2]
+              tot0  <- sum(!is.na(response_raw) & grp_fac == grp_lvls[1])
+              tot1  <- sum(!is.na(response_raw) & grp_fac == grp_lvls[2])
+              row_vals$stat_g0 <- fmt_cat(sum(mask0), tot0)
+              row_vals$stat_g1 <- fmt_cat(sum(mask1), tot1)
+              row_vals$pval    <- if (first_row) pval_cat else NA_real_
+            }
+
+            tbl$addRow(rowKey = paste0(v, "_", lvl), values = row_vals)
+            first_row <- FALSE
+          }
+
+          # ── Missing category (if any) ─────────────────────────────
+          if (n_miss > 0) {
+            miss_vals <- list(
+              variable     = "",
+              level        = "Missing",
+              stat_overall = fmt_cat(n_miss, length(col))
+            )
+            if (do_strat) {
+              miss_mask0 <- is.na(col) & !is.na(response_raw) & grp_fac == grp_lvls[1]
+              miss_mask1 <- is.na(col) & !is.na(response_raw) & grp_fac == grp_lvls[2]
+              tot0 <- sum(!is.na(response_raw) & grp_fac == grp_lvls[1])
+              tot1 <- sum(!is.na(response_raw) & grp_fac == grp_lvls[2])
+              miss_vals$stat_g0 <- fmt_cat(sum(miss_mask0), tot0)
+              miss_vals$stat_g1 <- fmt_cat(sum(miss_mask1), tot1)
+              miss_vals$pval    <- NA_real_
+            }
+            tbl$addRow(rowKey = paste0(v, "_missing"), values = miss_vals)
+          }
+
+        } else {
+          has_cont <- TRUE
+          row_vals <- list(
+            variable     = v,
+            level        = "Mean \u00B1 SD",
+            stat_overall = fmt_cont(col)
+          )
+          if (do_strat) {
+            grp_fac  <- as.factor(response_raw)
+            g0       <- col[!is.na(response_raw) & grp_fac == grp_lvls[1]]
+            g1       <- col[!is.na(response_raw) & grp_fac == grp_lvls[2]]
+            row_vals$stat_g0 <- fmt_cont(g0)
+            row_vals$stat_g1 <- fmt_cont(g1)
+            row_vals$pval    <- tryCatch(t.test(g0, g1)$p.value,
+                                         error = function(e) NA_real_)
+          }
+          tbl$addRow(rowKey = v, values = row_vals)
+
+          # ── Missing row for continuous (if any) ───────────────────
+          if (n_miss > 0) {
+            miss_vals <- list(
+              variable     = "",
+              level        = "Missing",
+              stat_overall = fmt_cat(n_miss, length(col))
+            )
+            if (do_strat) {
+              grp_fac   <- as.factor(response_raw)
+              miss_mask <- is.na(col)
+              miss_mask0 <- miss_mask & !is.na(response_raw) & grp_fac == grp_lvls[1]
+              miss_mask1 <- miss_mask & !is.na(response_raw) & grp_fac == grp_lvls[2]
+              tot0 <- sum(!is.na(response_raw) & grp_fac == grp_lvls[1])
+              tot1 <- sum(!is.na(response_raw) & grp_fac == grp_lvls[2])
+              miss_vals$stat_g0 <- fmt_cat(sum(miss_mask0), tot0)
+              miss_vals$stat_g1 <- fmt_cat(sum(miss_mask1), tot1)
+              miss_vals$pval    <- NA_real_
+            }
+            tbl$addRow(rowKey = paste0(v, "_missing"), values = miss_vals)
+          }
+        }
+      }
+
+      # ── Table note for continuous variables ───────────────────────
+      if (has_cont)
+        tbl$setNote(note = "Continuous variables: mean \u00B1 SD.",
+                    key  = "cont_fmt")
+      else
+        tbl$setNote(note = NULL, key = "cont_fmt")
     },
 
     # ── SNP summary table ─────────────────────────────────────────
@@ -605,6 +831,8 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         grp_levels <- sort(unique(na.omit(as.character(response_raw))))
         if (length(grp_levels) != 2L) do_strat <- FALSE
       }
+
+      tbl$getColumn("group")$setVisible(do_strat)
 
       row_key <- 0L
 
@@ -1154,6 +1382,19 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       } else {
         tbl$setNote(note = NULL, key = note_key)
       }
+
+      # ── Missing covariate note ─────────────────────────
+      if (!is.null(cov_df) && ncol(cov_df) > 0) {
+        complete <- !is.na(response) & complete.cases(cov_df)
+        n_miss   <- sum(!is.na(response)) - sum(complete)
+        if (n_miss > 0)
+          tbl$setNote(
+            note = paste0("Note: ", n_miss,
+                          " observation(s) with missing covariate values excluded."),
+            key  = "missing_cov")
+        else
+          tbl$setNote(note = NULL, key = "missing_cov")
+      }
           models <- c()
       if (opts$modelCodominant)   models <- c(models, "codominant")
       if (opts$modelDominant)     models <- c(models, "dominant")
@@ -1232,6 +1473,19 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                              paste(adj_vars, collapse = ", "))
       tbl$setNote(note = note_parts, key = "intcov")
 
+      # ── Missing covariate note ─────────────────────────
+      {
+        complete <- !is.na(response) & complete.cases(cov_df)
+        n_miss   <- sum(!is.na(response)) - sum(complete)
+        if (n_miss > 0)
+          tbl$setNote(
+            note = paste0("Note: ", n_miss,
+                          " observation(s) with missing covariate values excluded."),
+            key  = "missing_cov")
+        else
+          tbl$setNote(note = NULL, key = "missing_cov")
+      }
+
       models <- c()
       if (opts$modelCodominant)   models <- c(models, "codominant")
       if (opts$modelDominant)     models <- c(models, "dominant")
@@ -1255,9 +1509,11 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                           response_type, opts$ciWidth)
         if (is.null(res_list)) next
 
-        first_row <- TRUE
+        first_row      <- TRUE
+        first_inter    <- TRUE   # pvalInteraction shown only on first interaction row
         for (res in res_list) {
           row_key <- row_key + 1L
+          is_inter <- !is.na(res$pval_interaction)
           tbl$addRow(rowKey = as.character(row_key), values = list(
             model           = if (first_row) model_labels[mdl] else "",
             term            = res$term,
@@ -1265,10 +1521,11 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             ciLow           = res$ci_low,
             ciHigh          = res$ci_high,
             pval            = res$pval,
-            pvalInteraction = if (!is.na(res$pval_interaction)) res$pval_interaction else "",
+            pvalInteraction = if (is_inter && first_inter) res$pval_interaction else "",
             AIC             = if (first_row && !is.nan(res$aic)) res$aic else ""
           ))
           first_row <- FALSE
+          if (is_inter) first_inter <- FALSE
         }
       }
     },
@@ -1539,6 +1796,22 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
           tbl$setNote(note = NULL, key = note_key)
         }
 
+        # ── Missing covariate note ───────────────────────
+        if (!is.null(cov_df) && ncol(cov_df) > 0) {
+          n_total <- sum(keep)
+          n_used  <- if (!is.null(haplo_fit$missing))
+                       n_total - sum(haplo_fit$missing)
+                     else n_total
+          n_miss  <- n_total - n_used
+          if (n_miss > 0)
+            tbl$setNote(
+              note = paste0("Note: ", n_miss,
+                            " observation(s) with missing covariate values excluded."),
+              key  = "missing_cov")
+          else
+            tbl$setNote(note = NULL, key = "missing_cov")
+        }
+
       }
     }
 
@@ -1557,6 +1830,20 @@ if (run_haploInteraction && !is.null(cov_df) && ncol(cov_df) >= 1 && !is.null(re
     note_parts <- paste0(note_parts, ". Adjusted for: ",
                          paste(adj_vars, collapse = ", "))
   tbl_int$setNote(note = note_parts, key = "intcov")
+
+  # ── Missing covariate note ─────────────────────────────
+  {
+    n_total <- sum(keep)
+    complete_int <- complete.cases(cov_df[keep, , drop = FALSE])
+    n_miss  <- n_total - sum(complete_int)
+    if (n_miss > 0)
+      tbl_int$setNote(
+        note = paste0("Note: ", n_miss,
+                      " observation(s) with missing covariate values excluded."),
+        key  = "missing_cov")
+    else
+      tbl_int$setNote(note = NULL, key = "missing_cov")
+  }
 
   family_int <- if (response_type == "binary") "binomial" else "gaussian"
   y_int      <- if (response_type == "binary") {
@@ -1603,16 +1890,19 @@ if (run_haploInteraction && !is.null(cov_df) && ncol(cov_df) >= 1 && !is.null(re
     error = function(e) NULL
   )
 
+  p_inter_haplo <- NA_real_   # initialised here so note is always settable
+
   if (!is.null(haplo_int_fit) && !is.null(haplo_main_fit)) {
 
     # ── LRT for the overall interaction ───────────────────────
-    lrt_haplo <- tryCatch(anova(haplo_main_fit, haplo_int_fit),
-                           error = function(e) NULL)
-    p_inter_haplo <- if (!is.null(lrt_haplo) && nrow(lrt_haplo) >= 2) {
-      pchisq(abs(lrt_haplo[2, "Deviance"]),
-             df  = abs(lrt_haplo[2, "Df"]),
-             lower.tail = FALSE)
-    } else NA_real_
+    # anova.haplo.glm fails when the two models have different effective sample
+    # sizes (different EM convergence sets). Compute the LRT directly from the
+    # deviances and residual df stored in each fit object instead.
+    dev_diff <- haplo_main_fit$deviance - haplo_int_fit$deviance
+    df_diff  <- haplo_main_fit$df.residual - haplo_int_fit$df.residual
+    p_inter_haplo <- if (!is.na(dev_diff) && !is.na(df_diff) && df_diff > 0)
+      pchisq(dev_diff, df = df_diff, lower.tail = FALSE)
+    else NA_real_
 
     coef_sum_int <- tryCatch(summary(haplo_int_fit)$coefficients,
                               error = function(e) NULL)
@@ -1671,9 +1961,6 @@ if (run_haploInteraction && !is.null(cov_df) && ncol(cov_df) >= 1 && !is.null(re
                          all_rows_int)
       show_rows  <- c(main_rows, inter_rows)
 
-      # p_interaction printed only on the first interaction-term row
-      first_inter_row <- TRUE
-
       for (r in show_rows) {
         raw_nm  <- all_rows_int[r]
         
@@ -1709,20 +1996,25 @@ if (run_haploInteraction && !is.null(cov_df) && ncol(cov_df) >= 1 && !is.null(re
         tbl_int$addRow(
           rowKey = paste0("hi", r),
           values = list(
-            term            = label,
-            effect          = if (response_type == "binary") exp(beta)  else beta,
-            ciLow           = if (response_type == "binary") exp(ci_lo) else ci_lo,
-            ciHigh          = if (response_type == "binary") exp(ci_hi) else ci_hi,
-            pval            = pval,
-            pvalInteraction = if (is_inter_term && first_inter_row &&
-                                  !is.na(p_inter_haplo))
-                                    p_inter_haplo else ""
+            term   = label,
+            effect = if (response_type == "binary") exp(beta)  else beta,
+            ciLow  = if (response_type == "binary") exp(ci_lo) else ci_lo,
+            ciHigh = if (response_type == "binary") exp(ci_hi) else ci_hi,
+            pval   = pval
           )
         )
-        if (is_inter_term) first_inter_row <- FALSE
       }
     }
   }
+
+  # ── LRT interaction note (set regardless of fit outcome) ──────
+  if (!is.na(p_inter_haplo))
+    tbl_int$setNote(
+      note = paste0("Likelihood ratio test for interaction: P = ",
+                    format.pval(p_inter_haplo, digits = 3)),
+      key  = "lrt_inter")
+  else
+    tbl_int$setNote(note = NULL, key = "lrt_inter")
 }
     },
 
