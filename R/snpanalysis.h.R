@@ -366,6 +366,10 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                                     `title`="N", 
                                     `type`="integer"),
                                 list(
+                                    `name`="missing", 
+                                    `title`="Missing", 
+                                    `type`="integer"),
+                                list(
                                     `name`="maf", 
                                     `title`="MAF (B)", 
                                     `type`="number", 

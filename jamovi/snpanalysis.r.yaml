@@ -73,6 +73,9 @@ items:
           - name: n
             title: N
             type: integer
+          - name: missing
+            title: Missing
+            type: integer
           - name: maf
             title: MAF (B)
             type: number

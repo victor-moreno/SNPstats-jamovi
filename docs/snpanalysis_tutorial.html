@@ -4,8 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SNP Analysis – jamovi Module Tutorial</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
     --ink:       #1a1a2e;
@@ -16,9 +14,10 @@
     --bg:        #f8f8fc;
     --surface:   #ffffff;
     --code-bg:   #f0f2fa;
-    --serif:     'Source Serif 4', Georgia, serif;
-    --sans:      'DM Sans', system-ui, sans-serif;
-    --mono:      'JetBrains Mono', monospace;
+    /* System Font Fallbacks for Offline Use */
+    --serif:     'Source Serif 4', 'Iowan Old Style', 'Apple Garamond', 'Palatino Linotype', 'Times New Roman', serif;
+    --sans:      'DM Sans', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --mono:      'JetBrains Mono', 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
     --max:       760px;
   }
 
@@ -90,11 +89,11 @@
     color: var(--muted);
     margin-bottom: 12px;
   }
-  .toc ol { padding-left: 20px; }
+  .toc ol { padding-left: 20px; list-style-position: inside; }
   .toc li { margin: 4px 0; }
   .toc a { color: var(--accent); text-decoration: none; font-family: var(--sans); font-size: 14px; }
   .toc a:hover { text-decoration: underline; }
-  .toc ol ol { margin-top: 4px; }
+  .toc ol ol { margin-top: 4px; padding-left: 20px; list-style-type: lower-alpha; }
   .toc ol ol li { color: var(--muted); }
 
   /* ── Section headings ── */
@@ -256,17 +255,14 @@
 <body>
 <div class="page">
 
-<!-- ── Header ── -->
 <header>
   <div class="badge">jamovi module</div>
   <h1>SNP Analysis<br>Tutorial</h1>
   <p class="subtitle">
     A guide to single-SNP and multi-SNP analysis using the <strong>SNP Analysis</strong> module for jamovi.<br>
-    Adapted from the SNPStats tutorial (Sol-Acha X, 2006).
   </p>
 </header>
 
-<!-- ── TOC ── -->
 <nav class="toc" aria-label="Table of contents">
   <div class="toc-title">Contents</div>
   <ol>
@@ -293,9 +289,7 @@
   </ol>
 </nav>
 
-<!-- ══════════════════════════════════════════════════ -->
 <section id="data">
-<span class="sec-num">§ 1</span>
 <h2>Data format</h2>
 
 <p>Each row in the dataset represents one individual. SNP genotypes must be stored as character columns using <em>diploid notation</em> — two alleles separated by a delimiter, or concatenated as two characters. The module accepts the following formats:</p>
@@ -315,16 +309,13 @@
 <p>Any allele names are accepted (single nucleotides, insertion/deletion codes, etc.), provided that <strong>exactly two distinct alleles</strong> appear across the column. Columns with three or more alleles, or inconsistent genotype combinations (e.g. A/A, A/C, B/C) are flagged and excluded with an informative message.</p>
 
 <div class="callout">
-  <strong>Tip</strong>
   The module detects the format automatically. If a column is rejected, check that all values follow one consistent format and that no third allele is present.
 </div>
 
 <p>The <strong>response variable</strong> should be a binary (case/control coded 0/1 or as two-level factor) or continuous column. <strong>Covariates</strong> can be numeric or categorical.</p>
 </section>
 
-<!-- ══════════════════════════════════════════════════ -->
 <section id="single">
-<span class="sec-num">§ 2</span>
 <h2>Single-SNP analysis</h2>
 
 <div class="ui-steps">
@@ -384,10 +375,6 @@
 <p class="tbl-caption">Figure 2. Exact HWE test for SNP2.</p>
 </div>
 
-<div class="callout warn">
-  <strong>Interpretation</strong>
-  A significant overall p-value that is non-significant in controls alone may indicate differential genotyping quality between groups rather than a true biological effect.
-</div>
 </section>
 
 <section id="association">
@@ -460,16 +447,10 @@
 
 <p>The table shows regression coefficients (or ORs) for SNP main effects and SNP × covariate interaction terms. The <strong>P (interaction)</strong> column shows the likelihood ratio test p-value comparing the model with interaction to the model without; this value appears once per genetic model on the first interaction term row.</p>
 
-<div class="callout warn">
-  <strong>Missing covariates</strong>
-  When covariates have missing values, complete-case analysis is used. The number of excluded observations is reported as a table note.
-</div>
 </section>
 </section>
 
-<!-- ══════════════════════════════════════════════════ -->
 <section id="multi">
-<span class="sec-num">§ 3</span>
 <h2>Multi-SNP analysis</h2>
 
 <p>When multiple SNPs are placed in the <em>SNPs</em> box, additional analyses become available under <em>Linkage disequilibrium</em> and <em>Haplotype analysis</em>.</p>
@@ -568,16 +549,10 @@
 <div class="formula">χ² = Deviance<sub>main</sub> − Deviance<sub>interaction</sub>
 df  = df<sub>main</sub> − df<sub>interaction</sub></div>
 
-<div class="callout">
-  <strong>Note on the LRT</strong>
-  The standard <code>anova()</code> method for <code>haplo.glm</code> objects requires both models to have been fitted to identical datasets, which is not guaranteed because the internal EM algorithm may resolve phase uncertainty differently across models. The module therefore computes the LRT directly from stored deviances, avoiding this limitation.
-</div>
 </section>
 </section>
 
-<!-- ══════════════════════════════════════════════════ -->
 <section id="covdesc">
-<span class="sec-num">§ 4</span>
 <h2>Covariate descriptives</h2>
 
 <p>Enable <strong>Covariate summary</strong> (requires at least one covariate) to obtain a descriptive table of all covariate variables.</p>
@@ -590,12 +565,8 @@ df  = df<sub>main</sub> − df<sub>interaction</sub></div>
 <p>When <strong>Subpopulation</strong> is active and the response is binary, the table is stratified by response group. Separate columns appear for each group, and p-values are added: χ² test for categorical variables, independent-samples t-test for continuous variables.</p>
 </section>
 
-<!-- ══════════════════════════════════════════════════ -->
 <section id="ref">
-<span class="sec-num">§ 5</span>
 <h2>References</h2>
-
-<p>Sol-Acha X (2006). <em>Descriptive Analysis of Polymorphisms</em>. SNPStats tutorial. IDIBELL, Barcelona.</p>
 
 <p>Sole X, Guino E, Valls J, Iniesta R, Moreno V (2006). SNPStats: a web tool for the analysis of association studies. <em>Bioinformatics</em> 22(15):1928–1929.</p>
 
@@ -608,6 +579,5 @@ df  = df<sub>main</sub> − df<sub>interaction</sub></div>
   <p>SNP Analysis module for jamovi — tutorial adapted from SNPStats (Sol-Acha X, 2006).</p>
 </footer>
 
-</div><!-- .page -->
-</body>
+</div></body>
 </html>

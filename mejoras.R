@@ -1,20 +1,14 @@
+# missing response/covariate adjust "typed samples" and exclude from all analyses.
+
+# missing notes: combine with adjusted. 
+# haplotype frequencies stratified using 2 columns, not additional rows
+
+# add reference haplotyye to interaction table
+
 
 # check bugs when bad data: zeros, monoallelic, no BB, ...
-
 # replace values > 1000 by Inf or ---
 
-# Genotype frequencies table has error object snp_char not found
-
-
-# Haplotype frequencies: stratify by response
-
-# Lets revise missing values in response, SNPs and covariates. I want that any missing values are excluded from analysis, but informed.
-
-# SNP summary: add a column with missing values for each SNP. If covariates or response added, Add a note indicating: "Covariates <>and response considered. N observations missing excluded." Only show if missings really exist.
-
-# For SNP associacion and SNP interaction tables, add to Note Model adjusted, an extension "<> observations excluded due to missing values." if any. Include response when counting missings.
-
-# The same note for haplotype frequency, association and interaction tables.For haplotye frequencies, separate missings for SNPs and covariates/response.
 
 # Design
 # 	Separate PRS analysis
@@ -22,7 +16,6 @@
 # 	Consider separating LD + haplotype analysis
 	
 	
-# add reference haplotyype to interaction table
 
 
 

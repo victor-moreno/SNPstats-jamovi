@@ -612,7 +612,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
       # ── SNP summary table ─────────────────────────────────────────
       if (run_snpSummary) {
-        private$.fill_snp_summary(data, snp_vars, response_raw, response_type, run_subpop)
+        private$.fill_snp_summary(data, snp_vars, response_raw, response_type, run_subpop, cov_df)
       }
 
       # ── Per-SNP analyses ─────────────────────────────────────────
@@ -677,8 +677,9 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
       # ── Haplotype analysis ───────────────────────────────────────
       if ((run_haploFreq || run_haploAssoc || run_haploInteraction) && length(geno_list) >= 2) {
-        private$.run_haplo(geno_list, data, response, response_type, cov_df, 
-                          opts, run_haploFreq, run_haploAssoc, run_haploInteraction)
+        private$.run_haplo(geno_list, data, response, response_raw, response_type, cov_df,
+                          opts, run_haploFreq, run_haploAssoc, run_haploInteraction,
+                          run_subpop)
       }
     },
 
@@ -743,7 +744,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
               tot1  <- sum(!is.na(response_raw) & grp_fac == grp_lvls[2])
               row_vals$stat_g0 <- fmt_cat(sum(mask0), tot0)
               row_vals$stat_g1 <- fmt_cat(sum(mask1), tot1)
-              row_vals$pval    <- if (first_row) pval_cat else NA_real_
+              row_vals$pval    <- if (first_row) pval_cat else ''
             }
 
             tbl$addRow(rowKey = paste0(v, "_", lvl), values = row_vals)
@@ -764,7 +765,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
               tot1 <- sum(!is.na(response_raw) & grp_fac == grp_lvls[2])
               miss_vals$stat_g0 <- fmt_cat(sum(miss_mask0), tot0)
               miss_vals$stat_g1 <- fmt_cat(sum(miss_mask1), tot1)
-              miss_vals$pval    <- NA_real_
+              miss_vals$pval    <- ''
             }
             tbl$addRow(rowKey = paste0(v, "_missing"), values = miss_vals)
           }
@@ -803,7 +804,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
               tot1 <- sum(!is.na(response_raw) & grp_fac == grp_lvls[2])
               miss_vals$stat_g0 <- fmt_cat(sum(miss_mask0), tot0)
               miss_vals$stat_g1 <- fmt_cat(sum(miss_mask1), tot1)
-              miss_vals$pval    <- NA_real_
+              miss_vals$pval    <- ''
             }
             tbl$addRow(rowKey = paste0(v, "_missing"), values = miss_vals)
           }
@@ -819,7 +820,8 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
     },
 
     # ── SNP summary table ─────────────────────────────────────────
-    .fill_snp_summary = function(data, snp_vars, response_raw, response_type, subpop) {
+    .fill_snp_summary = function(data, snp_vars, response_raw, response_type, subpop,
+                                  cov_df = NULL) {
       tbl <- self$results$snpSummaryTablesGroup$snpSummaryTable
 
       do_strat <- isTRUE(subpop) &&
@@ -833,6 +835,18 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       }
 
       tbl$getColumn("group")$setVisible(do_strat)
+
+      # ── Build the complete-case mask for response + covariates ────
+      # Used to compute "analysis-relevant" missings for the note.
+      has_response  <- !is.null(response_raw)
+      has_cov       <- !is.null(cov_df) && ncol(cov_df) > 0
+      n_total_rows  <- nrow(data)
+
+      # Rows complete for response AND covariates (ignoring SNP NAs here)
+      resp_cov_complete <- rep(TRUE, n_total_rows)
+      if (has_response)  resp_cov_complete <- resp_cov_complete & !is.na(response_raw)
+      if (has_cov)       resp_cov_complete <- resp_cov_complete & complete.cases(cov_df)
+      n_resp_cov_miss   <- n_total_rows - sum(resp_cov_complete)
 
       row_key <- 0L
 
@@ -852,6 +866,9 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         alt_allele   <- if (length(alt_allele) > 0) alt_allele[1] else "?"
         alleles_label <- paste0(ref_allele, "/", alt_allele)  # e.g. "C/T"
 
+        # Missing count for this SNP
+        n_snp_miss <- sum(is.na(snp_raw))
+
         # Helper: compute summary stats for a subset mask (NULL = all)
         compute_row <- function(mask) {
           snp_sub  <- if (is.null(mask)) snp_raw  else snp_raw[mask]
@@ -862,11 +879,12 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
           # N typed (non-missing)
           n_typed <- sm_sub$n.typed
+          n_miss <- length(geno_sub) - n_typed
+          
 
           # Allele frequencies → MAF defined as freq of B (alt/minor) allele
           af <- sm_sub$allele.freq
           props <- af[, "Proportion"]
-          # B allele is alt_allele (defined in outer scope via <<- / parent env)
           maf <- if (alt_allele %in% rownames(af)) {
             af[alt_allele, "Proportion"]
           } else if (length(props) >= 2) {
@@ -876,7 +894,6 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
           # Genotype counts in ref/het/alt order
           gf <- sm_sub$genotype.freq
           gf <- tryCatch(reorder_geno(gf, ref), error = function(e) gf)
-          # Remove NA row if present
           gf <- gf[rownames(gf) != "NA", , drop = FALSE]
           counts <- as.integer(gf[, "Count"])
           geno_str <- if (length(counts) == 3) {
@@ -893,7 +910,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             hw$p.value
           }, error = function(e) NA_real_)
 
-          list(n = n_typed, maf = maf, genoCounts = geno_str, hwePval = hwe_p)
+          list(n = n_typed, n_miss = n_miss, maf = maf, genoCounts = geno_str, hwePval = hwe_p)
         }
 
         # Overall row — show alleles label here only
@@ -905,6 +922,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             alleles    = alleles_label,
             group      = if (do_strat) "All" else "",
             n          = res_all$n,
+            missing    = if (n_snp_miss > 0L) n_snp_miss else 'NA_integer_',
             maf        = round(res_all$maf, 4),
             genoCounts = res_all$genoCounts,
             hwePval    = res_all$hwePval
@@ -913,6 +931,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
         # Stratified rows — alleles blank (already shown on All row)
         if (do_strat) {
+
           for (lvl in grp_levels) {
             mask_lvl <- !is.na(response_raw) & as.character(response_raw) == lvl
             res_lvl  <- compute_row(mask_lvl)
@@ -923,12 +942,30 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
               alleles    = "",
               group      = as.character(lvl),
               n          = res_lvl$n,
+              missing    = if (res_lvl$n_miss > 0L) res_lvl$n_miss else 'NA_integer_',
               maf        = round(res_lvl$maf, 4),
               genoCounts = res_lvl$genoCounts,
               hwePval    = res_lvl$hwePval
             ))
           }
         }
+      }
+
+      # ── Table-level note for response/covariate missings ──────────
+      if (n_resp_cov_miss > 0L && (has_response || has_cov)) {
+        parts <- c()
+        if (has_cov)      parts <- c(parts, "covariates")
+        if (has_response) parts <- c(parts, "response")
+        note_txt <- paste0(
+          paste(vapply(parts, function(x) {
+            x <- sub("^(\\w)", "\\U\\1", x, perl = TRUE); x
+          }, character(1)), collapse = " and "),
+          " considered. ",
+          n_resp_cov_miss,
+          " observation(s) with missing values excluded from analyses.")
+        tbl$setNote(note = note_txt, key = "missing_resp_cov")
+      } else {
+        tbl$setNote(note = NULL, key = "missing_resp_cov")
       }
     },
 
@@ -999,19 +1036,6 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         }
       }
       
-      # In the row creation loop:
-      resp_stat <- ""
-      if (response_type == "quantitative" && !is.null(response)) {
-        mask <- (snp_char == geno_name) & !is.na(response) & !is.na(snp_raw)
-        if (sum(mask, na.rm = TRUE) > 0) {
-          mn <- mean(response[mask], na.rm = TRUE)
-          se <- sd(response[mask], na.rm = TRUE) / sqrt(sum(mask, na.rm = TRUE))
-          if (!is.na(mn) && !is.na(se)) {
-            resp_stat <- sprintf("%.2f (%.2f)", mn, se)
-          }
-        }
-      }
-          
       gf <- sm$genotype.freq
       gf <- tryCatch(reorder_geno(gf, ref), error = function(e) gf)
 
@@ -1384,13 +1408,16 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       }
 
       # ── Missing covariate note ─────────────────────────
-      if (!is.null(cov_df) && ncol(cov_df) > 0) {
-        complete <- !is.na(response) & complete.cases(cov_df)
-        n_miss   <- sum(!is.na(response)) - sum(complete)
+      {
+        snp_enc_tmp <- encode_model(as.character(snp_raw), ref, "logadditive")
+        complete_full <- !is.na(response) & !is.na(snp_enc_tmp)
+        if (!is.null(cov_df) && ncol(cov_df) > 0)
+          complete_full <- complete_full & complete.cases(cov_df)
+        n_miss <- length(response) - sum(complete_full)
         if (n_miss > 0)
           tbl$setNote(
             note = paste0("Note: ", n_miss,
-                          " observation(s) with missing covariate values excluded."),
+                          " observation(s) excluded due to missing values."),
             key  = "missing_cov")
         else
           tbl$setNote(note = NULL, key = "missing_cov")
@@ -1473,14 +1500,15 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                              paste(adj_vars, collapse = ", "))
       tbl$setNote(note = note_parts, key = "intcov")
 
-      # ── Missing covariate note ─────────────────────────
+      # ── Missing note (SNP + response + covariates) ────────────────
       {
-        complete <- !is.na(response) & complete.cases(cov_df)
-        n_miss   <- sum(!is.na(response)) - sum(complete)
+        snp_enc_tmp <- encode_model(as.character(snp_raw), ref, "logadditive")
+        complete_full <- !is.na(response) & !is.na(snp_enc_tmp) & complete.cases(cov_df)
+        n_miss <- length(response) - sum(complete_full)
         if (n_miss > 0)
           tbl$setNote(
             note = paste0("Note: ", n_miss,
-                          " observation(s) with missing covariate values excluded."),
+                          " observation(s) excluded due to missing values."),
             key  = "missing_cov")
         else
           tbl$setNote(note = NULL, key = "missing_cov")
@@ -1530,8 +1558,9 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       }
     },
 
-    .run_haplo = function(geno_list, data, response, response_type, cov_df, 
-                       opts, run_haploFreq, run_haploAssoc, run_haploInteraction) {
+    .run_haplo = function(geno_list, data, response, response_raw, response_type, cov_df, 
+                       opts, run_haploFreq, run_haploAssoc, run_haploInteraction,
+                       run_subpop = FALSE) {
             
       # ── Inline helper (hoisted so haploAssoc and haploInteraction can share) ──
       na.geno.keep <- function(m) {
@@ -1590,8 +1619,23 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         paste(parts, collapse = "-")
       }
 
-      keep <- if (!is.null(response)) !is.na(response) else rep(TRUE, nrow(allele_mat))
+      # ── Missing counts for notes ─────────────────────────────────
+      n_total_rows <- nrow(allele_mat)
+      # SNP missings: any row where ALL SNPs are NA (allele_mat all-NA)
+      snp_miss_mask <- apply(is.na(allele_mat), 1, all)
+      n_snp_miss    <- sum(snp_miss_mask)
+      # Response/covariate missings (among rows with valid SNPs)
+      resp_cov_miss_mask <- rep(FALSE, n_total_rows)
+      if (!is.null(response))
+        resp_cov_miss_mask <- resp_cov_miss_mask | is.na(response)
+      if (!is.null(cov_df) && ncol(cov_df) > 0)
+        resp_cov_miss_mask <- resp_cov_miss_mask | !complete.cases(cov_df)
+      n_resp_cov_miss <- sum(resp_cov_miss_mask & !snp_miss_mask)
+
+      keep <- if (!is.null(response)) !is.na(response) else rep(TRUE, n_total_rows)
       if (!is.null(cov_df)) keep <- keep & complete.cases(cov_df)
+      # Also exclude rows with all SNPs missing
+      keep <- keep & !snp_miss_mask
 
       # subset_geno: subset a setupGeno matrix by row while preserving all
       # attributes (unique.alleles, locus.label, etc.) that [.matrix strips.
@@ -1605,37 +1649,141 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         gs2
       }
 
+      # Helper to fill haplotype freq table for a given row-mask
+      fill_haplo_freq_tbl <- function(tbl, row_mask, row_key_prefix = "") {
+        em_sub <- tryCatch(
+          haplo.stats::haplo.em(subset_geno(geno_setup, row_mask), locus.label = snp_names),
+          error = function(e) NULL
+        )
+        if (is.null(em_sub)) return(invisible(NULL))
+        freqs    <- em_sub$hap.prob
+        rare_sum <- 0
+        for (i in seq_along(freqs)) {
+          if (freqs[i] < opts$haploFreqMin) {
+            rare_sum <- rare_sum + freqs[i]
+            next
+          }
+          label <- decode_haplo_row(as.numeric(em_sub$haplotype[i, ]), u_alleles)
+          tbl$addRow(rowKey = paste0(row_key_prefix, "f", i), values = list(
+            haplotype = label,
+            freq      = round(freqs[i], 4)
+          ))
+        }
+        if (rare_sum > 0) {
+          tbl$addRow(rowKey = paste0(row_key_prefix, "rare"), values = list(
+            haplotype = paste0("Rare (<", opts$haploFreqMin, ")"),
+            freq      = round(rare_sum, 4)
+          ))
+        }
+        invisible(em_sub)
+      }
+
       # 1. Haplotype Frequencies (EM)
       if (run_haploFreq) {
-        em_res <- tryCatch(
+        tbl <- self$results$haploGroup$haploFreqTable
+
+        # ── Determine if we should stratify ──────────────────────────
+        do_strat_haplo <- isTRUE(run_subpop) &&
+                          !is.null(response_raw) &&
+                          identical(response_type, "binary")
+        grp_levels_haplo <- character(0)
+        if (do_strat_haplo) {
+          grp_levels_haplo <- sort(unique(na.omit(as.character(response_raw))))
+          if (length(grp_levels_haplo) != 2L) do_strat_haplo <- FALSE
+        }
+
+        if (do_strat_haplo) {
+          # Add a Group column dynamically
+          tbl$addColumn(name = "group", title = "Group", type = "text", index = 1L)
+        }
+
+        # Overall (using the standard keep mask, which excludes resp/cov missings)
+        em_all <- tryCatch(
           haplo.stats::haplo.em(subset_geno(geno_setup, keep), locus.label = snp_names),
           error = function(e) NULL
         )
-        
-        if (!is.null(em_res)) {
-          tbl <- self$results$haploGroup$haploFreqTable
-          freqs <- em_res$hap.prob
+
+        if (!is.null(em_all)) {
+          freqs    <- em_all$hap.prob
           rare_sum <- 0
-          
           for (i in seq_along(freqs)) {
             if (freqs[i] < opts$haploFreqMin) {
               rare_sum <- rare_sum + freqs[i]
               next
             }
-            label <- decode_haplo_row(as.numeric(em_res$haplotype[i, ]), u_alleles)
-            tbl$addRow(rowKey = paste0("f", i), values = list(
-              haplotype = label,
-              freq      = round(freqs[i], 4)
-            ))
+            label <- decode_haplo_row(as.numeric(em_all$haplotype[i, ]), u_alleles)
+            row_vals <- list(haplotype = label, freq = round(freqs[i], 4))
+            if (do_strat_haplo) row_vals$group <- "All"
+            tbl$addRow(rowKey = paste0("f", i), values = row_vals)
           }
           if (rare_sum > 0) {
-            tbl$addRow(rowKey = "rare_freq", values = list(
+            row_vals <- list(
               haplotype = paste0("Rare (<", opts$haploFreqMin, ")"),
               freq      = round(rare_sum, 4)
-            ))
+            )
+            if (do_strat_haplo) row_vals$group <- "All"
+            tbl$addRow(rowKey = "rare_freq", values = row_vals)
+          }
+
+          # ── Stratified by response ─────────────────────────────────
+          if (do_strat_haplo) {
+            for (lvl in grp_levels_haplo) {
+              keep_lvl <- keep & !is.na(response_raw) &
+                          as.character(response_raw) == lvl
+              if (sum(keep_lvl) < 5) next
+              em_lvl <- tryCatch(
+                haplo.stats::haplo.em(subset_geno(geno_setup, keep_lvl),
+                                      locus.label = snp_names),
+                error = function(e) NULL
+              )
+              if (is.null(em_lvl)) next
+              freqs_lvl <- em_lvl$hap.prob
+              rare_sum_lvl <- 0
+              row_sep_key  <- paste0("sep_", lvl)
+              for (i in seq_along(freqs_lvl)) {
+                if (freqs_lvl[i] < opts$haploFreqMin) {
+                  rare_sum_lvl <- rare_sum_lvl + freqs_lvl[i]
+                  next
+                }
+                label <- decode_haplo_row(as.numeric(em_lvl$haplotype[i, ]), u_alleles)
+                tbl$addRow(rowKey = paste0("g", lvl, "f", i), values = list(
+                  haplotype = label,
+                  freq      = round(freqs_lvl[i], 4),
+                  group     = as.character(lvl)
+                ))
+              }
+              if (rare_sum_lvl > 0) {
+                tbl$addRow(rowKey = paste0("g", lvl, "_rare"), values = list(
+                  haplotype = paste0("Rare (<", opts$haploFreqMin, ")"),
+                  freq      = round(rare_sum_lvl, 4),
+                  group     = as.character(lvl)
+                ))
+              }
+            }
           }
         }
-      }
+
+        # ── Missing notes ──────────────────────────────────────────
+        if (n_snp_miss > 0)
+          tbl$setNote(
+            note = paste0(n_snp_miss, " observation(s) with missing SNP genotype(s) excluded."),
+            key  = "missing_snp")
+        else
+          tbl$setNote(note = NULL, key = "missing_snp")
+
+        if (n_resp_cov_miss > 0) {
+          parts <- c()
+          if (!is.null(cov_df) && ncol(cov_df) > 0) parts <- c(parts, "covariate")
+          if (!is.null(response))                    parts <- c(parts, "response")
+          tbl$setNote(
+            note = paste0(n_resp_cov_miss, " observation(s) with missing ",
+                          paste(parts, collapse = "/"), " values excluded."),
+            key  = "missing_resp_cov")
+        } else {
+          tbl$setNote(note = NULL, key = "missing_resp_cov")
+        }
+
+      }  # end if (run_haploFreq)
 
     # ── Haplotype association ─────────────────────────────────────
     if (run_haploAssoc && !is.null(response)) {
@@ -1743,6 +1891,19 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
           )
         }
 
+        # ── Reference haplotype (OR = 1 by definition) ────────────
+        base_idx   <- haplo_fit$haplo.base
+        base_label <- label_from_unique_row(haplo_fit$haplo.unique[base_idx, ])
+        base_freq  <- haplo_fit$haplo.freq[base_idx]
+        tbl$addRow(rowKey = "base", values = list(
+          haplotype = paste0(base_label, " (Ref)"),
+          freq      = round(base_freq, 4),
+          effect    = if (response_type == "binary") 1.0 else 0.0,
+          ciLow     = '',
+          ciHigh    = '',
+          pval      = ''
+        ))
+
         # ── Common haplotypes ──────────────────────────────────────
         # haplo.common: integer index vector into haplo.unique rows,
         # in the same order as haplo.names / the GLM coefficients.
@@ -1769,18 +1930,6 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                        rare_freq, stats))
         }
 
-        # ── Reference haplotype (OR = 1 by definition) ────────────
-        base_idx   <- haplo_fit$haplo.base
-        base_label <- label_from_unique_row(haplo_fit$haplo.unique[base_idx, ])
-        base_freq  <- haplo_fit$haplo.freq[base_idx]
-        tbl$addRow(rowKey = "base", values = list(
-          haplotype = paste0(base_label, " (Ref)"),
-          freq      = round(base_freq, 4),
-          effect    = if (response_type == "binary") 1.0 else 0.0,
-          ciLow     = '',
-          ciHigh    = '',
-          pval      = ''
-        ))
               # ── Add covariate note ─────────────────────────────
         note_key <- "covariates"
         if (!is.null(cov_df) && ncol(cov_df) > 0) {
@@ -1796,20 +1945,25 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
           tbl$setNote(note = NULL, key = note_key)
         }
 
-        # ── Missing covariate note ───────────────────────
-        if (!is.null(cov_df) && ncol(cov_df) > 0) {
-          n_total <- sum(keep)
-          n_used  <- if (!is.null(haplo_fit$missing))
-                       n_total - sum(haplo_fit$missing)
-                     else n_total
-          n_miss  <- n_total - n_used
-          if (n_miss > 0)
-            tbl$setNote(
-              note = paste0("Note: ", n_miss,
-                            " observation(s) with missing covariate values excluded."),
-              key  = "missing_cov")
-          else
-            tbl$setNote(note = NULL, key = "missing_cov")
+        # ── Missing notes (SNPs separate; response/cov combined) ───
+        if (n_snp_miss > 0)
+          tbl$setNote(
+            note = paste0(n_snp_miss,
+                          " observation(s) with missing SNP genotype(s) excluded."),
+            key  = "missing_snp")
+        else
+          tbl$setNote(note = NULL, key = "missing_snp")
+
+        if (n_resp_cov_miss > 0) {
+          ha_parts <- c()
+          if (!is.null(cov_df) && ncol(cov_df) > 0) ha_parts <- c(ha_parts, "covariate")
+          ha_parts <- c(ha_parts, "response")
+          tbl$setNote(
+            note = paste0(n_resp_cov_miss, " observation(s) with missing ",
+                          paste(ha_parts, collapse = "/"), " values excluded."),
+            key  = "missing_resp_cov")
+        } else {
+          tbl$setNote(note = NULL, key = "missing_resp_cov")
         }
 
       }
@@ -1831,18 +1985,23 @@ if (run_haploInteraction && !is.null(cov_df) && ncol(cov_df) >= 1 && !is.null(re
                          paste(adj_vars, collapse = ", "))
   tbl_int$setNote(note = note_parts, key = "intcov")
 
-  # ── Missing covariate note ─────────────────────────────
-  {
-    n_total <- sum(keep)
-    complete_int <- complete.cases(cov_df[keep, , drop = FALSE])
-    n_miss  <- n_total - sum(complete_int)
-    if (n_miss > 0)
-      tbl_int$setNote(
-        note = paste0("Note: ", n_miss,
-                      " observation(s) with missing covariate values excluded."),
-        key  = "missing_cov")
-    else
-      tbl_int$setNote(note = NULL, key = "missing_cov")
+  # ── Missing notes (SNPs separate; response/cov combined) ──────
+  if (n_snp_miss > 0)
+    tbl_int$setNote(
+      note = paste0(n_snp_miss,
+                    " observation(s) with missing SNP genotype(s) excluded."),
+      key  = "missing_snp")
+  else
+    tbl_int$setNote(note = NULL, key = "missing_snp")
+
+  if (n_resp_cov_miss > 0) {
+    hi_parts <- c("covariate", "response")
+    tbl_int$setNote(
+      note = paste0(n_resp_cov_miss, " observation(s) with missing ",
+                    paste(hi_parts, collapse = "/"), " values excluded."),
+      key  = "missing_resp_cov")
+  } else {
+    tbl_int$setNote(note = NULL, key = "missing_resp_cov")
   }
 
   family_int <- if (response_type == "binary") "binomial" else "gaussian"
@@ -1960,6 +2119,17 @@ if (run_haploInteraction && !is.null(cov_df) && ncol(cov_df) >= 1 && !is.null(re
                                 "|^", int_var, ":.*geno"),
                          all_rows_int)
       show_rows  <- c(main_rows, inter_rows)
+
+      # reference haplotype row (OR = 1) 
+      tbl_int$addRow(
+        rowKey = "base", values = list(
+          term      = paste0(base_label, " (Ref)"),
+          effect    = if (response_type == "binary") 1.0 else 0.0,
+          ciLow     = '',
+          ciHigh    = '',
+          pval      = ''
+        )
+      )
 
       for (r in show_rows) {
         raw_nm  <- all_rows_int[r]
