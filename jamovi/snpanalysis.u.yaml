@@ -133,6 +133,9 @@ children:
               - type: CheckBox
                 name: snpInteraction
                 enable: (snpAssoc && covariates)
+              - type: CheckBox
+                name: showAIC
+                enable: (snpAssoc)
 
       # ── Column 2 row 1: Haplotype analysis ────────────────────
       - type: LayoutBox

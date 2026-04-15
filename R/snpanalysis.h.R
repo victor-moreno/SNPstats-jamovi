@@ -29,6 +29,7 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
             modelLogAdditive = FALSE,
             ciWidth = 95,
             snpInteraction = FALSE,
+            showAIC = FALSE,
             haploFreq = FALSE,
             haploFreqMin = 0.01,
             haploAssoc = FALSE,
@@ -157,6 +158,10 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                 "snpInteraction",
                 snpInteraction,
                 default=FALSE)
+            private$..showAIC <- jmvcore::OptionBool$new(
+                "showAIC",
+                showAIC,
+                default=FALSE)
             private$..haploFreq <- jmvcore::OptionBool$new(
                 "haploFreq",
                 haploFreq,
@@ -199,6 +204,7 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
             self$.addOption(private$..modelLogAdditive)
             self$.addOption(private$..ciWidth)
             self$.addOption(private$..snpInteraction)
+            self$.addOption(private$..showAIC)
             self$.addOption(private$..haploFreq)
             self$.addOption(private$..haploFreqMin)
             self$.addOption(private$..haploAssoc)
@@ -228,6 +234,7 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
         modelLogAdditive = function() private$..modelLogAdditive$value,
         ciWidth = function() private$..ciWidth$value,
         snpInteraction = function() private$..snpInteraction$value,
+        showAIC = function() private$..showAIC$value,
         haploFreq = function() private$..haploFreq$value,
         haploFreqMin = function() private$..haploFreqMin$value,
         haploAssoc = function() private$..haploAssoc$value,
@@ -256,6 +263,7 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
         ..modelLogAdditive = NA,
         ..ciWidth = NA,
         ..snpInteraction = NA,
+        ..showAIC = NA,
         ..haploFreq = NA,
         ..haploFreqMin = NA,
         ..haploAssoc = NA,
@@ -514,15 +522,18 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                                     list(
                                         `name`="effect", 
                                         `title`="OR / \u03B2", 
-                                        `type`="number"),
+                                        `type`="number", 
+                                        `format`="zto"),
                                     list(
                                         `name`="ciLow", 
-                                        `title`="Lower CI", 
-                                        `type`="number"),
+                                        `title`="Lower CIs", 
+                                        `type`="number", 
+                                        `format`="zto"),
                                     list(
                                         `name`="ciHigh", 
                                         `title`="Upper CI", 
-                                        `type`="number"),
+                                        `type`="number", 
+                                        `format`="zto"),
                                     list(
                                         `name`="pval", 
                                         `title`="P-value", 
@@ -532,7 +543,8 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                                         `name`="AIC", 
                                         `title`="AIC", 
                                         `type`="number", 
-                                        `format`="zto,dp=2"))))
+                                        `format`="zto", 
+                                        `visible`=FALSE))))
                             self$add(jmvcore::Table$new(
                                 options=options,
                                 name="interactionTable",
@@ -550,15 +562,18 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                                     list(
                                         `name`="effect", 
                                         `title`="OR / \u03B2", 
-                                        `type`="number"),
+                                        `type`="number", 
+                                        `format`="zto"),
                                     list(
                                         `name`="ciLow", 
                                         `title`="Lower CI", 
-                                        `type`="number"),
+                                        `type`="number", 
+                                        `format`="zto"),
                                     list(
                                         `name`="ciHigh", 
                                         `title`="Upper CI", 
-                                        `type`="number"),
+                                        `type`="number", 
+                                        `format`="zto"),
                                     list(
                                         `name`="pval", 
                                         `title`="P-value", 
@@ -573,7 +588,8 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                                         `name`="AIC", 
                                         `title`="AIC", 
                                         `type`="number", 
-                                        `format`="zto,dp=2"))))}))$new(options=options)))
+                                        `format`="zto", 
+                                        `visible`=FALSE))))}))$new(options=options)))
             self$add(R6::R6Class(
                 inherit = jmvcore::Group,
                 active = list(
@@ -787,6 +803,7 @@ snpAnalysisBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param modelLogAdditive .
 #' @param ciWidth .
 #' @param snpInteraction .
+#' @param showAIC .
 #' @param haploFreq .
 #' @param haploFreqMin .
 #' @param haploAssoc .
@@ -833,6 +850,7 @@ snpAnalysis <- function(
     modelLogAdditive = FALSE,
     ciWidth = 95,
     snpInteraction = FALSE,
+    showAIC = FALSE,
     haploFreq = FALSE,
     haploFreqMin = 0.01,
     haploAssoc = FALSE,
@@ -876,6 +894,7 @@ snpAnalysis <- function(
         modelLogAdditive = modelLogAdditive,
         ciWidth = ciWidth,
         snpInteraction = snpInteraction,
+        showAIC = showAIC,
         haploFreq = haploFreq,
         haploFreqMin = haploFreqMin,
         haploAssoc = haploAssoc,

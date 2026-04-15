@@ -184,12 +184,15 @@ items:
             - name: effect
               title: OR / β
               type: number
+              format: zto
             - name: ciLow
               title: Lower CIs
               type: number
+              format: zto
             - name: ciHigh
               title: Upper CI
               type: number
+              format: zto
             - name: pval
               title: P-value
               type: number
@@ -198,6 +201,7 @@ items:
               title: AIC
               type: number
               format: zto
+              visible: false
 
         - name: interactionTable
           title: SNP × Covariate Interaction
@@ -213,12 +217,15 @@ items:
             - name: effect
               title: OR / β
               type: number
+              format: zto
             - name: ciLow
               title: Lower CI
               type: number
+              format: zto
             - name: ciHigh
               title: Upper CI
               type: number
+              format: zto
             - name: pval
               title: P-value
               type: number
@@ -231,6 +238,7 @@ items:
               title: AIC
               type: number
               format: zto
+              visible: false
 
   # ── Linkage disequilibrium ─────────────────────────────────────
   - name: ldGroup

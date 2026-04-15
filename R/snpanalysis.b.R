@@ -1520,7 +1520,11 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
       note_key <- "lrt"
       lrt_note <- NULL
-      
+
+      if (self$options$showAIC) {
+        tbl$addColumn(name = "AIC", title = "AIC", type = "number", format = "zto,dp=2")
+      }
+
       row_key <- 0L
       for (mdl in models) {
         snp_enc <- encode_model(as.character(snp_raw), ref, mdl)
@@ -1548,17 +1552,24 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         first_row <- TRUE
         for (res in res_list) {
           row_key <- row_key + 1L
-          tbl$addRow(rowKey = as.character(row_key), values = list(
+          values = list(
             model      = if (first_row) model_labels[mdl] else "",
             comparison = res$comparison,
             effect     = res$effect,
             ciLow      = res$ci_low,
             ciHigh     = res$ci_high,
-            pval       = res$pval,
-            AIC = if (first_row && !is.nan(res$aic)) round(res$aic,2) else ""
-          ))
-          first_row <- FALSE
+            pval       = res$pval
+          )
+          if (self$options$showAIC) {
+            if (first_row) {
+              values <- c(values, AIC = if ( !is.nan(res$aic)) round(res$aic,2) else "")
+            } else {
+              values <- c(values, AIC = "")
+            }
+          }
         }
+        tbl$addRow(rowKey = as.character(row_key), values = values)
+        first_row <- FALSE
       }
     },
 
@@ -1610,6 +1621,10 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         logadditive  = "Log-additive"
       )
 
+      if (self$options$showAIC) {
+        tbl$addColumn(name = "AIC", title = "AIC", type = "number", format = "zto,dp=2")
+      }
+
       row_key <- 0L
       for (mdl in models) {
         snp_enc  <- encode_model(as.character(snp_raw), ref, mdl)
@@ -1623,16 +1638,23 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         for (res in res_list) {
           row_key <- row_key + 1L
           is_inter <- !is.na(res$pval_interaction)
-          tbl$addRow(rowKey = as.character(row_key), values = list(
+          values = list(
             model           = if (first_row) model_labels[mdl] else "",
             term            = res$term,
             effect          = res$effect,
             ciLow           = res$ci_low,
             ciHigh          = res$ci_high,
             pval            = res$pval,
-            pvalInteraction = if (is_inter && first_inter) res$pval_interaction else "",
-            AIC             = if (first_row && !is.nan(res$aic)) round(res$aic, 2) else ""
-          ))
+            pvalInteraction = if (is_inter && first_inter) res$pval_interaction else ""
+          )
+          if (self$options$showAIC) {
+            if (first_row) {
+              values <- c(values, AIC = if ( !is.nan(res$aic)) round(res$aic,2) else "")
+            } else {
+              values <- c(values, AIC = "")
+            }
+          }
+          tbl$addRow(rowKey = as.character(row_key), values = values)
           first_row <- FALSE
           if (is_inter) first_inter <- FALSE
         }

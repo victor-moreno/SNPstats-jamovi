@@ -178,6 +178,11 @@ options:
     type: Bool
     default: false
 
+  - name: showAIC
+    title: Show AIC in models
+    type: Bool
+    default: false
+
   # ── Haplotype analysis ─────────────────────────────────────────
   - name: haploFreq
     title: Haplotype frequency estimation
