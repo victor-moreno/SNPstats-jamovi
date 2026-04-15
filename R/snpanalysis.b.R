@@ -629,6 +629,8 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       arr <- self$results$snpResults
       geno_list <- list()
 
+      n_rows <- NROW(data)
+
       for (snp_nm in snp_vars) {
         snp_raw  <- data[[snp_nm]]
         geno_obj <- parse_genotype(snp_raw)
@@ -639,13 +641,19 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         # Per-SNP complete-case mask: response + covariates + this SNP
         snp_complete_mask <- complete_mask & !is.na(snp_raw)
 
+        # Rows excluded from the association model (response + SNP + covariates)
+        assoc_cc <- complete_mask & !is.na(snp_raw)
+        if (!is.null(cov_df) && ncol(cov_df) > 0)
+          assoc_cc <- assoc_cc & complete.cases(cov_df)
+        n_miss_assoc <- n_rows - sum(assoc_cc)
+
         # Number of obs that have valid response+covariates but missing SNP
         # VM calculate a vector for each strata of response or total if no stratification
         if (run_subpop && response_type == "binary" && !is.null(response_raw)) {
-          n_snp_missing <- tapply(snp_raw, response_raw, function(x) sum(is.na(x)))
-          names(n_snp_missing) <- levels(as.factor(response_raw))
+          n_miss <- tapply(snp_raw, response_raw, function(x) sum(is.na(x)))
+          names(n_miss) <- levels(as.factor(response_raw))
         } else {
-          n_snp_missing <- sum(complete_mask & is.na(snp_raw))
+          n_miss <- sum(complete_mask & is.na(snp_raw))
         }
         
 
@@ -675,7 +683,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
           private$.fill_allele_freq(item$allFreqTable, snp_summary_cc,
                                     snp_nm, resp_raw_cc, run_subpop,
                                     response_type, snp_raw_cc,
-                                    run_showMissing, n_snp_missing)
+                                    run_showMissing, n_miss)
         }
 
         # Genotype frequencies
@@ -683,21 +691,22 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
           private$.fill_geno_freq(item$genoFreqTable, snp_summary_cc, ref,
                                   snp_raw_cc, response_cc, response_type,
                                   run_subpop, resp_raw_cc,
-                                  run_showMissing, n_snp_missing)
+                                  run_showMissing, n_miss)
         }
 
         # HWE
         if (run_hweTest) {
           private$.fill_hwe(item$hweTable, geno_obj_cc, snp_nm,
                             resp_raw_cc, run_subpop,
-                            run_showMissing, n_snp_missing)
+                            run_showMissing, n_miss)
         }
 
         # Association (fit_model does its own complete.cases internally,
         # but inputs are already restricted so the sample is consistent)
         if (run_snpAssoc && !is.null(response_cc)) {
           private$.fill_assoc(item$assocTable, snp_raw_cc, ref, response_cc,
-                              cov_df_cc, response_type, opts, run_snpAssoc)
+                              cov_df_cc, response_type, opts, run_snpAssoc,
+                              n_miss = n_miss_assoc)
         }
 
         # SNP x covariate interaction
@@ -1448,7 +1457,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
     # ── SNP association ───────────────────────────────────────────
     .fill_assoc = function(tbl, snp_raw, ref, response, cov_df,
-                        response_type, opts, run_snpAssoc) {
+                        response_type, opts, run_snpAssoc, n_miss = 0L) {
 
       if (!run_snpAssoc) return()
       
@@ -1478,31 +1487,22 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       if (!is.null(cov_df) && ncol(cov_df) > 0) {
         cov_names <- names(cov_df)
         cov_names <- sapply(cov_names, function(x) {
-          if (!is.null(self$data[[x]])) {
-            attr(self$data[[x]], "label") %||% x
-          } else x
+          attr(self$data[[x]], "label") %||% x
         })
         note_txt <- paste0("Model adjusted for: ", paste(cov_names, collapse = ", "))
+        if (!is.na(n_miss) && n_miss > 0)
+          note_txt <- paste0(note_txt, ".  ", n_miss,
+                            " observation(s) excluded due to missing values.")
         tbl$setNote(note = note_txt, key = note_key)
+      } else if (!is.na(n_miss) && n_miss > 0) {
+        tbl$setNote(note = paste0(n_miss,
+                    " observation(s) excluded due to missing values."),
+                    key = note_key)
       } else {
         tbl$setNote(note = NULL, key = note_key)
       }
 
-      # ── Missing covariate note ─────────────────────────
-      {
-        snp_enc_tmp <- encode_model(as.character(snp_raw), ref, "logadditive")
-        complete_full <- !is.na(response) & !is.na(snp_enc_tmp)
-        if (!is.null(cov_df) && ncol(cov_df) > 0)
-          complete_full <- complete_full & complete.cases(cov_df)
-        n_miss <- length(response) - sum(complete_full)
-        if (n_miss > 0)
-          tbl$setNote(
-            note = paste0("Note: ", n_miss,
-                          " observation(s) excluded due to missing values."),
-            key  = "missing_cov")
-        else
-          tbl$setNote(note = NULL, key = "missing_cov")
-      }
+
           models <- c()
       if (opts$modelCodominant)   models <- c(models, "codominant")
       if (opts$modelDominant)     models <- c(models, "dominant")
@@ -1532,6 +1532,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                response_type, opts$ciWidth)
         if (is.null(res_list)) next
 
+        # ── Set / remove LRT note ──────────────────────────
         if (mdl == "codominant" && !is.null(res_list) && length(res_list) > 0) {
           gp <- res_list[[1]]$global_p
           if (!is.na(gp)) {
@@ -1539,16 +1540,10 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
               "Codominant model: likelihood ratio test P = ",
               format.pval(gp, digits = 3)
             )
+            tbl$setNote(note = lrt_note, key = note_key)
           }
         }
-
-        # ── Set / remove LRT note ──────────────────────────
-        if (!is.null(lrt_note)) {
-          tbl$setNote(note = lrt_note, key = note_key)
-        } else {
-          tbl$setNote(note = NULL, key = note_key)
-        }
-
+  
         first_row <- TRUE
         for (res in res_list) {
           row_key <- row_key + 1L
@@ -1567,9 +1562,9 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
               values <- c(values, AIC = "")
             }
           }
+          tbl$addRow(rowKey = as.character(row_key), values = values)
+          first_row <- FALSE
         }
-        tbl$addRow(rowKey = as.character(row_key), values = values)
-        first_row <- FALSE
       }
     },
 
@@ -1727,7 +1722,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
       # A row is SNP-missing if ANY SNP is NA (not just all)
       snp_miss_mask <- apply(is.na(allele_mat), 1, any)
-      n_snp_miss    <- sum(snp_miss_mask)
+      n_miss    <- sum(snp_miss_mask)
 
       # Response/covariate missings among rows that have at least one valid SNP
       resp_cov_miss_mask <- rep(FALSE, n_total_rows)
@@ -1735,7 +1730,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         resp_cov_miss_mask <- resp_cov_miss_mask | is.na(response)
       if (!is.null(cov_df) && ncol(cov_df) > 0)
         resp_cov_miss_mask <- resp_cov_miss_mask | !complete.cases(cov_df)
-      n_resp_cov_miss <- sum(resp_cov_miss_mask & !snp_miss_mask)
+      n_miss <- n_miss + sum(resp_cov_miss_mask & !snp_miss_mask)
 
       # Use complete_mask passed from .run() when available; otherwise rebuild.
       # In both cases also exclude rows with any SNP missing.
@@ -1876,25 +1871,13 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
           }
         }
 
-        # ── Missing notes ──────────────────────────────────────────
-        if (n_snp_miss > 0)
+        # ── Missing note ──────────────────────────────────────────
+        if (n_miss > 0)
           tbl$setNote(
-            note = paste0(n_snp_miss, " observation(s) with missing SNP genotype(s) excluded."),
+            note = paste0(n_miss, " observation(s) with missing data excluded."),
             key  = "missing_snp")
         else
           tbl$setNote(note = NULL, key = "missing_snp")
-
-        if (n_resp_cov_miss > 0) {
-          parts <- c()
-          if (!is.null(cov_df) && ncol(cov_df) > 0) parts <- c(parts, "covariate")
-          if (!is.null(response))                    parts <- c(parts, "response")
-          tbl$setNote(
-            note = paste0(n_resp_cov_miss, " observation(s) with missing ",
-                          paste(parts, collapse = "/"), " values excluded."),
-            key  = "missing_resp_cov")
-        } else {
-          tbl$setNote(note = NULL, key = "missing_resp_cov")
-        }
 
       }  # end if (run_haploFreq)
 
@@ -2058,26 +2041,14 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
           tbl$setNote(note = NULL, key = note_key)
         }
 
-        # ── Missing notes (SNPs separate; response/cov combined) ───
-        if (n_snp_miss > 0)
+        # ── Missing note
+        if (n_miss > 0)
           tbl$setNote(
-            note = paste0(n_snp_miss,
-                          " observation(s) with missing SNP genotype(s) excluded."),
+            note = paste0(n_miss,
+                          " observation(s) with missing data excluded."),
             key  = "missing_snp")
         else
           tbl$setNote(note = NULL, key = "missing_snp")
-
-        if (n_resp_cov_miss > 0) {
-          ha_parts <- c()
-          if (!is.null(cov_df) && ncol(cov_df) > 0) ha_parts <- c(ha_parts, "covariate")
-          ha_parts <- c(ha_parts, "response")
-          tbl$setNote(
-            note = paste0(n_resp_cov_miss, " observation(s) with missing ",
-                          paste(ha_parts, collapse = "/"), " values excluded."),
-            key  = "missing_resp_cov")
-        } else {
-          tbl$setNote(note = NULL, key = "missing_resp_cov")
-        }
 
       }
     }
@@ -2098,24 +2069,14 @@ if (run_haploInteraction && !is.null(cov_df) && ncol(cov_df) >= 1 && !is.null(re
                          paste(adj_vars, collapse = ", "))
   tbl_int$setNote(note = note_parts, key = "intcov")
 
-  # ── Missing notes (SNPs separate; response/cov combined) ──────
-  if (n_snp_miss > 0)
+  # ── Missing note
+  if (n_miss > 0)
     tbl_int$setNote(
-      note = paste0(n_snp_miss,
-                    " observation(s) with missing SNP genotype(s) excluded."),
+      note = paste0(n_miss,
+                    " observation(s) with missing data excluded."),
       key  = "missing_snp")
   else
     tbl_int$setNote(note = NULL, key = "missing_snp")
-
-  if (n_resp_cov_miss > 0) {
-    hi_parts <- c("covariate", "response")
-    tbl_int$setNote(
-      note = paste0(n_resp_cov_miss, " observation(s) with missing ",
-                    paste(hi_parts, collapse = "/"), " values excluded."),
-      key  = "missing_resp_cov")
-  } else {
-    tbl_int$setNote(note = NULL, key = "missing_resp_cov")
-  }
 
   family_int <- if (response_type == "binary") "binomial" else "gaussian"
   y_int      <- if (response_type == "binary") {

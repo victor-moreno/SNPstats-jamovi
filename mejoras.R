@@ -1,6 +1,8 @@
 # missings
-# Add a check to report SNP missings in descriptive tables as additional row
+
 # Notes: report covariate, SNPs & adjusted. 
+
+# allele order / genotype reference AA, AB, BB | BB BA AA
 
 # check bugs when bad data: zeros, monoallelic, no BB, ...
 # replace values > 1000 by Inf or ---
