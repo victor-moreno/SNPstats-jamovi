@@ -867,11 +867,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                   !is.null(response_raw) &&
                   identical(response_type, "binary")
 
-      grp_levels <- character(0)
-      if (do_strat) {
-        grp_levels <- sort(unique(na.omit(as.character(response_raw))))
-        if (length(grp_levels) != 2L) do_strat <- FALSE
-      }
+      grp_levels <- levels(response_raw)    
 
       tbl$getColumn("group")$setVisible(do_strat)
 
@@ -1022,13 +1018,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       # Stratify by binary response only
       do_strat <- isTRUE(subpop) && !is.null(response_raw) &&
                   identical(response_type, "binary")
-      grp_levels <- character(0)
-      if (do_strat) {
-        grp_levels <- sort(unique(na.omit(as.character(response_raw))))
-        if (length(grp_levels) < 2L || length(grp_levels) > 5L)
-          do_strat <- FALSE
-      }
-
+      grp_levels <- levels(response_raw)
       if (do_strat) {
         for (g in grp_levels) {
           safe <- gsub("[^A-Za-z0-9]", "_", g)
@@ -1110,13 +1100,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       # Stratify by binary response only
       do_strat <- isTRUE(subpop) && !is.null(response_raw) &&
                   identical(response_type, "binary")
-      grp_levels <- character(0)
-      if (do_strat) {
-        grp_levels <- sort(unique(na.omit(as.character(response_raw))))
-        if (length(grp_levels) < 2L || length(grp_levels) > 5L)
-          do_strat <- FALSE
-      }
-
+      grp_levels <- levels(response_raw)
       if (do_strat) {
         for (g in grp_levels) {
           safe <- gsub("[^A-Za-z0-9]", "_", g)
@@ -1222,7 +1206,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
       # Stratified by response
       if (subpop && !is.null(response_raw)) {
-        lvls <- unique(as.character(response_raw))   # no NAs: inputs are cc
+        lvls <- levels(response_raw)   # no NAs: inputs are cc
         if (length(lvls) <= 5) {
           for (lvl in lvls) {
             mask <- as.character(response_raw) == lvl
@@ -1571,7 +1555,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             ciLow      = res$ci_low,
             ciHigh     = res$ci_high,
             pval       = res$pval,
-            AIC = if (first_row && !is.nan(res$aic)) res$aic else ""
+            AIC = if (first_row && !is.nan(res$aic)) round(res$aic,2) else ""
           ))
           first_row <- FALSE
         }
@@ -1647,7 +1631,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             ciHigh          = res$ci_high,
             pval            = res$pval,
             pvalInteraction = if (is_inter && first_inter) res$pval_interaction else "",
-            AIC             = if (first_row && !is.nan(res$aic)) res$aic else ""
+            AIC             = if (first_row && !is.nan(res$aic)) round(res$aic, 2) else ""
           ))
           first_row <- FALSE
           if (is_inter) first_inter <- FALSE
@@ -1790,20 +1774,16 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         do_strat_haplo <- isTRUE(run_subpop) &&
                           !is.null(response_raw) &&
                           identical(response_type, "binary")
-        grp_levels_haplo <- character(0)
-        if (do_strat_haplo) {
-          grp_levels_haplo <- sort(unique(na.omit(as.character(response_raw[keep]))))
-          if (length(grp_levels_haplo) != 2L) do_strat_haplo <- FALSE
-        }
-
+        grp_levels_haplo <- levels(response_raw[keep])
+ 
         if (do_strat_haplo) {
           # Add one freq column per group (2-column layout, not extra rows)
           tbl$addColumn(name  = "freq_g0",
                         title = as.character(grp_levels_haplo[1]),
-                        type  = "number")
+                        type  = "number", format = "zto")
           tbl$addColumn(name  = "freq_g1",
                         title = as.character(grp_levels_haplo[2]),
-                        type  = "number")
+                        type  = "number", format = "zto")
         }
 
         # Overall EM on the full complete-case sample (keep mask)
@@ -1833,7 +1813,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             grp_freq <- lapply(em_grp, function(em_g) {
               if (is.null(em_g)) return(list())
               setNames(
-                as.list(round(em_g$hap.prob, 4)),
+                as.list(round(em_g$hap.prob, 3)),
                 sapply(seq_len(nrow(em_g$haplotype)), function(j)
                   decode_haplo_row(as.numeric(em_g$haplotype[j, ]), u_alleles))
               )
@@ -1846,7 +1826,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
               next
             }
             label    <- decode_haplo_row(as.numeric(em_all$haplotype[i, ]), u_alleles)
-            row_vals <- list(haplotype = label, freq = round(freqs[i], 4))
+            row_vals <- list(haplotype = label, freq = round(freqs[i], 3))
             if (do_strat_haplo) {
               row_vals$freq_g0 <- grp_freq[[grp_levels_haplo[1]]][[label]] %||% NA_real_
               row_vals$freq_g1 <- grp_freq[[grp_levels_haplo[2]]][[label]] %||% NA_real_
@@ -1856,16 +1836,16 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
           if (rare_sum > 0) {
             row_vals <- list(
               haplotype = paste0("Rare (<", opts$haploFreqMin, ")"),
-              freq      = round(rare_sum, 4)
+              freq      = round(rare_sum, 3)
             )
             if (do_strat_haplo) {
               em0     <- em_grp[[grp_levels_haplo[1]]]
               em1     <- em_grp[[grp_levels_haplo[2]]]
               rare_g0 <- if (!is.null(em0))
-                           round(sum(em0$hap.prob[em0$hap.prob < opts$haploFreqMin]), 4)
+                           round(sum(em0$hap.prob[em0$hap.prob < opts$haploFreqMin]), 3)
                          else NA_real_
               rare_g1 <- if (!is.null(em1))
-                           round(sum(em1$hap.prob[em1$hap.prob < opts$haploFreqMin]), 4)
+                           round(sum(em1$hap.prob[em1$hap.prob < opts$haploFreqMin]), 3)
                          else NA_real_
               row_vals$freq_g0 <- if (!is.na(rare_g0) && rare_g0 > 0) rare_g0 else NA_real_
               row_vals$freq_g1 <- if (!is.na(rare_g1) && rare_g1 > 0) rare_g1 else NA_real_

@@ -8,7 +8,11 @@
 # colorize results
 # hide all notes except LRT
 
+# show target response level if binary
+# response codes: use labels & respect jamovi data order
+
 # simplify code
+# find duplicated code and improve modularity. For example strata labels & missing values for SNP results
 
 
 # References 

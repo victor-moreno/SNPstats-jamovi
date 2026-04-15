@@ -185,7 +185,7 @@ items:
               title: OR / β
               type: number
             - name: ciLow
-              title: Lower CI
+              title: Lower CIs
               type: number
             - name: ciHigh
               title: Upper CI
@@ -197,7 +197,7 @@ items:
             - name: AIC
               title: AIC
               type: number
-              format: zto,dp=2
+              format: zto
 
         - name: interactionTable
           title: SNP × Covariate Interaction
@@ -230,7 +230,7 @@ items:
             - name: AIC
               title: AIC
               type: number
-              format: zto,dp=2
+              format: zto
 
   # ── Linkage disequilibrium ─────────────────────────────────────
   - name: ldGroup
