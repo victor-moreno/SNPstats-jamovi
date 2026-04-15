@@ -886,16 +886,12 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         if (is.null(geno_cc)) next
 
         resp_raw_cc <- if (has_response) response_raw[cc_mask] else NULL
-        
-        # for strata missingness counts below; also used for stratified stats if do_strat
-        n_excluded_strata <- integer(0)
-        if (do_strat) {
-          total_per_lvl <- table(as.character(response_raw))
-          cc_per_lvl    <- table(as.character(resp_raw_cc))
-          n_excluded_strata <- total_per_lvl[grp_levels] - cc_per_lvl[grp_levels]
-          n_excluded_strata[is.na(n_excluded_strata)] <- 0L
-        }
 
+        # for strata missingness counts below; also used for stratified stats if do_strat
+        stratum_totals <- if (do_strat) {
+          table(factor(response_raw[base_cc], levels = grp_levels))
+        } else NULL
+        
         sm_cc <- summary(geno_cc)
         ref   <- get_ref_genotype(geno_cc)
 
@@ -908,7 +904,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         alleles_label <- paste0(ref_allele, "/", alt_allele)
 
         # Helper: stats for a subset of the already-cc vectors
-        compute_row <- function(sub_mask, lvl_name = NULL) {
+        compute_row <- function(sub_mask) {
           snp_sub  <- if (is.null(sub_mask)) snp_cc else snp_cc[sub_mask]
           geno_sub <- if (is.null(sub_mask)) geno_cc else parse_genotype(snp_sub)
           if (is.null(geno_sub)) return(NULL)
@@ -941,8 +937,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             hw$p.value
           }, error = function(e) NA_real_)
           
-          missing_val <- if (!is.null(lvl_name)) n_excluded_strata[lvl_name] else n_excluded
-          list(n = n_typed, maf = maf, genoCounts = geno_str, hwePval = hwe_p, missing = missing_val) 
+          list(n = n_typed, maf = maf, genoCounts = geno_str, hwePval = hwe_p)
         }
 
         # Overall row (complete cases only)
@@ -965,15 +960,20 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         if (do_strat) {
           for (lvl in grp_levels) {
             sub_mask <- !is.na(resp_raw_cc) & as.character(resp_raw_cc) == lvl
-            res_lvl  <- compute_row(sub_mask, lvl_name = lvl)
+            res_lvl  <- compute_row(sub_mask)
             if (is.null(res_lvl)) next
+
+            # Calculate & attach missing cases for this stratum
+            res_lvl$n_excluded_strata <- stratum_totals[lvl] - res_lvl$n
+            res_lvl$n_excluded_strata <- max(0L, as.integer(res_lvl$n_excluded_strata))
+
             row_key <- row_key + 1L
             tbl$addRow(rowKey = as.character(row_key), values = list(
               snp        = "",
               alleles    = "",
               group      = as.character(lvl),
               n          = res_lvl$n,
-              missing    = if (res_lvl$missing[lvl] > 0L) res_lvl$missing[lvl] else '',
+              missing    = if (res_lvl$n_excluded_strata > 0L) res_lvl$n_excluded_strata else '',
               maf        = round(res_lvl$maf, 4),
               genoCounts = res_lvl$genoCounts,
               hwePval    = res_lvl$hwePval
