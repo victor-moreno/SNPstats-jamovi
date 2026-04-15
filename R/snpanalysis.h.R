@@ -16,6 +16,7 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
             allFreq = FALSE,
             genoFreq = FALSE,
             hweTest = FALSE,
+            showMissing = FALSE,
             ldAnalysis = FALSE,
             ldMatrix = FALSE,
             ldMetric = "r2",
@@ -97,6 +98,10 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
             private$..hweTest <- jmvcore::OptionBool$new(
                 "hweTest",
                 hweTest,
+                default=FALSE)
+            private$..showMissing <- jmvcore::OptionBool$new(
+                "showMissing",
+                showMissing,
                 default=FALSE)
             private$..ldAnalysis <- jmvcore::OptionBool$new(
                 "ldAnalysis",
@@ -181,6 +186,7 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
             self$.addOption(private$..allFreq)
             self$.addOption(private$..genoFreq)
             self$.addOption(private$..hweTest)
+            self$.addOption(private$..showMissing)
             self$.addOption(private$..ldAnalysis)
             self$.addOption(private$..ldMatrix)
             self$.addOption(private$..ldMetric)
@@ -209,6 +215,7 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
         allFreq = function() private$..allFreq$value,
         genoFreq = function() private$..genoFreq$value,
         hweTest = function() private$..hweTest$value,
+        showMissing = function() private$..showMissing$value,
         ldAnalysis = function() private$..ldAnalysis$value,
         ldMatrix = function() private$..ldMatrix$value,
         ldMetric = function() private$..ldMetric$value,
@@ -236,6 +243,7 @@ snpAnalysisOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
         ..allFreq = NA,
         ..genoFreq = NA,
         ..hweTest = NA,
+        ..showMissing = NA,
         ..ldAnalysis = NA,
         ..ldMatrix = NA,
         ..ldMetric = NA,
@@ -474,6 +482,11 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
                                         `name`="n22", 
                                         `title`="N22", 
                                         `type`="integer"),
+                                    list(
+                                        `name`="missing", 
+                                        `title`="Missing", 
+                                        `type`="integer", 
+                                        `visible`=FALSE),
                                     list(
                                         `name`="pval", 
                                         `title`="P-value", 
@@ -761,6 +774,7 @@ snpAnalysisBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param allFreq .
 #' @param genoFreq .
 #' @param hweTest .
+#' @param showMissing .
 #' @param ldAnalysis .
 #' @param ldMatrix .
 #' @param ldMetric .
@@ -806,6 +820,7 @@ snpAnalysis <- function(
     allFreq = FALSE,
     genoFreq = FALSE,
     hweTest = FALSE,
+    showMissing = FALSE,
     ldAnalysis = FALSE,
     ldMatrix = FALSE,
     ldMetric = "r2",
@@ -848,6 +863,7 @@ snpAnalysis <- function(
         allFreq = allFreq,
         genoFreq = genoFreq,
         hweTest = hweTest,
+        showMissing = showMissing,
         ldAnalysis = ldAnalysis,
         ldMatrix = ldMatrix,
         ldMetric = ldMetric,

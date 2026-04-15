@@ -155,6 +155,10 @@ items:
             - name: n22
               title: N22
               type: integer
+            - name: missing
+              title: Missing
+              type: integer
+              visible: false
             - name: pval
               title: P-value
               type: number

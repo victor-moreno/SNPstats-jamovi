@@ -102,6 +102,11 @@ options:
     type: Bool
     default: false
 
+  - name: showMissing
+    title: Show missing values
+    type: Bool
+    default: false
+
   # ── LD analysis ────────────────────────────────────────────────
   - name: ldAnalysis
     title: Linkage disequilibrium

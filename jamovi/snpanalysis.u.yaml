@@ -68,6 +68,9 @@ children:
               - type: CheckBox
                 name: hweTest
                 enable: (snps)
+              - type: CheckBox
+                name: showMissing
+                enable: (snps)
 
       # ── Column 1: Linkage disequilibrium ──────────────────────
       - type: LayoutBox
