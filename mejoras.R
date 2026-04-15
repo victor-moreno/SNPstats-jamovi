@@ -1,14 +1,19 @@
-# missing response/covariate adjust "typed samples" and exclude from all analyses.
-
-# missing notes: combine with adjusted. 
-# haplotype frequencies stratified using 2 columns, not additional rows
-
-# add reference haplotyye to interaction table
-
+# missings
+# Add a check to report SNP missings in descriptive tables as additional row
+# Notes: report covariate, SNPs & adjusted. 
 
 # check bugs when bad data: zeros, monoallelic, no BB, ...
 # replace values > 1000 by Inf or ---
+# Note in association: risk response category
+# colorize results
+# hide all notes except LRT
 
+# simplify code
+
+
+# References 
+#    Sole et al. 2017 for reporting guidelines
+#    tutorial
 
 # Design
 # 	Separate PRS analysis

@@ -85,7 +85,7 @@ options:
   - name: snpSummary
     title: SNP summary table
     type: Bool
-    default: false
+    default: true
 
   - name: allFreq
     title: Allele frequencies
