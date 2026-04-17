@@ -229,6 +229,11 @@ snpDescResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                     `type`="text", 
                                     `visible`=FALSE),
                                 list(
+                                    `name`="stat_g7", 
+                                    `title`="Group 7", 
+                                    `type`="text", 
+                                    `visible`=FALSE),
+                                list(
                                     `name`="pval", 
                                     `title`="P-value", 
                                     `type`="number", 
@@ -319,14 +324,9 @@ snpDescResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                         `title`="Allele", 
                                         `type`="text"),
                                     list(
-                                        `name`="count", 
-                                        `title`="N", 
-                                        `type`="integer"),
-                                    list(
-                                        `name`="prop", 
-                                        `title`="%", 
-                                        `type`="number", 
-                                        `format`="dp=1"))))
+                                        `name`="stat", 
+                                        `title`="N (%)", 
+                                        `type`="text"))))
                             self$add(jmvcore::Table$new(
                                 options=options,
                                 name="genoFreqTable",
@@ -338,14 +338,9 @@ snpDescResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                         `title`="Genotype", 
                                         `type`="text"),
                                     list(
-                                        `name`="count", 
-                                        `title`="N", 
-                                        `type`="integer"),
-                                    list(
-                                        `name`="prop", 
-                                        `title`="%", 
-                                        `type`="number", 
-                                        `format`="dp=1"),
+                                        `name`="stat", 
+                                        `title`="N (%)", 
+                                        `type`="text"),
                                     list(
                                         `name`="responseStat", 
                                         `title`="Response (mean\u00B1SE)", 

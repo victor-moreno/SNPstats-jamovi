@@ -37,6 +37,7 @@ items:
           - {name: stat_g4,      title: Group 4,     type: text,   visible: false}
           - {name: stat_g5,      title: Group 5,     type: text,   visible: false}
           - {name: stat_g6,      title: Group 6,     type: text,   visible: false}
+          - {name: stat_g7,      title: Group 7,     type: text,   visible: false}
           - {name: pval,         title: P-value,     type: number, format: zto, visible: false}
 
   # ── SNP summary ───────────────────────────────────────────────
@@ -79,17 +80,15 @@ items:
           visible: (allFreq)
           columns:
             - {name: allele, title: Allele,  type: text}
-            - {name: count,  title: N,       type: integer}
-            - {name: prop,   title: '%',     type: number, format: dp=1}
-
+            - {name: stat,   title: 'N (%)', type: text}
+ 
         - name: genoFreqTable
           title: Genotype Frequencies
           type: Table
           visible: (genoFreq)
           columns:
             - {name: genotype,     title: Genotype,          type: text}
-            - {name: count,        title: N,                  type: integer}
-            - {name: prop,         title: '%',                type: number, format: dp=1}
+            - {name: stat,   title: 'N (%)', type: text}
             - {name: responseStat, title: Response (mean±SE), type: text,   visible: false}
 
         - name: hweTable

@@ -458,3 +458,11 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
   }, error = function(e) NULL)
 }
 
+# formatting helper for categorical descriptives (N and %)
+fmt_cat <- function(n, total) sprintf("%d (%.1f%%)", n, if (total > 0) 100*n/total else 0)
+fmt_catpct <- function(n, pct) sprintf("%d (%.1f%%)", n, pct)
+fmt_catn <- function(n) sprintf("%d", n)
+fmt_cont <- function(x) {
+  if (all(is.na(x))) return("NA")
+  sprintf("%.2f \u00B1 %.2f", mean(x, na.rm=TRUE), sd(x, na.rm=TRUE))
+}
