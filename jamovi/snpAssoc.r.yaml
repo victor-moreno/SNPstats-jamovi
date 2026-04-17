@@ -26,6 +26,7 @@ items:
           type: Html
           visible: true
 
+        # ── Main association table ──────────────────────────────
         - name: assocTable
           title: Association with Response
           type: Table
@@ -35,24 +36,59 @@ items:
             - {name: genotype,   title: Genotype,    type: text}
             - {name: stat0,      title: Group 0,     type: text}
             - {name: stat1,      title: Group 1,     type: text}
-            - {name: effect,     title: OR / β,      type: number, format: zto }
+            - {name: effect,     title: OR / β,      type: number, format: zto}
             - {name: ciLow,      title: Lower CI,    type: number, format: zto}
             - {name: ciHigh,     title: Upper CI,    type: number, format: zto}
             - {name: pval,       title: P-value,     type: number, format: zto}
             - {name: AIC,        title: AIC,         type: number, format: zto, visible: false}
             - {name: BIC,        title: BIC,         type: number, format: zto, visible: false}
 
+        # ── Interaction omnibus table ───────────────────────────
         - name: interactionTable
           title: SNP × Covariate Interaction
           type: Table
-          visible: (snpInteraction && (modelCodominant || modelDominant || modelRecessive || modelOverdominant || modelLogAdditive))
+          visible: (snpInteraction)
           columns:
-            - {name: model,           title: Model,         type: text}
-            - {name: term,            title: Term,          type: text}
-            - {name: effect,          title: OR / β,        type: number, format: zto}
-            - {name: ciLow,           title: Lower CI,      type: number, format: zto}
-            - {name: ciHigh,          title: Upper CI,      type: number, format: zto}
-            - {name: pval,            title: P-value,       type: number, format: zto}
-            - {name: pvalInteraction, title: P (interaction),type: number, format: zto}
-            - {name: AIC,             title: AIC,           type: number, format: zto, visible: false}
-            - {name: BIC,             title: BIC,           type: number, format: zto, visible: false}
+            - {name: model,           title: Model,            type: text}
+            - {name: term,            title: Term,             type: text}
+            - {name: effect,          title: OR / β,           type: number, format: zto}
+            - {name: ciLow,           title: Lower CI,         type: number, format: zto}
+            - {name: ciHigh,          title: Upper CI,         type: number, format: zto}
+            - {name: pval,            title: P-value,          type: number, format: zto}
+            - {name: pvalInteraction, title: P (interaction),  type: number, format: zto}
+            - {name: AIC,             title: AIC,              type: number, format: zto, visible: false}
+
+        # ── Stratified by response (binary only) ───────────────
+        # One sub-table per response level; populated dynamically.
+        - name: stratByResponse
+          title: Interaction — Stratified by Response Category
+          type: Array
+          visible: (snpInteraction && showStratByResponse)
+          template:
+            title: $key
+            type: Table
+            columns:
+              - {name: genotype, title: Genotype,  type: text}
+              - {name: n,        title: N,          type: integer}
+              - {name: effect,   title: OR / β,     type: number, format: zto}
+              - {name: ciLow,    title: Lower CI,   type: number, format: zto}
+              - {name: ciHigh,   title: Upper CI,   type: number, format: zto}
+              - {name: pval,     title: P-value,    type: number, format: zto}
+
+        # ── Stratified by genotype ──────────────────────────────
+        # One sub-table per genotype group; populated dynamically.
+        - name: stratByGenotype
+          title: Interaction — Stratified by Genotype
+          type: Array
+          visible: (snpInteraction && showStratByGenotype)
+          template:
+            title: $key
+            type: Table
+            columns:
+              - {name: covariate, title: Covariate,  type: text}
+              - {name: level,     title: Level,      type: text}
+              - {name: n,         title: N,          type: integer}
+              - {name: effect,    title: OR / β,     type: number, format: zto}
+              - {name: ciLow,     title: Lower CI,   type: number, format: zto}
+              - {name: ciHigh,    title: Upper CI,   type: number, format: zto}
+              - {name: pval,      title: P-value,    type: number, format: zto}

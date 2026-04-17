@@ -93,12 +93,39 @@ options:
     max: 99.9
     default: 95
 
-  - name: snpInteraction
-    title: SNP × covariate interaction (first covariate)
+  - name: showAIC
+    title: Show AIC / BIC
     type: Bool
     default: false
 
-  - name: showAIC
-    title: Show AIC/BIC in models
+  # ── Interaction ───────────────────────────────────────────────
+  - name: snpInteraction
+    title: SNP × covariate interaction
+    type: Bool
+    default: false
+
+  # Genetic model used for interaction analysis.
+  # Implemented as a single-select List now; the fill functions
+  # already build a `models` vector, so switching to multi-select
+  # in the future only requires expanding this option type and
+  # rebuilding that vector from the new option.
+  - name: interactionModel
+    title: Genetic model for interaction
+    type: List
+    options:
+      - {title: Codominant,   name: codominant}
+      - {title: Dominant,     name: dominant}
+      - {title: Recessive,    name: recessive}
+      - {title: Overdominant, name: overdominant}
+      - {title: Log-additive, name: logadditive}
+    default: logadditive
+
+  - name: showStratByResponse
+    title: Stratified analysis by response category
+    type: Bool
+    default: false
+
+  - name: showStratByGenotype
+    title: Stratified analysis by genotype
     type: Bool
     default: false

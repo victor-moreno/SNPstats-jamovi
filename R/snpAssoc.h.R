@@ -17,8 +17,11 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             modelOverdominant = FALSE,
             modelLogAdditive = FALSE,
             ciWidth = 95,
+            showAIC = FALSE,
             snpInteraction = FALSE,
-            showAIC = FALSE, ...) {
+            interactionModel = "logadditive",
+            showStratByResponse = FALSE,
+            showStratByGenotype = FALSE, ...) {
 
             super$initialize(
                 package="SNPstats",
@@ -91,13 +94,31 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 min=50,
                 max=99.9,
                 default=95)
+            private$..showAIC <- jmvcore::OptionBool$new(
+                "showAIC",
+                showAIC,
+                default=FALSE)
             private$..snpInteraction <- jmvcore::OptionBool$new(
                 "snpInteraction",
                 snpInteraction,
                 default=FALSE)
-            private$..showAIC <- jmvcore::OptionBool$new(
-                "showAIC",
-                showAIC,
+            private$..interactionModel <- jmvcore::OptionList$new(
+                "interactionModel",
+                interactionModel,
+                options=list(
+                    "codominant",
+                    "dominant",
+                    "recessive",
+                    "overdominant",
+                    "logadditive"),
+                default="logadditive")
+            private$..showStratByResponse <- jmvcore::OptionBool$new(
+                "showStratByResponse",
+                showStratByResponse,
+                default=FALSE)
+            private$..showStratByGenotype <- jmvcore::OptionBool$new(
+                "showStratByGenotype",
+                showStratByGenotype,
                 default=FALSE)
 
             self$.addOption(private$..response)
@@ -111,8 +132,11 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..modelOverdominant)
             self$.addOption(private$..modelLogAdditive)
             self$.addOption(private$..ciWidth)
-            self$.addOption(private$..snpInteraction)
             self$.addOption(private$..showAIC)
+            self$.addOption(private$..snpInteraction)
+            self$.addOption(private$..interactionModel)
+            self$.addOption(private$..showStratByResponse)
+            self$.addOption(private$..showStratByGenotype)
         }),
     active = list(
         response = function() private$..response$value,
@@ -126,8 +150,11 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         modelOverdominant = function() private$..modelOverdominant$value,
         modelLogAdditive = function() private$..modelLogAdditive$value,
         ciWidth = function() private$..ciWidth$value,
+        showAIC = function() private$..showAIC$value,
         snpInteraction = function() private$..snpInteraction$value,
-        showAIC = function() private$..showAIC$value),
+        interactionModel = function() private$..interactionModel$value,
+        showStratByResponse = function() private$..showStratByResponse$value,
+        showStratByGenotype = function() private$..showStratByGenotype$value),
     private = list(
         ..response = NA,
         ..snps = NA,
@@ -140,8 +167,11 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..modelOverdominant = NA,
         ..modelLogAdditive = NA,
         ..ciWidth = NA,
+        ..showAIC = NA,
         ..snpInteraction = NA,
-        ..showAIC = NA)
+        ..interactionModel = NA,
+        ..showStratByResponse = NA,
+        ..showStratByGenotype = NA)
 )
 
 snpAssocResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
@@ -174,7 +204,9 @@ snpAssocResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     active = list(
                         typingRate = function() private$.items[["typingRate"]],
                         assocTable = function() private$.items[["assocTable"]],
-                        interactionTable = function() private$.items[["interactionTable"]]),
+                        interactionTable = function() private$.items[["interactionTable"]],
+                        stratByResponse = function() private$.items[["stratByResponse"]],
+                        stratByGenotype = function() private$.items[["stratByGenotype"]]),
                     private = list(),
                     public=list(
                         initialize=function(options) {
@@ -245,7 +277,7 @@ snpAssocResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                 options=options,
                                 name="interactionTable",
                                 title="SNP \u00D7 Covariate Interaction",
-                                visible="(snpInteraction && (modelCodominant || modelDominant || modelRecessive || modelOverdominant || modelLogAdditive))",
+                                visible="(snpInteraction)",
                                 columns=list(
                                     list(
                                         `name`="model", 
@@ -285,13 +317,85 @@ snpAssocResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                         `title`="AIC", 
                                         `type`="number", 
                                         `format`="zto", 
-                                        `visible`=FALSE),
-                                    list(
-                                        `name`="BIC", 
-                                        `title`="BIC", 
-                                        `type`="number", 
-                                        `format`="zto", 
-                                        `visible`=FALSE))))}))$new(options=options)))}))
+                                        `visible`=FALSE))))
+                            self$add(jmvcore::Array$new(
+                                options=options,
+                                name="stratByResponse",
+                                title="Interaction \u2014 Stratified by Response Category",
+                                visible="(snpInteraction && showStratByResponse)",
+                                template=jmvcore::Table$new(
+                                    options=options,
+                                    title="$key",
+                                    columns=list(
+                                        list(
+                                            `name`="genotype", 
+                                            `title`="Genotype", 
+                                            `type`="text"),
+                                        list(
+                                            `name`="n", 
+                                            `title`="N", 
+                                            `type`="integer"),
+                                        list(
+                                            `name`="effect", 
+                                            `title`="OR / \u03B2", 
+                                            `type`="number", 
+                                            `format`="zto"),
+                                        list(
+                                            `name`="ciLow", 
+                                            `title`="Lower CI", 
+                                            `type`="number", 
+                                            `format`="zto"),
+                                        list(
+                                            `name`="ciHigh", 
+                                            `title`="Upper CI", 
+                                            `type`="number", 
+                                            `format`="zto"),
+                                        list(
+                                            `name`="pval", 
+                                            `title`="P-value", 
+                                            `type`="number", 
+                                            `format`="zto")))))
+                            self$add(jmvcore::Array$new(
+                                options=options,
+                                name="stratByGenotype",
+                                title="Interaction \u2014 Stratified by Genotype",
+                                visible="(snpInteraction && showStratByGenotype)",
+                                template=jmvcore::Table$new(
+                                    options=options,
+                                    title="$key",
+                                    columns=list(
+                                        list(
+                                            `name`="covariate", 
+                                            `title`="Covariate", 
+                                            `type`="text"),
+                                        list(
+                                            `name`="level", 
+                                            `title`="Level", 
+                                            `type`="text"),
+                                        list(
+                                            `name`="n", 
+                                            `title`="N", 
+                                            `type`="integer"),
+                                        list(
+                                            `name`="effect", 
+                                            `title`="OR / \u03B2", 
+                                            `type`="number", 
+                                            `format`="zto"),
+                                        list(
+                                            `name`="ciLow", 
+                                            `title`="Lower CI", 
+                                            `type`="number", 
+                                            `format`="zto"),
+                                        list(
+                                            `name`="ciHigh", 
+                                            `title`="Upper CI", 
+                                            `type`="number", 
+                                            `format`="zto"),
+                                        list(
+                                            `name`="pval", 
+                                            `title`="P-value", 
+                                            `type`="number", 
+                                            `format`="zto")))))}))$new(options=options)))}))
 
 snpAssocBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
     "snpAssocBase",
@@ -329,8 +433,11 @@ snpAssocBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param modelOverdominant .
 #' @param modelLogAdditive .
 #' @param ciWidth .
-#' @param snpInteraction .
 #' @param showAIC .
+#' @param snpInteraction .
+#' @param interactionModel .
+#' @param showStratByResponse .
+#' @param showStratByGenotype .
 #' @return A results object containing:
 #' \tabular{llllll}{
 #'   \code{results$validationMsg} \tab \tab \tab \tab \tab a html \cr
@@ -351,8 +458,11 @@ snpAssoc <- function(
     modelOverdominant = FALSE,
     modelLogAdditive = FALSE,
     ciWidth = 95,
+    showAIC = FALSE,
     snpInteraction = FALSE,
-    showAIC = FALSE) {
+    interactionModel = "logadditive",
+    showStratByResponse = FALSE,
+    showStratByGenotype = FALSE) {
 
     if ( ! requireNamespace("jmvcore", quietly=TRUE))
         stop("snpAssoc requires jmvcore to be installed (restart may be required)")
@@ -380,8 +490,11 @@ snpAssoc <- function(
         modelOverdominant = modelOverdominant,
         modelLogAdditive = modelLogAdditive,
         ciWidth = ciWidth,
+        showAIC = showAIC,
         snpInteraction = snpInteraction,
-        showAIC = showAIC)
+        interactionModel = interactionModel,
+        showStratByResponse = showStratByResponse,
+        showStratByGenotype = showStratByGenotype)
 
     analysis <- snpAssocClass$new(
         options = options,
