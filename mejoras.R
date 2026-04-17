@@ -1,8 +1,30 @@
-# missings
+# covariates:
+#  - descriptive of response
 
-# Notes: report covariate, SNPs & adjusted. 
+# simplify & robustify 
 
-# allele order / genotype reference AA, AB, BB | BB BA AA
+# improve association table as in web version
+#  - genotype n % cases controls
+#  AIC & BIC
+#  - p value for LRT in ref cat of codominant 
+
+# stratified analysis:
+# interaction tables stratified by 
+#  -covariate levels (if categorical)
+#  -response (if binary)
+
+# haplotype analysis: 
+# show N in Note, in addition to missings
+# sort by frequency (freq, assoc & interaction)
+# replace NA by ''
+# add LRT p value for haplotype association -> first row & note
+# add stratified tables for haplotype interaction
+# OR are different from web version, check code
+
+# show target response level if binary
+
+# simplify code
+# find duplicated code and improve modularity. For example strata labels & missing values for SNP results
 
 # check bugs when bad data: zeros, monoallelic, no BB, ...
 # replace values > 1000 by Inf or ---
@@ -10,16 +32,6 @@
 # colorize results
 # hide all notes except LRT
 
-# show target response level if binary
-# response codes: use labels & respect jamovi data order
-
-# simplify code
-# find duplicated code and improve modularity. For example strata labels & missing values for SNP results
-
-
-# References 
-#    Sole et al. 2017 for reporting guidelines
-#    tutorial
 
 # Design
 # 	Separate PRS analysis

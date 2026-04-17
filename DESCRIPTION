@@ -4,12 +4,9 @@ Title: SNP Statistics for Genetic Epidemiology
 Version: 0.1.0
 Date: 2026-04-10
 Authors@R: person("Victor", "Moreno", role = c("aut", "cre"), email = "v.moreno@iconcologia.net")
-Description: Performs single-SNP and haplotype association analyses for
-    genetic epidemiology studies. Computes allele and genotype frequencies,
-    Hardy-Weinberg equilibrium tests, SNP-response association under five
-    genetic models (codominant, dominant, recessive, overdominant,
-    log-additive), linkage disequilibrium, and haplotype analysis.
-    Based on the SNPstats web tool (Catalan Institute of Oncology).
+Description: Performs SNP analysis for genetic epidemiology studies. Computes allele and genotype 
+    frequencies, Hardy-Weinberg equilibrium tests, SNP-response association, linkage disequilibrium, 
+    and haplotype analysis. Based on the SNPstats web tool (https://www.snpstats.net).
 License: GPL-3
 Encoding: UTF-8
 LazyData: true
@@ -20,3 +17,5 @@ Imports:
     R6,
     genetics,
     haplo.stats
+References: 
+    Sole X, Guino E, Valls J, Iniesta R, Moreno V (2006). SNPStats: a web tool for the analysis of association studies. <em>Bioinformatics</em> 22(15):1928–1929.

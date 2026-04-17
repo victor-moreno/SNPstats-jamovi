@@ -9,10 +9,10 @@ maintainer: Victor Moreno <v.moreno@iconcologa.net>
 date: '2026-04-10'
 type: R
 description: >
-  SNP descriptive and association analysis for genetic epidemiology. Computes
-  allele/genotype frequencies, Hardy-Weinberg equilibrium, SNP-response
-  association under five genetic models, linkage disequilibrium, and haplotype
-  analysis.
+  Performs SNP analysis for genetic epidemiology studies. Computes allele and
+  genotype  frequencies, Hardy-Weinberg equilibrium tests, SNP-response
+  association, linkage disequilibrium,  and haplotype analysis. Based on the
+  SNPstats web tool (https://www.snpstats.net).
 analyses:
   - title: SNP Analysis
     name: snpAnalysis

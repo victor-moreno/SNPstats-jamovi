@@ -2,8 +2,15 @@
 name: snpAnalysis
 title: SNP Analysis
 jrs: '1.1'
+refs: 
+  - snpstats
+  - bioinfo
 
 items:  
+  - name: main
+    title: ''
+    type: Html
+    visible: false
   - name: validationMsgSNP
     title: ''
     type: Html

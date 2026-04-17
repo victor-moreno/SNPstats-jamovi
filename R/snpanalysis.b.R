@@ -16,6 +16,7 @@ split_alleles <- function(g) strsplit(g, "/", fixed = TRUE)[[1]]
 #'   $ok      TRUE/FALSE
 #'   $reason  human-readable reason string when ok == FALSE
 #'   $alleles character(2) canonical allele pair when ok == TRUE
+#'            (order is preserved from data, not forced alphabetical)
 check_biallelic <- function(vals) {
   # vals: unique non-NA genotype strings already normalised to "A/B" form
   pairs  <- lapply(vals, split_alleles)
@@ -43,7 +44,100 @@ check_biallelic <- function(vals) {
                 reason = paste0("unexpected genotype(s): ",
                                 paste(bad_geno, collapse = ", "))))
 
-  list(ok = TRUE, reason = NULL, alleles = sort(alleles))
+  # Return alleles in their natural order (first homozygote seen first),
+  # NOT forced alphabetical.  Downstream code that needs sorted alleles
+  # can sort locally.
+  list(ok = TRUE, reason = NULL, alleles = alleles)
+}
+
+#' Extract the user-defined genotype level order from a jamovi factor column.
+#' Returns a character vector of canonical "A/B" genotype strings in the
+#' user's desired order, or NULL if the column has no levels or its levels
+#' are not recognised as genotype strings.
+#'
+#' Heterozygous levels that appear as "B/A" (reversed) are silently accepted
+#' and normalised to "A/B" using the reference allele (first homozygous level).
+get_snp_level_order <- function(x) {
+  if (!is.factor(x)) return(NULL)
+  lvls <- levels(x)
+  if (length(lvls) == 0) return(NULL)
+
+  # Normalise separator to "/"
+  norm <- lvls
+  for (sep in c("|", ">")) {
+    pat <- paste0("^.+", if (sep == "|") "\\|" else sep, ".+$")
+    if (all(grepl(pat, norm))) {
+      norm <- sub(sep, "/", norm, fixed = TRUE)
+      break
+    }
+  }
+  # No-separator two-character format
+  if (all(nchar(norm) == 2) && all(grepl("^[A-Za-z0-9]{2}$", norm))) {
+    norm <- paste0(substr(norm, 1, 1), "/", substr(norm, 2, 2))
+  }
+
+  # All normalised levels must be valid "X/Y" strings
+  if (!all(grepl("^.+/.+$", norm))) return(NULL)
+
+  # Identify the reference allele: the allele that appears in the first
+  # homozygous level (a level where both alleles are identical).
+  ref_allele <- NULL
+  for (g in norm) {
+    parts <- strsplit(g, "/", fixed = TRUE)[[1]]
+    if (length(parts) == 2 && parts[1] == parts[2]) {
+      ref_allele <- parts[1]
+      break
+    }
+  }
+
+  # Normalise heterozygous levels: ensure ref allele comes first.
+  # e.g. if ref is "A", "T/A" becomes "A/T".
+  if (!is.null(ref_allele)) {
+    norm <- sapply(norm, function(g) {
+      parts <- strsplit(g, "/", fixed = TRUE)[[1]]
+      if (length(parts) == 2 && parts[1] != parts[2] && parts[2] == ref_allele) {
+        paste0(parts[2], "/", parts[1])
+      } else {
+        g
+      }
+    }, USE.NAMES = FALSE)
+  }
+
+  is_het <- function(g) {
+    parts <- strsplit(g, "/", fixed = TRUE)[[1]]
+    length(parts) == 2 && parts[1] != parts[2]
+  }
+
+  # Safety enforcement: for a 3-level SNP the canonical order is always
+  # [homozygote_ref, heterozygote, homozygote_alt].
+  # Regardless of what the user specified, we sort the three levels so that
+  # the two homozygotes are in positions 1 and 3 and the het is in position 2.
+  # This fixes the case where e.g. jamovi delivers levels in data-frequency
+  # order (CC, TT, TC) rather than the genetic ordering (CC, TC, TT).
+  if (length(norm) == 3) {
+    is_het_vec <- sapply(norm, is_het)
+    hom_levels <- norm[!is_het_vec]
+    het_levels <- norm[is_het_vec]
+    if (length(het_levels) == 1 && length(hom_levels) == 2) {
+      # Put ref homozygote first (identified above), then het, then alt homozygote
+      ref_hom <- if (!is.null(ref_allele))
+        hom_levels[sapply(hom_levels, function(g) {
+          parts <- strsplit(g, "/", fixed = TRUE)[[1]]
+          length(parts) == 2 && parts[1] == ref_allele
+        })]
+      else hom_levels[1]
+      alt_hom <- hom_levels[hom_levels != ref_hom[1]]
+      if (length(ref_hom) == 1 && length(alt_hom) == 1)
+        norm <- c(ref_hom, het_levels, alt_hom)
+    }
+  } else {
+    # For 2-level SNPs: ensure a het is never first
+    if (length(norm) >= 2 && is_het(norm[1])) {
+      norm[c(1, 2)] <- norm[c(2, 1)]
+    }
+  }
+
+  norm
 }
 
 #' Detect if a character vector looks like diploid genotypes and return the
@@ -98,11 +192,22 @@ snp_biallelic_check <- function(x) {
 #' Convenience wrapper: TRUE if column looks like valid biallelic genotype data.
 is_snp_column <- function(x) !is.null(detect_snp_sep(x))
 
-#' Normalise a raw genotype vector to canonical "A/B" format (A <= B
-#' alphabetically, so B/A becomes A/B), then parse via genetics::genotype().
+#' Normalise a raw genotype vector to canonical "A/B" format, then parse via
+#' genetics::genotype().
+#'
+#' Canonicalisation rule for heterozygous genotypes: the reference allele
+#' (first allele found in the first homozygote, or the first allele in
+#' user_levels if provided) always comes first.  This consolidates "A/T" and
+#' "T/A" into a single level — "A/T" when A is the reference.
+#'
+#' @param x        Raw genotype vector (character / factor).
+#' @param user_levels Optional character vector of canonical genotype strings
+#'                 in the user's desired order (from get_snp_level_order()).
+#'                 When supplied, the reference allele is taken from the first
+#'                 homozygote in that list.
 #' Returns NULL if the format cannot be determined or the column is not
 #' biallelic.
-parse_genotype <- function(x) {
+parse_genotype <- function(x, user_levels = NULL) {
   sep <- detect_snp_sep(x)
   if (is.null(sep)) return(NULL)
 
@@ -119,17 +224,46 @@ parse_genotype <- function(x) {
                      sub(sep, "/", x_chr, fixed = TRUE))
   }
 
-  # Step 2: canonicalise allele order so A/B and B/A become the same genotype.
-  # Use alphabetical order of the two alleles as the canonical form.
-  alleles <- sort(unique(unlist(strsplit(
-    as.character(na.omit(x_norm)), "/", fixed = TRUE))))
-  if (length(alleles) == 2) {
-    a1 <- alleles[1]; a2 <- alleles[2]   # a1 <= a2 alphabetically
+  # Step 2: determine the reference allele.
+  # Priority: first homozygote in user_levels → first homozygote in data.
+  ref_allele <- NULL
+
+  if (!is.null(user_levels)) {
+    for (g in user_levels) {
+      parts <- strsplit(g, "/", fixed = TRUE)[[1]]
+      if (length(parts) == 2 && parts[1] == parts[2]) {
+        ref_allele <- parts[1]; break
+      }
+    }
+  }
+
+  if (is.null(ref_allele)) {
+    # Derive from data: find the two alleles; use the one that appears as a
+    # homozygote first (data order, not sorted).
+    all_pairs <- strsplit(as.character(na.omit(x_norm)), "/", fixed = TRUE)
+    all_alleles <- unique(unlist(all_pairs))
+    # First allele seen in a homozygous observation
+    for (pr in all_pairs) {
+      if (length(pr) == 2 && pr[1] == pr[2]) { ref_allele <- pr[1]; break }
+    }
+    # Fallback: just take the first allele encountered
+    if (is.null(ref_allele) && length(all_alleles) >= 1)
+      ref_allele <- all_alleles[1]
+  }
+
+  # Step 3: canonicalise heterozygous genotypes so ref allele always comes
+  # first ("T/A" → "A/T" when A is the reference).
+  if (!is.null(ref_allele)) {
     x_norm <- ifelse(
       is.na(x_norm), NA_character_,
-      ifelse(x_norm == paste0(a2, "/", a1),
-             paste0(a1, "/", a2),
-             x_norm)
+      sapply(x_norm, function(g) {
+        parts <- strsplit(g, "/", fixed = TRUE)[[1]]
+        if (length(parts) == 2 && parts[1] != parts[2] && parts[2] == ref_allele) {
+          paste0(parts[2], "/", parts[1])
+        } else {
+          g
+        }
+      }, USE.NAMES = FALSE)
     )
   }
 
@@ -139,12 +273,27 @@ parse_genotype <- function(x) {
   )
 }
 
-#' Determine reference genotype (most frequent homozygote)
-get_ref_genotype <- function(geno) {
+#' Determine reference genotype.
+#' When user_levels is supplied (character vector of canonical "A/B" strings
+#' in user-defined order), the first genotype in that list is the reference.
+#' Otherwise falls back to the most frequent homozygote.
+get_ref_genotype <- function(geno, user_levels = NULL) {
   if (is.null(geno)) return(NULL)
+
+  # If the user has specified a level order, honour it: the reference is the
+  # first genotype in that order (typically the first homozygote).
+  if (!is.null(user_levels) && length(user_levels) > 0) {
+    sm  <- summary(geno)
+    gf  <- sm$genotype.freq
+    obs <- rownames(gf)[rownames(gf) != "NA"]
+    for (lvl in user_levels) {
+      if (lvl %in% obs) return(lvl)
+    }
+  }
+
+  # Fallback: most frequent homozygote
   sm <- summary(geno)
   gf <- sm$genotype.freq
-  # Homozygotes: allele1 == allele2
   alleles <- rownames(gf)
   is_homoz <- sapply(alleles, function(g) {
     parts <- strsplit(g, "/")[[1]]
@@ -155,30 +304,68 @@ get_ref_genotype <- function(geno) {
   rownames(homoz_gf)[which.max(homoz_gf[, "Count"])]
 }
 
-#' Reorder genotype frequency table: ref homozygote first, then het, then alt
-reorder_geno <- function(gf, ref) {
+#' Reorder genotype frequency table rows.
+#' When user_levels is supplied, rows are sorted in that order.
+#' Otherwise falls back to: ref homozygote first, then het, then alt homozygote.
+#'
+#' NOTE: genetics::genotype() may store heterozygous genotypes as "A/B" or "B/A"
+#' independently of how user_levels normalised them.  We therefore match using a
+#' canonical key (alphabetically sorted allele pair) so "T/C" and "C/T" are
+#' treated as the same genotype.
+reorder_geno <- function(gf, ref, user_levels = NULL) {
   alleles <- rownames(gf)
   na_row  <- alleles == "NA"
   other   <- alleles[!na_row]
-  # ref first, then hets, then other homozygotes
-  is_homoz <- sapply(other, function(g) {
-    parts <- strsplit(g, "/")[[1]]
-    length(parts) == 2 && parts[1] == parts[2]
-  })
-  ordered <- c(
-    ref,
-    other[!is_homoz & other != ref],
-    other[is_homoz  & other != ref]
-  )
-  ordered <- unique(ordered[ordered %in% other])
+
+  # Helper: canonical key for a "A/B" string — sorts the two alleles
+  # so "T/C" and "C/T" both yield the same key.
+  canon_key <- function(g) {
+    parts <- strsplit(g, "/", fixed = TRUE)[[1]]
+    if (length(parts) == 2) paste(sort(parts), collapse = "/") else g
+  }
+
+  if (!is.null(user_levels) && length(user_levels) > 0) {
+    # Build a map: canonical_key(user_level) → actual row name in gf
+    other_keys <- setNames(sapply(other, canon_key), other)  # actual → canon
+    canon_to_actual <- setNames(names(other_keys), other_keys)  # canon → actual
+
+    ordered <- character(0)
+    for (ul in user_levels) {
+      ck <- canon_key(ul)
+      if (ck %in% names(canon_to_actual)) {
+        actual_nm <- canon_to_actual[[ck]]
+        if (!actual_nm %in% ordered) ordered <- c(ordered, actual_nm)
+      }
+    }
+    # Append any observed levels not matched via user_levels (shouldn't happen normally)
+    ordered <- c(ordered, other[!other %in% ordered])
+  } else {
+    # Legacy fallback: ref first, then hets, then other homozygotes
+    is_homoz <- sapply(other, function(g) {
+      parts <- strsplit(g, "/")[[1]]
+      length(parts) == 2 && parts[1] == parts[2]
+    })
+    ordered <- c(
+      ref,
+      other[!is_homoz & other != ref],
+      other[is_homoz  & other != ref]
+    )
+    ordered <- unique(ordered[ordered %in% other])
+  }
+
   final <- c(ordered, alleles[na_row])
   gf[final[final %in% alleles], , drop = FALSE]
 }
 
-#' Encode SNP under a given genetic model as a numeric/factor vector
-encode_model <- function(geno_char, ref, model) {
-  # alleles of reference homozygote
+#' Encode SNP under a given genetic model as a numeric/factor vector.
+#' @param user_levels Optional character vector of canonical genotype strings
+#'   in user-defined order.  When supplied, the codominant model factor uses
+#'   this order (first level = reference); dominant/recessive/etc. models
+#'   derive the reference allele from the first homozygote in this list.
+encode_model <- function(geno_char, ref, model, user_levels = NULL) {
+  # Determine the reference allele from ref genotype
   ref_allele <- strsplit(ref, "/")[[1]][1]
+
   # count ref alleles per genotype
   dosage <- sapply(geno_char, function(g) {
     if (is.na(g) || g == "NA") return(NA_integer_)
@@ -188,9 +375,17 @@ encode_model <- function(geno_char, ref, model) {
 
   switch(model,
     codominant = {
-      # factor with ref as first level
-      lvls <- c(ref,
-                unique(geno_char[geno_char != ref & !is.na(geno_char)]))
+      # Build factor levels: use user order when available, otherwise ref first
+      if (!is.null(user_levels) && length(user_levels) > 0) {
+        # Keep only levels that actually appear in the data
+        obs_genos <- unique(geno_char[!is.na(geno_char) & geno_char != "NA"])
+        lvls <- user_levels[user_levels %in% obs_genos]
+        # Append any observed genotype not in user_levels (data entry errors etc.)
+        lvls <- c(lvls, obs_genos[!obs_genos %in% lvls])
+      } else {
+        lvls <- c(ref,
+                  unique(geno_char[geno_char != ref & !is.na(geno_char)]))
+      }
       factor(geno_char, levels = lvls)
     },
     dominant = {
@@ -633,7 +828,11 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
       for (snp_nm in snp_vars) {
         snp_raw  <- data[[snp_nm]]
-        geno_obj <- parse_genotype(snp_raw)
+
+        # Extract jamovi factor levels if the user has re-ordered them
+        user_levels <- get_snp_level_order(snp_raw)
+
+        geno_obj <- parse_genotype(snp_raw, user_levels)
         if (is.null(geno_obj)) next
 
         geno_list[[snp_nm]] <- geno_obj
@@ -659,7 +858,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
         # Restrict all descriptive objects to the analysis sample
         snp_raw_cc  <- snp_raw[snp_complete_mask]
-        geno_obj_cc <- parse_genotype(snp_raw_cc)
+        geno_obj_cc <- parse_genotype(snp_raw_cc, user_levels)
         response_cc <- if (!is.null(response))     response[snp_complete_mask]     else NULL
         resp_raw_cc <- if (!is.null(response_raw)) response_raw[snp_complete_mask] else NULL
         cov_df_cc   <- if (!is.null(cov_df))       cov_df[snp_complete_mask, , drop = FALSE] else NULL
@@ -676,14 +875,15 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
           "<b>Typed samples:</b> %d / %d (%.1f%%)", n_typed, n_total, pct))
 
         snp_summary_cc <- summary(geno_obj_cc)
-        ref <- get_ref_genotype(geno_obj_cc)
+        ref <- get_ref_genotype(geno_obj_cc, user_levels)
 
         # Allele frequencies
         if (run_allFreq) {
           private$.fill_allele_freq(item$allFreqTable, snp_summary_cc,
                                     snp_nm, resp_raw_cc, run_subpop,
                                     response_type, snp_raw_cc,
-                                    run_showMissing, n_miss)
+                                    run_showMissing, n_miss,
+                                    user_levels = user_levels)
         }
 
         # Genotype frequencies
@@ -691,7 +891,8 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
           private$.fill_geno_freq(item$genoFreqTable, snp_summary_cc, ref,
                                   snp_raw_cc, response_cc, response_type,
                                   run_subpop, resp_raw_cc,
-                                  run_showMissing, n_miss)
+                                  run_showMissing, n_miss,
+                                  user_levels = user_levels)
         }
 
         # HWE
@@ -706,7 +907,8 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         if (run_snpAssoc && !is.null(response_cc)) {
           private$.fill_assoc(item$assocTable, snp_raw_cc, ref, response_cc,
                               cov_df_cc, response_type, opts, run_snpAssoc,
-                              n_miss = n_miss_assoc)
+                              n_miss = n_miss_assoc,
+                              user_levels = user_levels)
         }
 
         # SNP x covariate interaction
@@ -714,7 +916,8 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             !is.null(response_cc)) {
           private$.fill_interaction(item$interactionTable, snp_raw_cc, ref,
                                     response_cc, cov_df_cc, names(cov_df_cc)[1],
-                                    response_type, opts)
+                                    response_type, opts,
+                                    user_levels = user_levels)
         }
       }
 
@@ -893,7 +1096,12 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
       for (snp_nm in snp_vars) {
         snp_raw  <- data[[snp_nm]]
-        geno_obj <- parse_genotype(snp_raw)
+
+        # Extract user-defined level order before any parsing so canonicalisation
+        # uses the reference allele from the user's factor levels.
+        user_levels_sum <- get_snp_level_order(snp_raw)
+
+        geno_obj <- parse_genotype(snp_raw, user_levels_sum)
         if (is.null(geno_obj)) next
 
         # Full complete-case mask for this SNP
@@ -901,7 +1109,8 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         n_cc       <- sum(cc_mask)
         n_excluded <- n_total_rows - n_cc   # total excluded (SNP + resp + cov)
         snp_cc  <- snp_raw[cc_mask]
-        geno_cc <- parse_genotype(snp_cc)
+
+        geno_cc <- parse_genotype(snp_cc, user_levels_sum)
         if (is.null(geno_cc)) next
 
         resp_raw_cc <- if (has_response) response_raw[cc_mask] else NULL
@@ -912,7 +1121,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         } else NULL
         
         sm_cc <- summary(geno_cc)
-        ref   <- get_ref_genotype(geno_cc)
+        ref   <- get_ref_genotype(geno_cc, user_levels_sum)
 
         # Allele labels from the complete-case summary
         af_all     <- sm_cc$allele.freq
@@ -925,7 +1134,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         # Helper: stats for a subset of the already-cc vectors
         compute_row <- function(sub_mask) {
           snp_sub  <- if (is.null(sub_mask)) snp_cc else snp_cc[sub_mask]
-          geno_sub <- if (is.null(sub_mask)) geno_cc else parse_genotype(snp_sub)
+          geno_sub <- if (is.null(sub_mask)) geno_cc else parse_genotype(snp_sub, user_levels_sum)
           if (is.null(geno_sub)) return(NULL)
 
           sm_sub  <- summary(geno_sub)
@@ -940,7 +1149,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
           } else NA_real_
 
           gf <- sm_sub$genotype.freq
-          gf <- tryCatch(reorder_geno(gf, ref), error = function(e) gf)
+          gf <- tryCatch(reorder_geno(gf, ref, user_levels_sum), error = function(e) gf)
           gf <- gf[rownames(gf) != "NA", , drop = FALSE]
           counts <- as.integer(gf[, "Count"])
           geno_str <- if (length(counts) == 3) {
@@ -1020,8 +1229,28 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
     # ── Allele frequencies ────────────────────────────────────────
     .fill_allele_freq = function(tbl, sm, snp_nm, response_raw, subpop,
                                   response_type, snp_raw,
-                                  show_missing = FALSE, n_missing = 0L) {
+                                  show_missing = FALSE, n_missing = 0L,
+                                  user_levels = NULL) {
       af <- sm$allele.freq
+
+      # Determine allele display order: derive from user_levels if available.
+      # The reference allele (from first homozygote in user_levels) is listed first.
+      allele_names_ordered <- rownames(af)
+      if (!is.null(user_levels) && length(user_levels) > 0) {
+        ref_allele_ul <- NULL
+        for (g in user_levels) {
+          parts <- strsplit(g, "/", fixed = TRUE)[[1]]
+          if (length(parts) == 2 && parts[1] == parts[2]) {
+            ref_allele_ul <- parts[1]; break
+          }
+        }
+        if (!is.null(ref_allele_ul) && ref_allele_ul %in% allele_names_ordered) {
+          allele_names_ordered <- c(
+            ref_allele_ul,
+            allele_names_ordered[allele_names_ordered != ref_allele_ul]
+          )
+        }
+      }
 
 
       # Stratify by binary response only
@@ -1045,13 +1274,13 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       # snp_raw_cc contains no NAs, but stated explicitly for clarity)
       n_nonmiss <- sum(!is.na(snp_raw)) * 2L   # total allele count (diploid)
 
-      allele_names <- rownames(af)
-      for (i in seq_len(sm$nallele)) {
-        al <- allele_names[i]
+      for (i in seq_along(allele_names_ordered)) {
+        al <- allele_names_ordered[i]
+        if (!al %in% rownames(af)) next
         row_vals <- list(
           allele = al,
-          count  = as.integer(af[i, "Count"]),
-          prop   = round(af[i, "Proportion"]*100, 1)
+          count  = as.integer(af[al, "Count"]),
+          prop   = round(af[al, "Proportion"]*100, 1)
         )
         if (do_strat) {
           for (g in grp_levels) {
@@ -1091,7 +1320,8 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 # ── Genotype frequencies ──────────────────────────────────────
     .fill_geno_freq = function(tbl, sm, ref, snp_raw, response,
                                 response_type, subpop, response_raw,
-                                show_missing = FALSE, n_missing = 0L) {
+                                show_missing = FALSE, n_missing = 0L,
+                                user_levels = NULL) {
       
 
       if (response_type == "quantitative") {
@@ -1104,7 +1334,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
       }
       
       gf <- sm$genotype.freq
-      gf <- tryCatch(reorder_geno(gf, ref), error = function(e) gf)
+      gf <- tryCatch(reorder_geno(gf, ref, user_levels), error = function(e) gf)
 
       # Stratify by binary response only
       do_strat <- isTRUE(subpop) && !is.null(response_raw) &&
@@ -1457,7 +1687,8 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
     # ── SNP association ───────────────────────────────────────────
     .fill_assoc = function(tbl, snp_raw, ref, response, cov_df,
-                        response_type, opts, run_snpAssoc, n_miss = 0L) {
+                        response_type, opts, run_snpAssoc, n_miss = 0L,
+                        user_levels = NULL) {
 
       if (!run_snpAssoc) return()
       
@@ -1527,7 +1758,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
       row_key <- 0L
       for (mdl in models) {
-        snp_enc <- encode_model(as.character(snp_raw), ref, mdl)
+        snp_enc <- encode_model(as.character(snp_raw), ref, mdl, user_levels)
         res_list <- fit_model(snp_enc, response, cov_df, mdl,
                                response_type, opts$ciWidth)
         if (is.null(res_list)) next
@@ -1570,7 +1801,8 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
     # ── SNP × covariate interaction ───────────────────────────────
     .fill_interaction = function(tbl, snp_raw, ref, response, cov_df,
-                                  interaction_var, response_type, opts) {
+                                  interaction_var, response_type, opts,
+                                  user_levels = NULL) {
 
       effect_col <- tbl$getColumn("effect")
       if (response_type == "binary") {
@@ -1589,7 +1821,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
       # ── Missing note (SNP + response + covariates) ────────────────
       {
-        snp_enc_tmp <- encode_model(as.character(snp_raw), ref, "logadditive")
+        snp_enc_tmp <- encode_model(as.character(snp_raw), ref, "logadditive", user_levels)
         complete_full <- !is.na(response) & !is.na(snp_enc_tmp) & complete.cases(cov_df)
         n_miss <- length(response) - sum(complete_full)
         if (n_miss > 0)
@@ -1622,7 +1854,7 @@ snpAnalysisClass <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 
       row_key <- 0L
       for (mdl in models) {
-        snp_enc  <- encode_model(as.character(snp_raw), ref, mdl)
+        snp_enc  <- encode_model(as.character(snp_raw), ref, mdl, user_levels)
         res_list <- fit_interaction_model(snp_enc, response, cov_df,
                                           interaction_var, mdl,
                                           response_type, opts$ciWidth)

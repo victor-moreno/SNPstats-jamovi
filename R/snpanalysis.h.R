@@ -274,6 +274,7 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
     "snpAnalysisResults",
     inherit = jmvcore::Group,
     active = list(
+        main = function() private$.items[["main"]],
         validationMsgSNP = function() private$.items[["validationMsgSNP"]],
         validationMsgGeno = function() private$.items[["validationMsgGeno"]],
         validationMsg = function() private$.items[["validationMsg"]],
@@ -288,7 +289,15 @@ snpAnalysisResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class
             super$initialize(
                 options=options,
                 name="",
-                title="SNP Analysis")
+                title="SNP Analysis",
+                refs=list(
+                    "snpstats",
+                    "bioinfo"))
+            self$add(jmvcore::Html$new(
+                options=options,
+                name="main",
+                title="",
+                visible=FALSE))
             self$add(jmvcore::Html$new(
                 options=options,
                 name="validationMsgSNP",
@@ -810,6 +819,7 @@ snpAnalysisBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param haploInteraction .
 #' @return A results object containing:
 #' \tabular{llllll}{
+#'   \code{results$main} \tab \tab \tab \tab \tab a html \cr
 #'   \code{results$validationMsgSNP} \tab \tab \tab \tab \tab a html \cr
 #'   \code{results$validationMsgGeno} \tab \tab \tab \tab \tab a html \cr
 #'   \code{results$validationMsg} \tab \tab \tab \tab \tab a html \cr
