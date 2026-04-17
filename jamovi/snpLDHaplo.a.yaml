@@ -1,0 +1,118 @@
+---
+name: snpLDHaplo
+title: LD and Haplotype Analysis
+version: '1.0.0'
+jas: '1.2'
+menuGroup: SNPstats
+menuTitle: LD and Haplotype Analysis
+
+options:
+  - name: data
+    type: Data
+    description:
+      main: >
+        Linkage disequilibrium (pairwise table, matrix, heatmap) and haplotype
+        frequency estimation and association analysis. Requires at least 2 SNPs.
+      R:
+        dontrun: false
+        usage: |
+          snpLDHaplo(
+            data = mydata,
+            snps = c("snp1", "snp2", "snp3"),
+            response = "status",
+            ldAnalysis = TRUE,
+            haploFreq = TRUE,
+            haploAssoc = TRUE
+          )
+
+  # ── Variable assignment ───────────────────────────────────────
+  - name: response
+    title: Response variable
+    type: Variable
+    suggested: [nominal, continuous]
+    permitted:  [factor, numeric]
+    default: ~
+
+  - name: snps
+    title: SNPs
+    type: Variables
+    suggested: [nominal]
+    permitted:  [factor, id]
+
+  - name: covariates
+    title: Covariates
+    type: Variables
+    suggested: [nominal, continuous]
+    permitted:  [factor, numeric]
+    default: ~
+
+  # ── Response type ─────────────────────────────────────────────
+  - name: responseType
+    title: Response type
+    type: List
+    options:
+      - {title: Auto-detect,           name: auto}
+      - {title: Binary (logistic),     name: binary}
+      - {title: Quantitative (linear), name: quantitative}
+    default: auto
+
+  # ── Subpopulation ─────────────────────────────────────────────
+  - name: subpop
+    title: Stratify by response groups (haplotype freq)
+    type: Bool
+    default: false
+
+  # ── Linkage disequilibrium ────────────────────────────────────
+  - name: ldAnalysis
+    title: Pairwise LD table
+    type: Bool
+    default: false
+
+  - name: ldMatrix
+    title: LD matrix
+    type: Bool
+    default: false
+
+  - name: ldMetric
+    title: Metric
+    type: List
+    options:
+      - {title: r²,  name: r2}
+      - {title: D',  name: Dprime}
+      - {title: D,   name: D}
+    default: r2
+
+  - name: ldPlot
+    title: LD heatmap
+    type: Bool
+    default: false
+
+  # ── Haplotype analysis ────────────────────────────────────────
+  - name: haploFreq
+    title: Haplotype frequency estimation
+    type: Bool
+    default: false
+
+  - name: haploFreqMin
+    title: Min freq for rare haplotypes
+    type: Number
+    min: 0
+    max: 0.5
+    default: 0.01
+
+  - name: haploAssoc
+    title: Haplotype-response association
+    type: Bool
+    default: false
+
+  - name: ciWidth
+    title: Confidence interval (%)
+    type: Number
+    min: 50
+    max: 99.9
+    default: 95
+
+  - name: haploInteraction
+    title: Haplotype × covariate interaction (first covariate)
+    type: Bool
+    default: false

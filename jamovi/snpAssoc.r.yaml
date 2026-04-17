@@ -1,0 +1,54 @@
+---
+name: snpAssoc
+title: SNP Association Analysis
+jrs: '1.1'
+refs:
+  - snpstats
+  - bioinfo
+
+items:
+  - name: validationMsg
+    title: ''
+    type: Html
+    visible: false
+
+  # ── Per-SNP association results ───────────────────────────────
+  - name: snpResults
+    title: SNP Association Results
+    type: Array
+    description: Per-SNP association results
+    template:
+      title: $key
+      type: Group
+      items:
+        - name: typingRate
+          title: ''
+          type: Html
+          visible: true
+
+        - name: assocTable
+          title: Association with Response
+          type: Table
+          visible: (snpAssoc && (modelCodominant || modelDominant || modelRecessive || modelOverdominant || modelLogAdditive))
+          columns:
+            - {name: model,      title: Model,       type: text}
+            - {name: comparison, title: Comparison,  type: text}
+            - {name: effect,     title: OR / β,      type: number, format: zto}
+            - {name: ciLow,      title: Lower CI,    type: number, format: zto}
+            - {name: ciHigh,     title: Upper CI,    type: number, format: zto}
+            - {name: pval,       title: P-value,     type: number, format: zto}
+            - {name: AIC,        title: AIC,         type: number, format: zto, visible: false}
+
+        - name: interactionTable
+          title: SNP × Covariate Interaction
+          type: Table
+          visible: (snpInteraction && (modelCodominant || modelDominant || modelRecessive || modelOverdominant || modelLogAdditive))
+          columns:
+            - {name: model,           title: Model,         type: text}
+            - {name: term,            title: Term,          type: text}
+            - {name: effect,          title: OR / β,        type: number, format: zto}
+            - {name: ciLow,           title: Lower CI,      type: number, format: zto}
+            - {name: ciHigh,          title: Upper CI,      type: number, format: zto}
+            - {name: pval,            title: P-value,       type: number, format: zto}
+            - {name: pvalInteraction, title: P (interaction),type: number, format: zto}
+            - {name: AIC,             title: AIC,           type: number, format: zto, visible: false}

@@ -1,3 +1,5 @@
+# allow categorical response dor descr
+
 # covariates:
 #  - descriptive of response
 
@@ -22,6 +24,13 @@
 # OR are different from web version, check code
 
 # show target response level if binary
+
+# missing values in SNPs are not removed for covariate descriptives, to match 
+# the web version. This means that the covariate descriptives are not necessarily 
+# on the same subset as the SNP descriptives.
+# improvement:
+#  - add option to exclude SNP missings in covariate descriptives, and show N in note
+
 
 # simplify code
 # find duplicated code and improve modularity. For example strata labels & missing values for SNP results

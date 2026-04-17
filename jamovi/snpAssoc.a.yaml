@@ -1,0 +1,110 @@
+---
+name: snpAssoc
+title: SNP Association Analysis
+version: '1.0.0'
+jas: '1.2'
+menuGroup: SNPstats
+menuTitle: SNP Association Analysis
+
+options:
+  - name: data
+    type: Data
+    description:
+      main: >
+        Association between SNPs and a response variable under multiple genetic
+        models, with optional covariate adjustment and interaction testing.
+      R:
+        dontrun: false
+        usage: |
+          snpAssoc(
+            data = mydata,
+            response = "status",
+            snps = c("snp1", "snp2"),
+            covariates = c("age", "sex"),
+            modelCodominant = TRUE,
+            modelLogAdditive = TRUE
+          )
+
+  # ── Variable assignment ───────────────────────────────────────
+  - name: response
+    title: Response variable
+    type: Variable
+    suggested: [nominal, continuous]
+    permitted:  [factor, numeric]
+
+  - name: snps
+    title: SNPs
+    type: Variables
+    suggested: [nominal]
+    permitted:  [factor, id]
+
+  - name: covariates
+    title: Covariates
+    type: Variables
+    suggested: [nominal, continuous]
+    permitted:  [factor, numeric]
+    default: ~
+
+  # ── Response type ─────────────────────────────────────────────
+  - name: responseType
+    title: Response type
+    type: List
+    options:
+      - {title: Auto-detect,           name: auto}
+      - {title: Binary (logistic),     name: binary}
+      - {title: Quantitative (linear), name: quantitative}
+    default: auto
+
+  # ── Subpopulation ─────────────────────────────────────────────
+  - name: subpop
+    title: Stratify by response groups
+    type: Bool
+    default: false
+
+  # ── Genetic models ────────────────────────────────────────────
+  - name: snpAssoc
+    title: SNP-response association
+    type: Bool
+    default: true
+
+  - name: modelCodominant
+    title: Codominant
+    type: Bool
+    default: false
+
+  - name: modelDominant
+    title: Dominant
+    type: Bool
+    default: false
+
+  - name: modelRecessive
+    title: Recessive
+    type: Bool
+    default: false
+
+  - name: modelOverdominant
+    title: Overdominant
+    type: Bool
+    default: false
+
+  - name: modelLogAdditive
+    title: Log-additive
+    type: Bool
+    default: false
+
+  - name: ciWidth
+    title: Confidence interval (%)
+    type: Number
+    min: 50
+    max: 99.9
+    default: 95
+
+  - name: snpInteraction
+    title: SNP × covariate interaction (first covariate)
+    type: Bool
+    default: false
+
+  - name: showAIC
+    title: Show AIC in models
+    type: Bool
+    default: false
