@@ -39,9 +39,10 @@ children:
       - type: CheckBox
         name: covDesc
         enable: (covariates)
-      - type: CheckBox
-        name: rmSnpMissing
-        enable: (covDesc)
+        children:
+        - type: CheckBox
+          name: rmSnpMissing
+          enable: (covDesc)
 
   - type: LayoutBox
     margin: large

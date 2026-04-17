@@ -97,8 +97,8 @@ items:
           visible: (hweTest)
           columns:
             - {name: group,   title: Group,   type: text}
-            - {name: n11,     title: N11,     type: integer}
-            - {name: n12,     title: N12,     type: integer}
-            - {name: n22,     title: N22,     type: integer}
+            - {name: n11,     title: AA,     type: integer}
+            - {name: n12,     title: AB,     type: integer}
+            - {name: n22,     title: BB,     type: integer}
             - {name: missing, title: Missing, type: integer, visible: false}
             - {name: pval,    title: P-value, type: number,  format: zto}

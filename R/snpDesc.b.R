@@ -58,21 +58,24 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       response      <- prepare_response(response_raw, response_type)
 
       cov_df        <- prepare_covariates(data, covariate_vars)
+      # Create an empty but non-NULL cov_df if no covariates selected
+      # This allows response to be shown even without covariates
+      if (is.null(cov_df) && !is.null(response_raw)) {
+        cov_df <- data.frame(row.names = seq_len(nrow(data)))
+      }
 
       if (run_subpop && (is.null(response_raw) || response_type == "quantitative")) {
         run_subpop <- FALSE
       }
 
       # ── Visibility ───────────────────────────────────────────────
-      self$results$covDescGroup$setVisible(run_covDesc && !is.null(cov_df))
+      self$results$covDescGroup$setVisible(run_covDesc && (!is.null(cov_df) || !is.null(response_raw)))
       self$results$snpSummaryTablesGroup$setVisible(run_snpSummary && length(snp_vars) > 0)
 
       # ── Covariate descriptives ───────────────────────────────────
-
       if (run_covDesc && !is.null(cov_df)) {
         private$.run_cov_desc(cov_df, response_raw, response_type, run_subpop, response_var, data, 
           snp_vars, run_rmSnpMissing)
-
       }
 
       # ── SNP summary table ────────────────────────────────────────
@@ -97,28 +100,29 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         geno_obj    <- parse_genotype(snp_raw, user_levels)
         if (is.null(geno_obj)) next
 
-        # missings
-        is_missing_snp      <- is.na(snp_raw)
-        is_missing_response <- if (!is.null(response_raw)) is.na(response_raw) else rep(FALSE, n_rows)
-        is_missing_cov      <- if (!is.null(cov_df)) !complete.cases(cov_df) else rep(FALSE, n_rows)
-
-        # Total missing for this specific SNP analysis
-        snp_complete_mask  <- is_missing_snp | is_missing_response | is_missing_cov
-
+        # For each SNP, we need complete cases: no missing in SNP, response, or covariates
+        snp_complete_mask <- complete_mask & !is.na(snp_raw)
+        
+        # Count missing by category for reporting
+        missing_snp_only <- is.na(snp_raw) & complete_mask
+        missing_resp_cov <- !complete_mask & !is.na(snp_raw)
+        missing_both <- !complete_mask & is.na(snp_raw)
+        
+        n_missing_snp_only <- sum(missing_snp_only)
+        n_missing_resp_cov <- sum(missing_resp_cov)
+        n_missing_both <- sum(missing_both)
+        total_missing <- sum(!snp_complete_mask)
+        
+        # For stratified reporting, track missing by response level
         if (run_subpop && (response_type == "binary" || response_type == "categorical")) {
-            lvls <- levels(as.factor(response_raw))
-            # Missing SNP within valid strata
-            n_miss <- sapply(lvls, function(l) {
-                sum(is.na(snp_raw) & response_raw == l, na.rm=TRUE)
-            })
-            names(n_miss) <- lvls
-            
-            # Crucial: Track samples dropped because Response/Covariates were missing
-            # To match Summary Table, any sample not in 'Complete Cases' is 'Missing'
-            attr(n_miss, "dropped_cases") <- sum(!complete_mask)
+          resp_levels <- levels(as.factor(response_raw))
+          n_miss_by_level <- sapply(resp_levels, function(lvl) {
+            # Missing within this response level (including any missing reason)
+            sum((is.na(snp_raw) | !complete_mask) & response_raw == lvl, na.rm=TRUE)
+          })
+          names(n_miss_by_level) <- resp_levels
         } else {
-            # Non-stratified: Total missing = anything not in complete case for this SNP
-            n_miss <- sum(!snp_complete_mask) 
+          n_miss_by_level <- NULL
         }
 
         snp_raw_cc  <- snp_raw[snp_complete_mask]
@@ -128,12 +132,12 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         if (is.null(geno_obj_cc)) next
 
         item    <- arr$get(key = snp_nm)
-        n_typed <- sum(!snp_complete_mask)
-        n_typed_deno <- sum ( !is_missing_cov & !is_missing_response )
-
+        n_typed <- sum(snp_complete_mask)
+        n_total_eligible <- sum(complete_mask)  # cases with complete response+covariates
+        
         item$typingRate$setContent(sprintf(
-          "<b>Typed samples:</b> %d / %d (%.1f%%)", n_typed, n_typed_deno,
-          n_typed / n_typed_deno * 100))
+          "<b>Typed samples:</b> %d / %d (%.1f%%)", n_typed, n_total_eligible,
+          if (n_total_eligible > 0) n_typed / n_total_eligible * 100 else 0))
 
         snp_summary_cc <- summary(geno_obj_cc)
         ref            <- get_ref_genotype(geno_obj_cc, user_levels)
@@ -142,18 +146,20 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           private$.fill_allele_freq(item$allFreqTable, snp_summary_cc,
                                     snp_nm, resp_raw_cc, run_subpop,
                                     response_type, snp_raw_cc,
-                                    run_showMissing, n_miss, n_rows, 
+                                    run_showMissing, n_miss_by_level, 
+                                    n_total_eligible, total_missing,
                                     user_levels = user_levels)
         if (run_genoFreq)
           private$.fill_geno_freq(item$genoFreqTable, snp_summary_cc, ref,
                                   snp_raw_cc, response_cc, response_type,
                                   run_subpop, resp_raw_cc,
-                                  run_showMissing, n_miss, n_rows, 
+                                  run_showMissing, n_miss_by_level, 
+                                  n_total_eligible, total_missing,
                                   user_levels = user_levels)
         if (run_hweTest)
           private$.fill_hwe(item$hweTable, geno_obj_cc, snp_nm,
                             resp_raw_cc, run_subpop,
-                            run_showMissing, n_miss, n_rows)
+                            run_showMissing, n_miss_by_level, n_total_eligible, total_missing)
       }
     },
 
@@ -163,6 +169,8 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                          rm_snp_missing = FALSE) {
 
       tbl <- self$results$covDescGroup$covDescTable
+
+      has_covariates <- !is.null(cov_df) && ncol(cov_df) > 0
 
       n_removed_snp <- 0L
       if (isTRUE(rm_snp_missing) && !is.null(data) && !is.null(snp_vars) && length(snp_vars) > 0) {
@@ -205,19 +213,22 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       has_cont <- FALSE
 
       # ---- Response block ----
+      # ALWAYS show response description if response exists
       if (has_response) {
 
         if (is_cont_resp) {
-
+          # For continuous response: show mean ± SD
           row_vals <- list(variable = response_var, level = "Mean \u00B1 SD",
                           stat_overall = fmt_cont(response_raw))
           tbl$addRow(rowKey = paste0(response_var, "_mean"), values = row_vals)
 
+          # Show valid count
           mask <- !is.na(response_raw)
           row_vals <- list(variable = "", level = "Valid",
                           stat_overall = sum(mask))
           tbl$addRow(rowKey = paste0(response_var, "_valid"), values = row_vals)
 
+          # Show missing count if any
           n_miss <- sum(!mask)
           if (n_miss > 0) {
             miss_vals <- list(variable = "", level = "Missing",
@@ -226,7 +237,7 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           }
 
         } else {
-
+          # For categorical/binary response: show counts
           mask <- valid_resp
           row_vals <- list(variable = response_var, level = "Valid",
                           stat_overall = sum(mask))
@@ -242,7 +253,7 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           n_miss <- sum(!valid_resp)
           if (n_miss > 0) {
             miss_vals <- list(variable = "", level = "Missing",
-                              stat_overall = fmt_cat(n_miss, length(response_raw)))
+                            stat_overall = fmt_cat(n_miss, length(response_raw)))
             if (do_strat) {
               for (i in seq_along(grp_lvls)) {
                 miss_vals[[paste0("stat_g", i-1)]] <- ''
@@ -256,99 +267,102 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       }
 
       # ---- Covariates ----
-      for (v in names(cov_df)) {
+      # Only show covariates if there are any
+      if (!is.null(cov_df) && ncol(cov_df) > 0) {
+        for (v in names(cov_df)) {
 
-        col <- cov_df[[v]]
-        is_cat <- is.factor(col) || is.character(col)
-        if (is_cat && !is.factor(col)) col <- factor(col)
+          col <- cov_df[[v]]
+          is_cat <- is.factor(col) || is.character(col)
+          if (is_cat && !is.factor(col)) col <- factor(col)
 
-        n <- length(col)
-        n_miss <- sum(is.na(col))
+          n <- length(col)
+          n_miss <- sum(is.na(col))
 
-        if (is_cat) {
+          if (is_cat) {
 
-          lvls <- levels(col)
+            lvls <- levels(col)
 
-          pval <- if (do_strat) {
-            tryCatch({
-              ct <- table(col[valid_resp], grp_fac[valid_resp])
-              suppressWarnings(chisq.test(ct)$p.value)
-            }, error = function(e) NA_real_)
-          } else NA_real_
+            pval <- if (do_strat) {
+              tryCatch({
+                ct <- table(col[valid_resp], grp_fac[valid_resp])
+                suppressWarnings(chisq.test(ct)$p.value)
+              }, error = function(e) NA_real_)
+            } else NA_real_
 
-          first <- TRUE
-          for (lvl in lvls) {
+            first <- TRUE
+            for (lvl in lvls) {
 
-            mask <- !is.na(col) & col == lvl
+              mask <- !is.na(col) & col == lvl
 
-            row_vals <- list(
-              variable = if (first) v else "",
-              level = lvl,
-              stat_overall = fmt_cat(sum(mask), n)
-            )
+              row_vals <- list(
+                variable = if (first) v else "",
+                level = lvl,
+                stat_overall = fmt_cat(sum(mask), n)
+              )
+
+              if (do_strat) {
+                cnt <- get_counts(mask)
+                for (i in seq_along(cnt))
+                  row_vals[[paste0("stat_g", i-1)]] <- fmt_cat(cnt[i], totals[i])
+                row_vals$pval <- if (first) pval else ''
+              }
+
+              tbl$addRow(rowKey = paste0(v, "_", lvl), values = row_vals)
+              first <- FALSE
+            }
+
+            if (n_miss > 0) {
+              mask <- is.na(col)
+              row_vals <- list(variable = "", level = "Missing",
+                              stat_overall = fmt_cat(n_miss, n))
+
+              if (do_strat) {
+                cnt <- get_counts(mask)
+                for (i in seq_along(cnt))
+                  row_vals[[paste0("stat_g", i-1)]] <- fmt_cat(cnt[i], totals[i])
+                row_vals$pval <- ''
+              }
+
+              tbl$addRow(rowKey = paste0(v, "_missing"), values = row_vals)
+            }
+
+          } else {
+
+            has_cont <- TRUE
+
+            row_vals <- list(variable = v, level = "Mean \u00B1 SD",
+                            stat_overall = fmt_cont(col))
 
             if (do_strat) {
-              cnt <- get_counts(mask)
-              for (i in seq_along(cnt))
-                row_vals[[paste0("stat_g", i-1)]] <- fmt_cat(cnt[i], totals[i])
-              row_vals$pval <- if (first) pval else ''
+              for (i in seq_along(mask_list)) {
+                vals <- col[mask_list[[i]]]
+                row_vals[[paste0("stat_g", i-1)]] <- fmt_cont(vals)
+              }
+              row_vals$pval <- tryCatch({
+                groups <- split(col[valid_resp], grp_fac[valid_resp])
+                if (length(groups) == 2)
+                  t.test(groups[[1]], groups[[2]])$p.value
+                else
+                  summary(aov(col ~ grp_fac))[[1]][["Pr(>F)"]][1]
+              }, error=function(e) NA_real_)
             }
 
-            tbl$addRow(rowKey = paste0(v, "_", lvl), values = row_vals)
-            first <- FALSE
-          }
+            tbl$addRow(rowKey = v, values = row_vals)
 
-          if (n_miss > 0) {
-            mask <- is.na(col)
-            row_vals <- list(variable = "", level = "Missing",
-                            stat_overall = fmt_cat(n_miss, n))
+            if (n_miss > 0) {
+              mask <- is.na(col)
+              row_vals <- list(variable = "", level = "Missing",
+                              stat_overall = fmt_cat(n_miss, n))
 
-            if (do_strat) {
-              cnt <- get_counts(mask)
-              for (i in seq_along(cnt))
-                row_vals[[paste0("stat_g", i-1)]] <- fmt_cat(cnt[i], totals[i])
-              row_vals$pval <- ''
+              if (do_strat) {
+                cnt <- get_counts(mask)
+                for (i in seq_along(cnt))
+                  row_vals[[paste0("stat_g", i-1)]] <- fmt_cat(cnt[i], totals[i])
+                row_vals$pval <- ''
+              }
+
+              tbl$addRow(rowKey = paste0(v, "_missing"), values = row_vals)
             }
-
-            tbl$addRow(rowKey = paste0(v, "_missing"), values = row_vals)
-          }
-
-        } else {
-
-          has_cont <- TRUE
-
-          row_vals <- list(variable = v, level = "Mean \u00B1 SD",
-                          stat_overall = fmt_cont(col))
-
-          if (do_strat) {
-            for (i in seq_along(mask_list)) {
-              vals <- col[mask_list[[i]]]
-              row_vals[[paste0("stat_g", i-1)]] <- fmt_cont(vals)
-            }
-            row_vals$pval <- tryCatch({
-              groups <- split(col[valid_resp], grp_fac[valid_resp])
-              if (length(groups) == 2)
-                t.test(groups[[1]], groups[[2]])$p.value
-              else
-                summary(aov(col ~ grp_fac))[[1]][["Pr(>F)"]][1]
-            }, error=function(e) NA_real_)
-          }
-
-          tbl$addRow(rowKey = v, values = row_vals)
-
-          if (n_miss > 0) {
-            mask <- is.na(col)
-            row_vals <- list(variable = "", level = "Missing",
-                            stat_overall = fmt_cat(n_miss, n))
-
-            if (do_strat) {
-              cnt <- get_counts(mask)
-              for (i in seq_along(cnt))
-                row_vals[[paste0("stat_g", i-1)]] <- fmt_cat(cnt[i], totals[i])
-              row_vals$pval <- ''
-            }
-
-            tbl$addRow(rowKey = paste0(v, "_missing"), values = row_vals)
           }
         }
       }
@@ -362,7 +376,6 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       tbl$setNote(note = if (length(notes)) paste(notes, collapse=" ") else NULL,
                   key  = "cov_desc_note")
     },
-
 
     .fill_snp_summary = function(data, snp_vars, response_raw, response_type,
                              subpop, cov_df = NULL) {
@@ -501,14 +514,9 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
     .fill_allele_freq = function(tbl, sm, snp_nm, response_raw, subpop,
                                   response_type, snp_raw, show_missing=FALSE,
-                                  n_miss=0L, n_rows=0L, user_levels=NULL) {
+                                  n_miss_by_level=NULL, n_total_eligible=0L, 
+                                  total_missing=0L, user_levels=NULL) {
 
-      
-      dropped <- attr(n_miss, "dropped_cases")
-      if (is.null(dropped)) dropped <- 0
-      
-      total_missing_n <- sum(n_miss) + dropped
-      
       af <- sm$allele.freq
       allele_names <- rownames(af)
 
@@ -527,30 +535,34 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
       if (do_strat) {
         grp_levels <- levels(response_raw)
-        grp_safe <- gsub("[^A-Za-z0-9]","_", grp_levels)
         resp_chr <- as.character(response_raw)
+        
+        # Pre-compute allele counts by stratum
         alleles_split <- strsplit(as.character(snp_raw), "/")
-
-        grp_idx <- lapply(grp_levels, function(g) resp_chr == g)
-
+        
         for (i in seq_along(grp_levels)) {
-            tbl$addColumn(name=paste0("stat_g", i-1),
-                          title=grp_levels[i],
-                          type="string")
+          tbl$addColumn(name=paste0("stat_g", i-1),
+                        title=grp_levels[i],
+                        type="string")
         }
       }
 
+      # Add allele frequency rows
       for (al in allele_names) {
         if (!al %in% rownames(af)) next
 
+        count <- as.integer(af[al, "Count"])
+        prop <- round(af[al, "Proportion"] * 100, 1)
+        
         row_vals <- list(
           allele = al,
-          stat = fmt_catpct(as.integer(af[al,"Count"]), round(af[al,"Proportion"]*100,1))
+          stat = fmt_catpct(count, prop)
         )
 
         if (do_strat) {
           for (i in seq_along(grp_levels)) {
-            idx <- grp_idx[[i]]
+            lvl <- grp_levels[i]
+            idx <- resp_chr == lvl
             all_al <- unlist(alleles_split[idx])
             n_al <- sum(all_al == al, na.rm=TRUE)
             n_tot <- length(all_al)
@@ -561,15 +573,18 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         tbl$addRow(rowKey=al, values=row_vals)
       }
 
-      if (isTRUE(show_missing) && total_missing_n>0L) {  
+      # Add missing row if requested
+      if (isTRUE(show_missing) && total_missing > 0L) {  
         miss_vals <- list(
-        genotype = "Missing", 
-        stat = fmt_cat(as.integer(total_missing_n), n_rows)
-      )
-        if (do_strat) {
+          allele = "Missing", 
+          stat = fmt_cat(total_missing, n_total_eligible + total_missing)
+        )
+        
+        if (do_strat && !is.null(n_miss_by_level)) {
           for (j in seq_along(grp_levels)) {
             lvl <- grp_levels[j]
-            miss_vals[[paste0("stat_g",j-1)]]<-fmt_catn(n_miss[lvl])
+            miss_count <- if (lvl %in% names(n_miss_by_level)) n_miss_by_level[lvl] else 0
+            miss_vals[[paste0("stat_g", j-1)]] <- fmt_catn(miss_count)
           }
         }
         tbl$addRow(rowKey="missing", values=miss_vals)
@@ -578,82 +593,84 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
     .fill_geno_freq = function(tbl, sm, ref, snp_raw, response,
                                 response_type, subpop, response_raw,
-                                show_missing=FALSE, n_miss = 0L, n_rows = 0L,
+                                show_missing=FALSE, n_miss_by_level=NULL, 
+                                n_total_eligible=0L, total_missing=0L,
                                 user_levels=NULL) {
 
-      dropped <- attr(n_miss, "dropped_cases")
-      if (is.null(dropped)) dropped <- 0
-
-      total_missing_n <- sum(n_miss) + dropped
-      
       if (response_type == "quantitative") {
         tbl$getColumn("responseStat")$setVisible(TRUE)
         if (!is.numeric(response)) response <- as.numeric(as.character(response))
       }
 
-      gf <- tryCatch(reorder_geno(sm$genotype.freq, ref, user_levels), error=function(e) sm$genotype.freq)
+      gf <- tryCatch(reorder_geno(sm$genotype.freq, ref, user_levels), 
+                     error=function(e) sm$genotype.freq)
+      gf <- gf[rownames(gf) != "NA", , drop = FALSE]
 
       do_strat <- isTRUE(subpop) && !is.null(response_raw) && (
         response_type == "binary" || response_type == "categorical")
 
-      snp_char <- as.character(snp_raw)
-
       if (do_strat) {
         grp_levels <- levels(response_raw)
-        grp_safe <- gsub("[^A-Za-z0-9]","_", grp_levels)
         resp_chr <- as.character(response_raw)
-
-        grp_idx <- lapply(grp_levels, function(g) resp_chr == g)
 
         for (i in seq_along(grp_levels)) {
           tbl$addColumn(name=paste0("stat_g", i-1),
-                          title=grp_levels[i],
-                          type="string")
+                        title=grp_levels[i],
+                        type="string")
         }
       }
 
+      # Add genotype frequency rows
       for (i in seq_len(nrow(gf))) {
         geno <- rownames(gf)[i]
         if (geno == "NA") next
      
-        resp_stat <- ""
-        if (response_type == "quantitative") {
+        count <- as.integer(gf[i, "Count"])
+        prop <- gf[i, "Proportion"] * 100
+        
+        row_vals <- list(
+          genotype = geno, 
+          stat = fmt_catpct(count, prop),
+          responseStat = ""
+        )
+
+        # Add response statistics for quantitative traits
+        if (response_type == "quantitative" && !is.null(response)) {
+          mask <- snp_raw == geno & !is.na(response)
+          n_mask <- sum(mask)
           if (n_mask > 0) {
-            mask <- (snp_char == geno) & !is.na(response)
-            n_mask <- sum(mask)
             mn <- mean(response[mask], na.rm=TRUE)
             se <- sd(response[mask], na.rm=TRUE) / sqrt(n_mask)
-            resp_stat <- sprintf("%.2f (%.2f)", mn, se)
+            row_vals$responseStat <- sprintf("%.2f (%.2f)", mn, se)
           }
         }
 
-        row_vals <- list(
-            genotype = geno, 
-            stat = fmt_catpct(as.integer(gf[i,"Count"]), gf[i,"Proportion"]*100),
-            responseStat = ""
-        )
-
         if (do_strat) {
           for (j in seq_along(grp_levels)) {
-            idx <- grp_idx[[j]]
-            n_g <- sum(idx & snp_char == geno)
+            lvl <- grp_levels[j]
+            idx <- resp_chr == lvl
+            n_g <- sum(idx & snp_raw == geno)
             n_tot <- sum(idx)
-            row_vals[[paste0("stat_g", j-1)]] <- fmt_cat(n_g, n_tot)}
+            row_vals[[paste0("stat_g", j-1)]] <- fmt_cat(n_g, n_tot)
+          }
         }
 
         tbl$addRow(rowKey=geno, values=row_vals)
       }
 
-      if (isTRUE(show_missing) && total_missing_n > 0) {
+      # Add missing row if requested
+      if (isTRUE(show_missing) && total_missing > 0) {
         miss_vals <- list(
           genotype = "Missing", 
-          stat = fmt_cat(as.integer(total_missing_n), n_rows)
+          stat = fmt_cat(total_missing, n_total_eligible + total_missing),
+          responseStat = ""
         )
         
-        if (do_strat) {
+        if (do_strat && !is.null(n_miss_by_level)) {
           for (j in seq_along(grp_levels)) {
             lvl <- grp_levels[j]
-            miss_vals[[paste0("stat_g", j-1)]] <- fmt_catn(n_miss[lvl])
+            miss_count <- if (lvl %in% names(n_miss_by_level)) n_miss_by_level[lvl] else 0
+            miss_vals[[paste0("stat_g", j-1)]] <- fmt_catn(miss_count)
           }
         }
         tbl$addRow(rowKey="missing", values=miss_vals)
@@ -661,7 +678,8 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
     },
 
     .fill_hwe = function(tbl, geno_obj, snp_nm, response_raw, subpop,
-                          show_missing=FALSE, n_miss=0L, n_rows=0L) {
+                          show_missing=FALSE, n_miss_by_level=NULL, 
+                          n_total_eligible=0L, total_missing=0L) {
 
       tbl$getColumn("missing")$setVisible(isTRUE(show_missing))
 
@@ -681,21 +699,21 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
       st <- hw$statistic
       add_row("All", "All subjects", st,
-              if (isTRUE(show_missing)) as.integer(sum(n_miss)) else '',
+              if (isTRUE(show_missing)) total_missing else '',
               hw$p.value)
 
       if (isTRUE(subpop) && !is.null(response_raw)) {
         lvls <- levels(response_raw)
         if (length(lvls) <= 5) {
-          resp_chr <- as.character(response_raw)
           for (lvl in lvls) {
-            mask <- resp_chr == lvl
+            mask <- response_raw == lvl & !is.na(response_raw)
+            if (sum(mask) == 0) next
             hw_sub <- tryCatch(genetics::HWE.exact(geno_obj[mask]), error=function(e) NULL)
             if (is.null(hw_sub)) next
             st2 <- hw_sub$statistic
-            add_row(lvl, paste0("Response = ", lvl), st2,
-                    if (isTRUE(show_missing)) as.integer(n_miss[lvl]) else '',
-                    hw_sub$p.value)
+            miss_count <- if (isTRUE(show_missing) && !is.null(n_miss_by_level) && 
+                            lvl %in% names(n_miss_by_level)) n_miss_by_level[lvl] else ''
+            add_row(lvl, lvl, st2, miss_count, hw_sub$p.value)
           }
         }
       }

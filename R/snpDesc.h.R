@@ -358,15 +358,15 @@ snpDescResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                         `type`="text"),
                                     list(
                                         `name`="n11", 
-                                        `title`="N11", 
+                                        `title`="AA", 
                                         `type`="integer"),
                                     list(
                                         `name`="n12", 
-                                        `title`="N12", 
+                                        `title`="AB", 
                                         `type`="integer"),
                                     list(
                                         `name`="n22", 
-                                        `title`="N22", 
+                                        `title`="BB", 
                                         `type`="integer"),
                                     list(
                                         `name`="missing", 
