@@ -10,7 +10,6 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             snps = NULL,
             covariates = NULL,
             responseType = "auto",
-            subpop = FALSE,
             snpAssoc = TRUE,
             modelCodominant = FALSE,
             modelDominant = FALSE,
@@ -62,10 +61,6 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "binary",
                     "quantitative"),
                 default="auto")
-            private$..subpop <- jmvcore::OptionBool$new(
-                "subpop",
-                subpop,
-                default=FALSE)
             private$..snpAssoc <- jmvcore::OptionBool$new(
                 "snpAssoc",
                 snpAssoc,
@@ -109,7 +104,6 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..snps)
             self$.addOption(private$..covariates)
             self$.addOption(private$..responseType)
-            self$.addOption(private$..subpop)
             self$.addOption(private$..snpAssoc)
             self$.addOption(private$..modelCodominant)
             self$.addOption(private$..modelDominant)
@@ -125,7 +119,6 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         snps = function() private$..snps$value,
         covariates = function() private$..covariates$value,
         responseType = function() private$..responseType$value,
-        subpop = function() private$..subpop$value,
         snpAssoc = function() private$..snpAssoc$value,
         modelCodominant = function() private$..modelCodominant$value,
         modelDominant = function() private$..modelDominant$value,
@@ -140,7 +133,6 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..snps = NA,
         ..covariates = NA,
         ..responseType = NA,
-        ..subpop = NA,
         ..snpAssoc = NA,
         ..modelCodominant = NA,
         ..modelDominant = NA,
@@ -206,8 +198,16 @@ snpAssocResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                         `title`="Model", 
                                         `type`="text"),
                                     list(
-                                        `name`="comparison", 
-                                        `title`="Comparison", 
+                                        `name`="genotype", 
+                                        `title`="Genotype", 
+                                        `type`="text"),
+                                    list(
+                                        `name`="stat0", 
+                                        `title`="Group 0", 
+                                        `type`="text"),
+                                    list(
+                                        `name`="stat1", 
+                                        `title`="Group 1", 
                                         `type`="text"),
                                     list(
                                         `name`="effect", 
@@ -232,6 +232,12 @@ snpAssocResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                     list(
                                         `name`="AIC", 
                                         `title`="AIC", 
+                                        `type`="number", 
+                                        `format`="zto", 
+                                        `visible`=FALSE),
+                                    list(
+                                        `name`="BIC", 
+                                        `title`="BIC", 
                                         `type`="number", 
                                         `format`="zto", 
                                         `visible`=FALSE))))
@@ -279,6 +285,12 @@ snpAssocResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                         `title`="AIC", 
                                         `type`="number", 
                                         `format`="zto", 
+                                        `visible`=FALSE),
+                                    list(
+                                        `name`="BIC", 
+                                        `title`="BIC", 
+                                        `type`="number", 
+                                        `format`="zto", 
                                         `visible`=FALSE))))}))$new(options=options)))}))
 
 snpAssocBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
@@ -310,7 +322,6 @@ snpAssocBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param snps .
 #' @param covariates .
 #' @param responseType .
-#' @param subpop .
 #' @param snpAssoc .
 #' @param modelCodominant .
 #' @param modelDominant .
@@ -333,7 +344,6 @@ snpAssoc <- function(
     snps,
     covariates = NULL,
     responseType = "auto",
-    subpop = FALSE,
     snpAssoc = TRUE,
     modelCodominant = FALSE,
     modelDominant = FALSE,
@@ -363,7 +373,6 @@ snpAssoc <- function(
         snps = snps,
         covariates = covariates,
         responseType = responseType,
-        subpop = subpop,
         snpAssoc = snpAssoc,
         modelCodominant = modelCodominant,
         modelDominant = modelDominant,

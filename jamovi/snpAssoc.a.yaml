@@ -55,12 +55,6 @@ options:
       - {title: Quantitative (linear), name: quantitative}
     default: auto
 
-  # ── Subpopulation ─────────────────────────────────────────────
-  - name: subpop
-    title: Stratify by response groups
-    type: Bool
-    default: false
-
   # ── Genetic models ────────────────────────────────────────────
   - name: snpAssoc
     title: SNP-response association
@@ -105,6 +99,6 @@ options:
     default: false
 
   - name: showAIC
-    title: Show AIC in models
+    title: Show AIC/BIC in models
     type: Bool
     default: false

@@ -1,10 +1,3 @@
-# allow categorical response dor descr
-
-# covariates:
-#  - descriptive of response
-
-# simplify & robustify 
-
 # improve association table as in web version
 #  - genotype n % cases controls
 #  AIC & BIC

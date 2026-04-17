@@ -68,8 +68,3 @@ children:
           - type: CheckBox
             name: showAIC
             enable: (snpAssoc)
-  - type: LayoutBox
-    margin: large
-    children:
-      - type: CheckBox
-        name: subpop

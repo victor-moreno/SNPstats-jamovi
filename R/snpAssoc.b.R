@@ -24,7 +24,6 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
       run_snpAssoc       <- isTRUE(opts$snpAssoc)
       run_snpInteraction <- isTRUE(opts$snpInteraction)
-      run_subpop         <- isTRUE(opts$subpop)
 
       # ── Validate SNPs ────────────────────────────────────────────
       if (length(snp_vars) == 0) {
@@ -57,8 +56,6 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       response_type <- detect_response_type(response_raw, opts$responseType)
       response      <- prepare_response(response_raw, response_type)
       cov_df        <- prepare_covariates(data, covariate_vars)
-
-      if (run_subpop && response_type == "quantitative") run_subpop <- FALSE
 
       if (run_snpInteraction && length(covariate_vars) == 0) {
         self$results$validationMsg$setContent(
@@ -125,6 +122,23 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
       tbl$getColumn("effect")$setTitle(if (response_type=="binary") "OR" else "\u03B2")
 
+      # ── Column titles for stat columns ───────────────────────────────────
+      if (response_type == "binary") {
+        resp_fac    <- as.factor(response)
+        resp_levels <- levels(resp_fac)
+        resp_lbl    <- attr(self$data[[self$options$response]], "label") %||% self$options$response
+        lbl0 <- paste0(resp_lbl, "=", resp_levels[1])
+        lbl1 <- paste0(resp_lbl, "=", resp_levels[2])
+        tbl$getColumn("stat0")$setTitle(lbl0)
+        tbl$getColumn("stat1")$setTitle(lbl1)
+        tbl$getColumn("stat0")$setVisible(TRUE)
+        tbl$getColumn("stat1")$setVisible(TRUE)
+      } else {
+        tbl$getColumn("stat0")$setTitle("Mean (SD)")
+        tbl$getColumn("stat0")$setVisible(TRUE)
+        tbl$getColumn("stat1")$setVisible(FALSE)
+      }
+
       if (!is.null(cov_df) && ncol(cov_df) > 0) {
         cov_names <- sapply(names(cov_df), function(x) attr(self$data[[x]],"label") %||% x)
         note_txt  <- paste0("Model adjusted for: ", paste(cov_names, collapse=", "))
@@ -148,8 +162,70 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                         recessive="Recessive",   overdominant="Overdominant",
                         logadditive="Log-additive")
 
-      if (isTRUE(opts$showAIC))
-        tbl$addColumn(name="AIC", title="AIC", type="number", format="zto,dp=2")
+      # ── AIC / BIC column visibility ──────────────────────────────────────
+      tbl$getColumn("AIC")$setVisible(isTRUE(opts$showAIC))
+      tbl$getColumn("BIC")$setVisible(isTRUE(opts$showAIC))
+
+      # ── BIC from AIC: BIC = AIC + df*(log(n) - 2) ───────────────────────
+      # df = 1 (intercept) + n_covariates + SNP parameters for model
+      n_fit  <- sum(!is.na(as.character(snp_raw)) & !is.na(response) &
+                      (if (!is.null(cov_df) && ncol(cov_df) > 0) complete.cases(cov_df) else TRUE))
+      n_cov  <- if (!is.null(cov_df)) ncol(cov_df) else 0L
+      snp_df <- c(codominant=2L, dominant=1L, recessive=1L, overdominant=1L, logadditive=1L)
+      bic_from_aic <- function(aic_val, mdl) {
+        if (is.null(aic_val) || is.na(aic_val) || is.nan(aic_val)) return(NA_real_)
+        df <- 1L + n_cov + snp_df[[mdl]]
+        round(aic_val + df * (log(n_fit) - 2), 2)
+      }
+
+      # ── Genotype levels (ordered as ref, het, hom_alt) ──────────────────
+      snp_char  <- as.character(snp_raw)
+      all_genos <- if (!is.null(user_levels)) user_levels else sort(unique(snp_char[!is.na(snp_char)]))
+      all_genos <- c(ref, setdiff(all_genos, ref))
+
+      # ── Helper: genotype labels per model ───────────────────────────────
+      geno_labels_for_model <- function(mdl, all_genos, ref) {
+        if (mdl == "codominant" || mdl == "logadditive") return(all_genos)
+        het  <- all_genos[all_genos != ref & all_genos != all_genos[length(all_genos)]]
+        hom2 <- all_genos[length(all_genos)]
+        if (length(het) == 0) het <- hom2
+        if (mdl == "dominant")     return(c(ref, paste(c(het, hom2), collapse="-")))
+        if (mdl == "recessive")    return(c(paste(c(ref, het), collapse="-"), hom2))
+        if (mdl == "overdominant") return(c(paste(c(ref, hom2), collapse="-"), het))
+        all_genos
+      }
+
+      # ── Helper: compute N(%) or mean(SD) per genotype group ─────────────
+      compute_stats <- function(geno_labels, snp_char, response, response_type) {
+        split_genos <- function(gl)
+          unlist(strsplit(gl, "(?<=[A-Za-z0-9*])-(?=[A-Za-z0-9*])", perl=TRUE))
+
+        if (response_type == "binary") {
+          resp_fac <- as.factor(response)
+          lv       <- levels(resp_fac)
+          n_total  <- sum(!is.na(snp_char) & !is.na(response))
+          stats0   <- character(length(geno_labels))
+          stats1   <- character(length(geno_labels))
+          for (i in seq_along(geno_labels)) {
+            mask <- snp_char %in% split_genos(geno_labels[i]) & !is.na(response)
+            n0   <- sum(mask & response == lv[1])
+            n1   <- sum(mask & response == lv[2])
+            if ((n0 + n1) == 0) { stats0[i] <- "---"; stats1[i] <- "---"; next }
+            stats0[i] <- sprintf("%d (%.1f%%)", n0, n0/n_total*100)
+            stats1[i] <- sprintf("%d (%.1f%%)", n1, n1/n_total*100)
+          }
+          list(s0=stats0, s1=stats1)
+        } else {
+          stats0 <- character(length(geno_labels))
+          for (i in seq_along(geno_labels)) {
+            mask <- snp_char %in% split_genos(geno_labels[i]) & !is.na(response)
+            vals <- response[mask]
+            if (length(vals) == 0) { stats0[i] <- "---"; next }
+            stats0[i] <- sprintf("%.2f (%.2f)", mean(vals), sd(vals))
+          }
+          list(s0=stats0, s1=rep("", length(geno_labels)))
+        }
+      }
 
       row_key <- 0L
       for (mdl in models) {
@@ -163,16 +239,67 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             tbl$setNote(note=paste0("Codominant model: LRT P = ", format.pval(gp, digits=3)),
                         key="lrt")
         }
-        first_row <- TRUE
-        for (res in res_list) {
+
+        geno_labels <- geno_labels_for_model(mdl, all_genos, ref)
+        st          <- compute_stats(geno_labels, snp_char, response, response_type)
+
+        # AIC and BIC are model-level — shown once on first (reference) row
+        aic_val <- {
+          a <- res_list[[1]]$aic
+          if (!is.null(a) && !is.na(a) && !is.nan(a)) round(a, 2) else NA_real_
+        }
+        bic_val <- bic_from_aic(aic_val, mdl)
+
+        if (mdl == "logadditive") {
+          res     <- res_list[[1]]
           row_key <- row_key + 1L
-          vals <- list(model=if(first_row) model_labels[mdl] else "",
-                       comparison=res$comparison, effect=res$effect,
-                       ciLow=res$ci_low, ciHigh=res$ci_high, pval=res$pval)
-          if (isTRUE(opts$showAIC))
-            vals[["AIC"]] <- if (first_row && !is.nan(res$aic)) round(res$aic,2) else ""
-          tbl$addRow(rowKey=as.character(row_key), values=vals)
-          first_row <- FALSE
+          tbl$addRow(rowKey=as.character(row_key), values=list(
+            model    = model_labels[mdl],
+            genotype = "---",
+            stat0    = "---",
+            stat1    = "",
+            effect   = res$effect,
+            ciLow    = res$ci_low,
+            ciHigh   = res$ci_high,
+            pval     = res$pval,
+            AIC      = aic_val,
+            BIC      = bic_val
+          ))
+          next
+        }
+
+        # ── Reference row (OR = 1 / β = 0) — AIC & BIC shown here ──────
+        row_key <- row_key + 1L
+        tbl$addRow(rowKey=as.character(row_key), values=list(
+          model    = model_labels[mdl],
+          genotype = geno_labels[1],
+          stat0    = st$s0[1],
+          stat1    = st$s1[1],
+          effect   = if (response_type == "binary") '1.' else '0.',
+          ciLow    = '',
+          ciHigh   = '',
+          pval     = '',
+          AIC      = aic_val,
+          BIC      = bic_val
+        ))
+
+        # ── Non-reference rows ───────────────────────────────────────────
+        for (i in seq_along(res_list)) {
+          res     <- res_list[[i]]
+          gl      <- if ((i + 1) <= length(geno_labels)) geno_labels[i + 1] else res$comparison
+          row_key <- row_key + 1L
+          tbl$addRow(rowKey=as.character(row_key), values=list(
+            model    = "",
+            genotype = gl,
+            stat0    = if ((i+1) <= length(st$s0)) st$s0[i+1] else "-",
+            stat1    = if ((i+1) <= length(st$s1)) st$s1[i+1] else "",
+            effect   = res$effect,
+            ciLow    = res$ci_low,
+            ciHigh   = res$ci_high,
+            pval     = res$pval,
+            AIC      = '',
+            BIC      = ''
+          ))
         }
       }
     },
@@ -207,8 +334,10 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                         recessive="Recessive",   overdominant="Overdominant",
                         logadditive="Log-additive")
 
-      if (isTRUE(opts$showAIC))
+      if (isTRUE(opts$showAIC)) {
         tbl$addColumn(name="AIC", title="AIC", type="number", format="zto,dp=2")
+#        tbl$addColumn(name="BIC", title="BIC", type="number", format="zto,dp=2")
+      }
 
       row_key <- 0L
       for (mdl in models) {
@@ -224,8 +353,10 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                        term=res$term, effect=res$effect,
                        ciLow=res$ci_low, ciHigh=res$ci_high, pval=res$pval,
                        pvalInteraction=if(is_inter && first_inter) res$pval_interaction else "")
-          if (isTRUE(opts$showAIC))
+          if (isTRUE(opts$showAIC)) {
             vals[["AIC"]] <- if (first_row && !is.nan(res$aic)) round(res$aic,2) else ""
+#            vals[["BIC"]] <- if (first_row && !is.nan(res$bic)) round(res$bic,2) else ""
+          }
           tbl$addRow(rowKey=as.character(row_key), values=vals)
           first_row <- FALSE
           if (is_inter) first_inter <- FALSE
