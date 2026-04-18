@@ -365,10 +365,6 @@ snpAssocResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                     title="$key",
                                     columns=list(
                                         list(
-                                            `name`="covariate", 
-                                            `title`="Covariate", 
-                                            `type`="text"),
-                                        list(
                                             `name`="level", 
                                             `title`="Level", 
                                             `type`="text"),

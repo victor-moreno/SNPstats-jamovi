@@ -36,52 +36,71 @@ children:
     margin: large
     stretchFactor: 1
     children:
-      - type: Label
-        label: Genetic models
+      - type: LayoutBox
+        cell:
+          column: 0
+          row: 0
+        stretchFactor: 1
         children:
-          - type: CheckBox
-            name: snpAssoc
-            enable: (response && snps)
+          - type: Label
+            label: Genetic models
             children:
               - type: CheckBox
-                name: modelCodominant
-                enable: (snpAssoc)
+                name: snpAssoc
+                enable: (response && snps)
+                children:
+                  - type: CheckBox
+                    name: modelCodominant
+                    enable: (snpAssoc)
+                  - type: CheckBox
+                    name: modelDominant
+                    enable: (snpAssoc)
+                  - type: CheckBox
+                    name: modelRecessive
+                    enable: (snpAssoc)
+                  - type: CheckBox
+                    name: modelOverdominant
+                    enable: (snpAssoc)
+                  - type: CheckBox
+                    name: modelLogAdditive
+                    enable: (snpAssoc)
+      - type: LayoutBox
+        cell:
+          column: 0
+          row: 1
+        margin: large
+        stretchFactor: 1
+        children:
+          - type: Label
+            label: Interaction analysis
+            children:
               - type: CheckBox
-                name: modelDominant
-                enable: (snpAssoc)
-              - type: CheckBox
-                name: modelRecessive
-                enable: (snpAssoc)
-              - type: CheckBox
-                name: modelOverdominant
-                enable: (snpAssoc)
-              - type: CheckBox
-                name: modelLogAdditive
-                enable: (snpAssoc)
+                name: snpInteraction
+                enable: (snpAssoc && covariates)
+                children:
+                  - type: ComboBox
+                    name: interactionModel
+                    enable: (snpInteraction)
+                  - type: CheckBox
+                    name: showStratByResponse
+                    enable: (snpInteraction)
+                  - type: CheckBox
+                    name: showStratByGenotype
+                    enable: (snpInteraction)
+
+      - type: LayoutBox
+        cell:
+          column: 1
+          row: 0
+        margin: large
+        stretchFactor: 1
+        children:
+          - type: Label
+            label: Show in tables
+            children:
               - type: TextBox
                 name: ciWidth
                 format: number
+              - type: CheckBox
+                name: showAIC
                 enable: (snpAssoc)
-          - type: CheckBox
-            name: showAIC
-            enable: (snpAssoc)
-  - type: LayoutBox
-    margin: large
-    stretchFactor: 1
-    children:
-      - type: Label
-        label: Interaction analysis
-        children:
-          - type: CheckBox
-            name: snpInteraction
-            enable: (snpAssoc && covariates)
-            children:
-              - type: ComboBox
-                name: interactionModel
-                enable: (snpInteraction)
-              - type: CheckBox
-                name: showStratByResponse
-                enable: (snpInteraction)
-              - type: CheckBox
-                name: showStratByGenotype
-                enable: (snpInteraction)

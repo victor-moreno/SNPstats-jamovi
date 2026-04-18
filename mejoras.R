@@ -1,12 +1,9 @@
 # improve association table as in web version
-#  - genotype n % cases controls
-#  AIC & BIC
 #  - p value for LRT in ref cat of codominant 
 
 # stratified analysis:
-# interaction tables stratified by 
-#  -covariate levels (if categorical)
-#  -response (if binary)
+# table labels
+
 
 # haplotype analysis: 
 # show N in Note, in addition to missings

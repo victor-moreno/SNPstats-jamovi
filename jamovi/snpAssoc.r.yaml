@@ -85,7 +85,7 @@ items:
             title: $key
             type: Table
             columns:
-              - {name: covariate, title: Covariate,  type: text}
+#              - {name: covariate, title: Covariate,  type: text}
               - {name: level,     title: Level,      type: text}
               - {name: n,         title: N,          type: integer}
               - {name: effect,    title: OR / β,     type: number, format: zto}
