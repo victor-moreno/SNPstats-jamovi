@@ -76,7 +76,7 @@ children:
             children:
               - type: CheckBox
                 name: snpInteraction
-                enable: (snpAssoc && covariates)
+                enable: (response && snps && covariates)
                 children:
                   - type: ComboBox
                     name: interactionModel

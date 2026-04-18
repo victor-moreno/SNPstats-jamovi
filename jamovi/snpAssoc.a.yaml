@@ -64,7 +64,7 @@ options:
   - name: modelCodominant
     title: Codominant
     type: Bool
-    default: false
+    default: true
 
   - name: modelDominant
     title: Dominant
@@ -119,7 +119,7 @@ options:
       - {title: Recessive,    name: recessive}
       - {title: Overdominant, name: overdominant}
       - {title: Log-additive, name: logadditive}
-    default: logadditive
+    default: codominant
 
   - name: showStratByResponse
     title: Stratified analysis by response category

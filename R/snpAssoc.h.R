@@ -11,7 +11,7 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             covariates = NULL,
             responseType = "auto",
             snpAssoc = TRUE,
-            modelCodominant = FALSE,
+            modelCodominant = TRUE,
             modelDominant = FALSE,
             modelRecessive = FALSE,
             modelOverdominant = FALSE,
@@ -19,7 +19,7 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             ciWidth = 95,
             showAIC = FALSE,
             snpInteraction = FALSE,
-            interactionModel = "logadditive",
+            interactionModel = "codominant",
             showStratByResponse = FALSE,
             showStratByGenotype = FALSE, ...) {
 
@@ -71,7 +71,7 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             private$..modelCodominant <- jmvcore::OptionBool$new(
                 "modelCodominant",
                 modelCodominant,
-                default=FALSE)
+                default=TRUE)
             private$..modelDominant <- jmvcore::OptionBool$new(
                 "modelDominant",
                 modelDominant,
@@ -111,7 +111,7 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "recessive",
                     "overdominant",
                     "logadditive"),
-                default="logadditive")
+                default="codominant")
             private$..showStratByResponse <- jmvcore::OptionBool$new(
                 "showStratByResponse",
                 showStratByResponse,
@@ -448,7 +448,7 @@ snpAssoc <- function(
     covariates = NULL,
     responseType = "auto",
     snpAssoc = TRUE,
-    modelCodominant = FALSE,
+    modelCodominant = TRUE,
     modelDominant = FALSE,
     modelRecessive = FALSE,
     modelOverdominant = FALSE,
@@ -456,7 +456,7 @@ snpAssoc <- function(
     ciWidth = 95,
     showAIC = FALSE,
     snpInteraction = FALSE,
-    interactionModel = "logadditive",
+    interactionModel = "codominant",
     showStratByResponse = FALSE,
     showStratByGenotype = FALSE) {
 

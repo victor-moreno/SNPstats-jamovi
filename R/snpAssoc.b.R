@@ -3,6 +3,122 @@
 #' @importFrom genetics genotype
 source("R/snp_helpers.R")
 
+# ── Model fitting ──────────────────────────────────────────────────────────────
+
+#' Fit association model for one SNP under one genetic model.
+#' Returns list of per-comparison result lists.
+fit_model <- function(snp_enc, response, covariates_df, model_name,
+                      response_type, ci_width) {
+  df <- data.frame(resp = response, snp = snp_enc)
+  cov_formula <- ""
+  if (!is.null(covariates_df) && ncol(covariates_df) > 0) {
+    df          <- cbind(df, covariates_df)
+    cov_formula <- paste("+", paste(names(covariates_df), collapse = "+"))
+  }
+  df <- df[complete.cases(df), , drop = FALSE]
+
+  formula_full <- as.formula(paste("resp ~ snp", cov_formula))
+  formula_null <- as.formula(paste("resp ~ 1",   cov_formula))
+
+  tryCatch({
+    if (response_type == "binary") {
+      fit_full   <- glm(formula_full, data = df, family = binomial())
+      fit_null   <- glm(formula_null, data = df, family = binomial())
+      lrtest     <- "Chisq"; lrtest_label <- "Pr(>Chi)"; pval_col <- "Pr(>|z|)"
+    } else {
+      fit_full   <- lm(formula_full, data = df)
+      fit_null   <- lm(formula_null, data = df)
+      lrtest     <- "F";     lrtest_label <- "Pr(>F)";   pval_col <- "Pr(>|t|)"
+    }
+
+    lrt      <- tryCatch(anova(fit_null, fit_full, test = lrtest), error = function(e) NULL)
+    global_p <- if (!is.null(lrt)) lrt[2, lrtest_label] else NA_real_
+    aic_val  <- AIC(fit_full)
+    coefs    <- summary(fit_full)$coefficients
+    snp_rows <- grep("^snp", rownames(coefs))
+    if (length(snp_rows) == 0) return(NULL)
+
+    ci <- tryCatch(
+      confint(fit_full, level = ci_width / 100)[snp_rows, , drop = FALSE],
+      error = function(e) matrix(NA, nrow = length(snp_rows), ncol = 2))
+
+    lapply(seq_along(snp_rows), function(i) {
+      row  <- snp_rows[i]
+      beta <- coefs[row, "Estimate"]
+      pval <- coefs[row, pval_col]
+      ci_lo <- ci[i, 1]; ci_hi <- ci[i, 2]
+      if (response_type == "binary")
+        list(effect = exp(beta), ci_low = exp(ci_lo), ci_high = exp(ci_hi),
+             pval = pval, global_p = global_p, aic = aic_val,
+             comparison = sub("^snp", "", rownames(coefs)[row]))
+      else
+        list(effect = beta, ci_low = ci_lo, ci_high = ci_hi,
+             pval = pval, global_p = global_p, aic = aic_val,
+             comparison = sub("^snp", "", rownames(coefs)[row]))
+    })
+  }, error = function(e) NULL)
+}
+
+#' Fit SNP × covariate interaction model under one genetic model.
+fit_interaction_model <- function(snp_enc, response, covariates_df,
+                                  interaction_var, model_name,
+                                  response_type, ci_width) {
+  df <- data.frame(resp = response, snp = snp_enc)
+  adj_covs <- character(0)
+  if (!is.null(covariates_df) && ncol(covariates_df) > 0) {
+    df       <- cbind(df, covariates_df)
+    adj_covs <- setdiff(names(covariates_df), interaction_var)
+  }
+  if (!(interaction_var %in% names(df))) return(NULL)
+  df <- df[complete.cases(df), , drop = FALSE]
+  if (nrow(df) < 5) return(NULL)
+
+  adj_part     <- if (length(adj_covs) > 0) paste("+", paste(adj_covs, collapse = "+")) else ""
+  formula_int  <- as.formula(paste("resp ~ snp *", interaction_var, adj_part))
+  formula_main <- as.formula(paste("resp ~ snp +", interaction_var, adj_part))
+
+  tryCatch({
+    if (response_type == "binary") {
+      fit_int  <- glm(formula_int,  data = df, family = binomial())
+      fit_main <- glm(formula_main, data = df, family = binomial())
+      pval_col <- "Pr(>|z|)"; lrtest <- "Chisq"; lrtest_label <- "Pr(>Chi)"
+    } else {
+      fit_int  <- lm(formula_int,  data = df)
+      fit_main <- lm(formula_main, data = df)
+      pval_col <- "Pr(>|t|)"; lrtest <- "F"; lrtest_label <- "Pr(>F)"
+    }
+
+    lrt     <- tryCatch(anova(fit_main, fit_int, test = lrtest), error = function(e) NULL)
+    p_inter <- if (!is.null(lrt)) lrt[2, lrtest_label] else NA_real_
+    aic_val <- AIC(fit_int)
+    coefs   <- summary(fit_int)$coefficients
+    ci      <- tryCatch(confint(fit_int, level = ci_width / 100),
+                        error = function(e) matrix(NA, nrow = nrow(coefs), ncol = 2,
+                                                   dimnames = list(rownames(coefs), c("lo","hi"))))
+
+    all_rows   <- rownames(coefs)
+    snp_rows   <- grep("^snp", all_rows)
+    inter_rows <- grep(paste0("^snp.*:", interaction_var, "|^", interaction_var, ":.*snp"), all_rows)
+    keep_rows  <- unique(c(snp_rows, inter_rows))
+    if (length(keep_rows) == 0) return(NULL)
+
+    lapply(keep_rows, function(r) {
+      beta  <- coefs[r, "Estimate"]
+      pval  <- coefs[r, pval_col]
+      ci_lo <- ci[r, 1]; ci_hi <- ci[r, 2]
+      is_inter <- r %in% inter_rows
+      if (response_type == "binary")
+        list(term = all_rows[r], effect = exp(beta), ci_low = exp(ci_lo), ci_high = exp(ci_hi),
+             pval = pval, pval_interaction = if (is_inter) p_inter else NA_real_,
+             aic = aic_val, is_first = (r == keep_rows[1]))
+      else
+        list(term = all_rows[r], effect = beta, ci_low = ci_lo, ci_high = ci_hi,
+             pval = pval, pval_interaction = if (is_inter) p_inter else NA_real_,
+             aic = aic_val, is_first = (r == keep_rows[1]))
+    })
+  }, error = function(e) NULL)
+}
+
 snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
   "snpAssocClass",
   inherit = snpAssocBase,
@@ -31,7 +147,11 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           "<p style='color:red;'>Please add at least one SNP variable.</p>")
         self$results$validationMsg$setVisible(TRUE)
         return()
+      } else {
+        self$results$validationMsg$setContent('')
+        self$results$validationMsg$setVisible(FALSE)
       }
+
 
       val      <- validate_snp_vars(snp_vars, data)
       snp_vars <- val$valid_snps
@@ -74,6 +194,7 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       arr <- self$results$snpResults
       for (snp_nm in snp_vars) {
         snp_raw     <- data[[snp_nm]]
+
         user_levels <- get_snp_level_order(snp_raw)
         geno_obj    <- parse_genotype(snp_raw, user_levels)
         if (is.null(geno_obj)) next
@@ -97,7 +218,7 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         if (run_snpAssoc)
           private$.fill_assoc(item$assocTable, snp_raw_cc, ref, response_cc,
                               cov_df_cc, response_type, opts,
-                              n_miss = n_miss_assoc, user_levels = user_levels, response_raw)
+                              n_miss = n_miss_assoc, user_levels, response_raw, snp_nm)
 
         if (run_snpInteraction && !is.null(cov_df_cc) && ncol(cov_df_cc) >= 1) {
           interaction_var <- names(cov_df_cc)[1]
@@ -110,19 +231,19 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           private$.fill_interaction(
             item$interactionTable, snp_raw_cc, ref,
             response_cc, cov_df_cc, interaction_var,
-            response_type, opts, int_models, user_levels = user_levels, response_raw = response_raw)
+            response_type, opts, int_models, user_levels, response_raw, snp_nm)
 
           if (isTRUE(opts$showStratByResponse) && response_type == "binary")
             private$.fill_strat_by_response(
               item$stratByResponse, snp_raw_cc, ref,
               response_cc, cov_df_cc, interaction_var,
-              response_type, opts, int_models, user_levels = user_levels, response_raw = response_raw)
+              response_type, opts, int_models, user_levels, response_raw, snp_nm)
 
           if (isTRUE(opts$showStratByGenotype))
             private$.fill_strat_by_genotype(
               item$stratByGenotype, snp_raw_cc, ref,
               response_cc, cov_df_cc, interaction_var,
-              response_type, opts, int_models, user_levels = user_levels, response_raw = response_raw)
+              response_type, opts, int_models, user_levels, response_raw, snp_nm)
         }
       }
     },
@@ -191,9 +312,10 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
     # ── Association table ─────────────────────────────────────────────────────
     .fill_assoc = function(tbl, snp_raw, ref, response, cov_df,
-                           response_type, opts, n_miss = 0L, user_levels = NULL, response_raw) {
+                           response_type, opts, n_miss = 0L, user_levels = NULL, response_raw, snp_lbl) {
 
       tbl$getColumn("effect")$setTitle(if (response_type == "binary") "OR" else "\u03B2")
+      tbl$getColumn("genotype")$setTitle(snp_lbl)
 
       resp_lbl <- attr(self$data[[self$options$response]], "label") %||% self$options$response
       tbl$setTitle(paste0("Association with ", resp_lbl))
@@ -248,14 +370,6 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         res_list <- fit_model(snp_enc, response, cov_df, mdl, response_type, opts$ciWidth)
         if (is.null(res_list)) next
 
-        if (mdl == "codominant") {
-          gp <- res_list[[1]]$global_p
-          if (!is.null(gp) && !is.na(gp))
-            tbl$setNote(
-              note = paste0("Codominant model: LRT P = ", format.pval(gp, digits = 3)),
-              key  = "lrt")
-        }
-
         geno_labels <- private$.geno_labels_for_model(mdl, all_genos, ref)
         st          <- private$.compute_stats(geno_labels, snp_char, response, response_type)
         aic_val     <- { a <- res_list[[1]]$aic; if (!is.null(a) && !is.nan(a)) round(a, 2) else NA_real_ }
@@ -271,14 +385,17 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         }
 
         # Reference row
+        pval_row1 <- if (mdl == "codominant") res_list[[1]]$global_p else ''
         row_key <- row_key + 1L
         tbl$addRow(rowKey = as.character(row_key), values = list(
           model    = model_labels[mdl],
           genotype = geno_labels[1],
           stat0    = st$s0[1], stat1 = st$s1[1],
           effect   = if (response_type == "binary") 1. else 0.,
-          ciLow = '', ciHigh = '', pval = '',
+          ciLow = '', ciHigh = '', pval = pval_row1,
           AIC = aic_val, BIC = bic_val))
+        
+        if (mdl == "codominant") tbl$setNote(key = "lrt", note = "First p-value in Codominant is LRT for overall association")
 
         # Non-reference rows
         for (i in seq_along(res_list)) {
@@ -299,19 +416,19 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
     # ── Interaction omnibus table ─────────────────────────────────────────────
     .fill_interaction = function(tbl, snp_raw, ref, response, cov_df,
                                   interaction_var, response_type, opts,
-                                  int_models, user_levels = NULL, response_raw) {
+                                  int_models, user_levels = NULL, response_raw, snp_lbl) {
       tbl$getColumn("effect")$setTitle(if (response_type == "binary") "OR" else "\u03B2")
 
       adj_vars   <- setdiff(names(cov_df), interaction_var)
       int_lbl    <- attr(self$data[[interaction_var]], "label") %||% interaction_var
 
-      tbl$setTitle(paste0("SNP \u00D7 ", int_lbl, " interaction"))
+      tbl$setTitle(paste0(snp_lbl, " \u00D7 ", int_lbl, " interaction"))
 
-      #      note_parts <- paste0("Interaction covariate: ", int_lbl)
-      if (length(adj_vars) > 0)
+      if (length(adj_vars) > 0){
         note_parts <- paste0(". Adjusted for: ", paste(sapply(adj_vars, function(x)
                                attr(self$data[[x]], "label") %||% x), collapse = ", "))
-      tbl$setNote(note = note_parts, key = "intcov")
+        tbl$setNote(note = note_parts, key = "intcov")
+      }
 
       # report missings (not working previous filter)
       snp_enc_tmp   <- encode_model(as.character(snp_raw), ref, "logadditive", user_levels)
@@ -357,7 +474,7 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
     # ── Stratified by response (binary: one table per response level) ─────────
     .fill_strat_by_response = function(arr, snp_raw, ref, response, cov_df,
                                         interaction_var, response_type, opts,
-                                        int_models, user_levels = NULL, response_raw) {
+                                        int_models, user_levels = NULL, response_raw, snp_lbl) {
       
       # Factorize to get internal levels and user-facing labels
       resp_factor <- as.factor(response)
@@ -392,6 +509,7 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         
         tbl <- arr$get(key = key_k)
         tbl$getColumn("effect")$setTitle(if (response_type == "binary") "OR" else "\u03B2")
+        tbl$getColumn("genotype")$setTitle(snp_lbl)
 
         # Subset to this response stratum
         mask_k    <- !is.na(response) & response == current_lv & !is.na(snp_raw)
@@ -457,7 +575,7 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
     # ── Stratified by genotype (one table per genotype group) ─────────────────
     .fill_strat_by_genotype = function(arr, snp_raw, ref, response, cov_df,
                                        interaction_var, response_type, opts,
-                                       int_models, user_levels = NULL, response_raw) {
+                                       int_models, user_levels = NULL, response_raw, snp_lbl) {
       snp_char <- as.character(snp_raw)
       all_genos <- c(ref, setdiff(
         if (!is.null(user_levels)) user_levels else sort(unique(snp_char[!is.na(snp_char)])),
@@ -468,8 +586,6 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       adj_vars <- setdiff(names(cov_df), interaction_var)
       int_response <- cov_df[[interaction_var]]
       int_resp_type <- detect_response_type(int_response, opts$responseType)
-
-      snp_lbl <- attr(self$data[[self$options$snps]], "label") %||% self$options$snps
 
       for (mdl in int_models) {
         geno_labels <- private$.geno_labels_for_model(mdl, all_genos, ref)

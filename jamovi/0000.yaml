@@ -19,7 +19,7 @@ analyses:
     ns: SNPstats
     menuGroup: SNPstats
     menuTitle: SNP Descriptive
-    menuSubgroup: ''
+    menuSubgroup: Genetic epidemiology
     description: >
       Allele and genotype frequencies, Hardy-Weinberg equilibrium, and covariate
       descriptives. Optionally stratified by response groups.
@@ -29,7 +29,7 @@ analyses:
     ns: SNPstats
     menuGroup: SNPstats
     menuTitle: SNP Association Analysis
-    menuSubgroup: ''
+    menuSubgroup: Genetic epidemiology
     description: >
       Association between SNPs and a binary or quantitative response under
       codominant, dominant, recessive, overdominant, and log-additive models.
@@ -40,7 +40,7 @@ analyses:
     ns: SNPstats
     menuGroup: SNPstats
     menuTitle: LD and Haplotype Analysis
-    menuSubgroup: ''
+    menuSubgroup: Genetic epidemiology
     description: >
       Linkage disequilibrium (pairwise table, matrix, heatmap) and haplotype
       frequency estimation and association analysis via haplo.stats.

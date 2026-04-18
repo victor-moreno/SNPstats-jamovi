@@ -306,8 +306,6 @@ prepare_covariates <- function(data, covariate_vars) {
   cov_df
 }
 
-
-
 # ── Genetic model encoding ─────────────────────────────────────────────────────
 
 #' Encode SNP under a given genetic model as a numeric/factor vector.
@@ -340,122 +338,6 @@ encode_model <- function(geno_char, ref, model, user_levels = NULL) {
     },
     logadditive = 2L - as.integer(dosage)
   )
-}
-
-# ── Model fitting ──────────────────────────────────────────────────────────────
-
-#' Fit association model for one SNP under one genetic model.
-#' Returns list of per-comparison result lists.
-fit_model <- function(snp_enc, response, covariates_df, model_name,
-                      response_type, ci_width) {
-  df <- data.frame(resp = response, snp = snp_enc)
-  cov_formula <- ""
-  if (!is.null(covariates_df) && ncol(covariates_df) > 0) {
-    df          <- cbind(df, covariates_df)
-    cov_formula <- paste("+", paste(names(covariates_df), collapse = "+"))
-  }
-  df <- df[complete.cases(df), , drop = FALSE]
-
-  formula_full <- as.formula(paste("resp ~ snp", cov_formula))
-  formula_null <- as.formula(paste("resp ~ 1",   cov_formula))
-
-  tryCatch({
-    if (response_type == "binary") {
-      fit_full   <- glm(formula_full, data = df, family = binomial())
-      fit_null   <- glm(formula_null, data = df, family = binomial())
-      lrtest     <- "Chisq"; lrtest_label <- "Pr(>Chi)"; pval_col <- "Pr(>|z|)"
-    } else {
-      fit_full   <- lm(formula_full, data = df)
-      fit_null   <- lm(formula_null, data = df)
-      lrtest     <- "F";     lrtest_label <- "Pr(>F)";   pval_col <- "Pr(>|t|)"
-    }
-
-    lrt      <- tryCatch(anova(fit_null, fit_full, test = lrtest), error = function(e) NULL)
-    global_p <- if (!is.null(lrt)) lrt[2, lrtest_label] else NA_real_
-    aic_val  <- AIC(fit_full)
-    coefs    <- summary(fit_full)$coefficients
-    snp_rows <- grep("^snp", rownames(coefs))
-    if (length(snp_rows) == 0) return(NULL)
-
-    ci <- tryCatch(
-      confint(fit_full, level = ci_width / 100)[snp_rows, , drop = FALSE],
-      error = function(e) matrix(NA, nrow = length(snp_rows), ncol = 2))
-
-    lapply(seq_along(snp_rows), function(i) {
-      row  <- snp_rows[i]
-      beta <- coefs[row, "Estimate"]
-      pval <- coefs[row, pval_col]
-      ci_lo <- ci[i, 1]; ci_hi <- ci[i, 2]
-      if (response_type == "binary")
-        list(effect = exp(beta), ci_low = exp(ci_lo), ci_high = exp(ci_hi),
-             pval = pval, global_p = global_p, aic = aic_val,
-             comparison = sub("^snp", "", rownames(coefs)[row]))
-      else
-        list(effect = beta, ci_low = ci_lo, ci_high = ci_hi,
-             pval = pval, global_p = global_p, aic = aic_val,
-             comparison = sub("^snp", "", rownames(coefs)[row]))
-    })
-  }, error = function(e) NULL)
-}
-
-#' Fit SNP × covariate interaction model under one genetic model.
-fit_interaction_model <- function(snp_enc, response, covariates_df,
-                                  interaction_var, model_name,
-                                  response_type, ci_width) {
-  df <- data.frame(resp = response, snp = snp_enc)
-  adj_covs <- character(0)
-  if (!is.null(covariates_df) && ncol(covariates_df) > 0) {
-    df       <- cbind(df, covariates_df)
-    adj_covs <- setdiff(names(covariates_df), interaction_var)
-  }
-  if (!(interaction_var %in% names(df))) return(NULL)
-  df <- df[complete.cases(df), , drop = FALSE]
-  if (nrow(df) < 5) return(NULL)
-
-  adj_part     <- if (length(adj_covs) > 0) paste("+", paste(adj_covs, collapse = "+")) else ""
-  formula_int  <- as.formula(paste("resp ~ snp *", interaction_var, adj_part))
-  formula_main <- as.formula(paste("resp ~ snp +", interaction_var, adj_part))
-
-  tryCatch({
-    if (response_type == "binary") {
-      fit_int  <- glm(formula_int,  data = df, family = binomial())
-      fit_main <- glm(formula_main, data = df, family = binomial())
-      pval_col <- "Pr(>|z|)"; lrtest <- "Chisq"; lrtest_label <- "Pr(>Chi)"
-    } else {
-      fit_int  <- lm(formula_int,  data = df)
-      fit_main <- lm(formula_main, data = df)
-      pval_col <- "Pr(>|t|)"; lrtest <- "F"; lrtest_label <- "Pr(>F)"
-    }
-
-    lrt     <- tryCatch(anova(fit_main, fit_int, test = lrtest), error = function(e) NULL)
-    p_inter <- if (!is.null(lrt)) lrt[2, lrtest_label] else NA_real_
-    aic_val <- AIC(fit_int)
-    coefs   <- summary(fit_int)$coefficients
-    ci      <- tryCatch(confint(fit_int, level = ci_width / 100),
-                        error = function(e) matrix(NA, nrow = nrow(coefs), ncol = 2,
-                                                   dimnames = list(rownames(coefs), c("lo","hi"))))
-
-    all_rows   <- rownames(coefs)
-    snp_rows   <- grep("^snp", all_rows)
-    inter_rows <- grep(paste0("^snp.*:", interaction_var, "|^", interaction_var, ":.*snp"), all_rows)
-    keep_rows  <- unique(c(snp_rows, inter_rows))
-    if (length(keep_rows) == 0) return(NULL)
-
-    lapply(keep_rows, function(r) {
-      beta  <- coefs[r, "Estimate"]
-      pval  <- coefs[r, pval_col]
-      ci_lo <- ci[r, 1]; ci_hi <- ci[r, 2]
-      is_inter <- r %in% inter_rows
-      if (response_type == "binary")
-        list(term = all_rows[r], effect = exp(beta), ci_low = exp(ci_lo), ci_high = exp(ci_hi),
-             pval = pval, pval_interaction = if (is_inter) p_inter else NA_real_,
-             aic = aic_val, is_first = (r == keep_rows[1]))
-      else
-        list(term = all_rows[r], effect = beta, ci_low = ci_lo, ci_high = ci_hi,
-             pval = pval, pval_interaction = if (is_inter) p_inter else NA_real_,
-             aic = aic_val, is_first = (r == keep_rows[1]))
-    })
-  }, error = function(e) NULL)
 }
 
 # formatting helper for categorical descriptives (N and %)
