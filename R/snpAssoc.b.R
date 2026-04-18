@@ -551,10 +551,13 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
     .fill_strat_by_covariate = function(arr, snp_raw, ref, response, cov_df,
                                   interaction_var, response_type, opts,
                                   int_models, user_levels = NULL, response_raw, snp_lbl) {
+      int_var_data <- cov_df[[interaction_var]]
+      if (length(table(int_var_data)) > 6) { # numerical covariate: skip stratified results
+        return()
+      }
+      int_lbl      <- attr(self$data[[interaction_var]], "label") %||% interaction_var
       snp_char   <- as.character(snp_raw)
       all_genos  <- c(ref, setdiff(if (!is.null(user_levels)) user_levels else sort(unique(snp_char[!is.na(snp_char)])), ref))
-      int_var_data <- cov_df[[interaction_var]]
-      int_lbl      <- attr(self$data[[interaction_var]], "label") %||% interaction_var
       model_labels <- c(codominant="Codominant", dominant="Dominant", recessive="Recessive", overdominant="Overdominant", logadditive="Log-additive")
       adj_vars     <- setdiff(names(cov_df), interaction_var)
       adj_cov_df   <- if (length(adj_vars) > 0) cov_df[, adj_vars, drop=FALSE] else NULL
@@ -644,7 +647,12 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       resp_lv    <- levels(as.factor(response_raw))
       
       # Use the specific covariate levels present in the analyzed data
-      cov_levels <- if (is.factor(int_var_data)) levels(int_var_data) else sort(unique(as.character(int_var_data[!is.na(int_var_data)])))
+      is_numerical <- length(unique(int_var_data))  > 6 && sum(is.na(as.numeric(int_var_data))) == 0
+      if (!is_numerical) {
+        cov_levels <- if (is.factor(int_var_data)) levels(int_var_data) else sort(unique(as.character(int_var_data[!is.na(int_var_data)])))
+      } else {
+        cov_levels <- interaction_var
+      }
 
       for (mdl in int_models) {
         if (mdl == "logadditive") next
@@ -701,35 +709,63 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           }
           
           row_key <- 0L
-          for (cl in cov_levels) {
-            if (response_type == "binary") {
-              # Calculate response distribution within this covariate level
+          if (!is_numerical){ 
+            # categorical covariate with 5 or fewer levels: show stratified results 
+            for (cl in cov_levels) {
+              if (response_type == "binary") {
+                # Calculate response distribution within this covariate level             
+                stat0 <- fmt_cat(counts[cl,1], totals[1])
+                stat1 <- fmt_cat(counts[cl,2], totals[2])
+              } else {
+                mask_cl <- as.character(int_g) == as.character(cl)
+                vals  <- resp_g[mask_cl]
+                stat0 <- fmt_cont(vals)
+                stat1 <- ""
+              }
+
+              # Retrieve effect sizes from the conditional model
+              lookup_key <- paste0(gl, "|", cl)
+              res <- res_lookup[[lookup_key]]
               
-              stat0 <- fmt_cat(counts[cl,1], totals[1])
-              stat1 <- fmt_cat(counts[cl,2], totals[2])
+              if (!is.null(res)) {
+                eff <- res$effect; cl_low <- res$ci_low; cl_high <- res$ci_high; p <- res$pval
+              } else {
+                # This is likely the reference level for the interaction
+                eff <- if (response_type == "binary") 1.0 else 0.0
+                cl_low <- ""; cl_high <- ""; p <- ""
+              }
+
+              row_key <- row_key + 1L
+              tbl$addRow(rowKey = as.character(row_key), values = list(
+                level = as.character(cl),
+                stat0 = stat0, stat1 = stat1,
+                effect = eff, ciLow = cl_low, ciHigh = cl_high, pval = p))
+            } 
+          } else {
+            # Numerical covariate: show overall effect for this genotype group
+            if (response_type == "binary") {
+              stat0 <- fmt_cont(int_g[resp_raw_g == resp_lv[1]])
+              stat1 <- fmt_cont(int_g[resp_raw_g == resp_lv[2]])
             } else {
-              mask_cl <- as.character(int_g) == as.character(cl)
-              vals  <- resp_g[mask_cl]
-              stat0 <- fmt_cont(vals)
+              stat0 <- fmt_cont(resp_g)
               stat1 <- ""
             }
 
-            # Retrieve effect sizes from the conditional model
-            lookup_key <- paste0(gl, "|", cl)
-            res <- res_lookup[[lookup_key]]
+            res_gl <- NULL
+            for(nm in names(res_lookup)) {
+              if(grepl(gl, nm, fixed=TRUE)) { res_gl <- res_lookup[[nm]]; break }
+            }
             
-            if (!is.null(res)) {
-              eff <- res$effect; cl_low <- res$ci_low; cl_high <- res$ci_high; p <- res$pval
+            if (!is.null(res_gl)) {
+              eff  <- res_gl$effect; cl_low  <- res_gl$ci_low; cl_high  <- res_gl$ci_high; p  <- res_gl$pval
             } else {
-              # This is likely the reference level for the interaction
-              eff <- if (response_type == "binary") 1.0 else 0.0
-              cl_low <- ""; cl_high <- ""; p <- ""
+              eff  <- if (response_type == "binary") 1.0 else 0.0
+              cl_low  <- ""; cl_high  <- ""; p  <- ""
             }
 
             row_key <- row_key + 1L
             tbl$addRow(rowKey = as.character(row_key), values = list(
-              level = as.character(cl),
-              stat0 = stat0, stat1 = stat1,
+              level = "Overall", stat0 = stat0, stat1 = stat1,
               effect = eff, ciLow = cl_low, ciHigh = cl_high, pval = p))
           }
         }
