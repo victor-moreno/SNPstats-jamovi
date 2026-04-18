@@ -77,18 +77,18 @@ items:
               - {name: ciHigh,   title: Upper CI,  type: number, format: zto}
               - {name: pval,     title: P-value,   type: number, format: zto}
 
-        # ── Stratified by response (binary only) ───────────────
-        # One sub-table per response level; populated dynamically.
-        - name: stratByResponse
-          title: Interaction — Stratified by Response Category
+        # One sub-table per covariate level; populated dynamically.
+        - name: stratByCovariate
+          title: Interaction — Stratified by Covariate
           type: Array
-          visible: (snpInteraction && showStratByResponse)
+          visible: (snpInteraction && showStratByCovariate)
           template:
             title: $key
             type: Table
             columns:
               - {name: genotype, title: Genotype,  type: text}
-              - {name: n,        title: N,          type: integer}
+              - {name: stat0,    title: Group 0,   type: text}
+              - {name: stat1,    title: Group 1,   type: text}
               - {name: effect,   title: OR / β,     type: number, format: zto}
               - {name: ciLow,    title: Lower CI,   type: number, format: zto}
               - {name: ciHigh,   title: Upper CI,   type: number, format: zto}

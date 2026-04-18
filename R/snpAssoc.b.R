@@ -239,6 +239,7 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         snp_raw_cc  <- snp_raw[snp_complete_mask]
         geno_obj_cc <- parse_genotype(snp_raw_cc, user_levels)
         response_cc <- response[snp_complete_mask]
+        response_raw_cc <- response_raw[snp_complete_mask]
         cov_df_cc   <- if (!is.null(cov_df)) cov_df[snp_complete_mask, , drop = FALSE] else NULL
         if (is.null(geno_obj_cc)) next
 
@@ -267,9 +268,9 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             response_cc, cov_df_cc, interaction_var,
             response_type, opts, int_models, user_levels, response_raw, snp_nm)
 
-          if (isTRUE(opts$showStratByResponse) && response_type == "binary")
-            private$.fill_strat_by_response(
-              item$stratByResponse, snp_raw_cc, ref,
+          if (isTRUE(opts$showStratByCovariate))
+            private$.fill_strat_by_covariate(
+              item$stratByCovariate, snp_raw_cc, ref,
               response_cc, cov_df_cc, interaction_var,
               response_type, opts, int_models, user_levels, response_raw, snp_nm)
 
@@ -277,13 +278,13 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             private$.fill_strat_by_genotype(
               item$stratByGenotype, snp_raw_cc, ref,
               response_cc, cov_df_cc, interaction_var,
-              response_type, opts, int_models, user_levels, response_raw, snp_nm)
+              response_type, opts, int_models, user_levels, response_raw_cc, snp_nm)
 
           if (isTRUE(opts$showCrossClassTable))
             private$.fill_cross_class(
               item$crossClassTable, snp_raw_cc, ref,
               response_cc, cov_df_cc, interaction_var,
-              response_type, opts, int_models, user_levels, response_raw, snp_nm)
+              response_type, opts, int_models, user_levels, response_raw_cc, snp_nm)
         }
       }
     },
@@ -547,7 +548,7 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       }
     },
 
-    .fill_cross_class = function(arr, snp_raw, ref, response, cov_df,
+    .fill_strat_by_covariate = function(arr, snp_raw, ref, response, cov_df,
                                   interaction_var, response_type, opts,
                                   int_models, user_levels = NULL, response_raw, snp_lbl) {
       snp_char   <- as.character(snp_raw)
@@ -633,9 +634,7 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         }
       }
     }, 
-
-    # ── Stratified by response (binary: one table per response level) ─────────
-   .fill_strat_by_genotype = function(arr, snp_raw, ref, response, cov_df,
+    .fill_strat_by_genotype = function(arr, snp_raw, ref, response, cov_df,
                                    interaction_var, response_type, opts,
                                    int_models, user_levels = NULL, response_raw, snp_lbl) {
       snp_char   <- as.character(snp_raw)
@@ -643,23 +642,22 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       int_var_data <- cov_df[[interaction_var]]
       int_lbl    <- attr(self$data[[interaction_var]], "label") %||% interaction_var
       resp_lv    <- levels(as.factor(response_raw))
+      
+      # Use the specific covariate levels present in the analyzed data
       cov_levels <- if (is.factor(int_var_data)) levels(int_var_data) else sort(unique(as.character(int_var_data[!is.na(int_var_data)])))
-      model_labels <- c(codominant="Codominant", dominant="Dominant", recessive="Recessive", overdominant="Overdominant")
 
       for (mdl in int_models) {
         if (mdl == "logadditive") next
         geno_labels <- private$.geno_labels_for_model(mdl, all_genos, ref)
 
-        # Fit conditional model on FULL data: resp ~ snp / interaction_var
+        # Fit conditional model to get the correct effects/p-values
         snp_enc_m <- encode_model(snp_char, ref, mdl, user_levels)
-        if (!is.factor(snp_enc_m)) snp_enc_m <- as.factor(snp_enc_m) # Ensure factor for proper term splitting
-
         res_list <- fit_interaction_model(snp_enc_m, response, cov_df,
                                           interaction_var, mdl, response_type, opts$ciWidth,
                                           conditional = TRUE, cond_var = "snp")
         if (is.null(res_list)) next
 
-        # Build lookup: key = "Genotype|CovariateLevel"
+        # Map model terms to Genotype|Covariate level pairs
         res_lookup <- list()
         for (r in res_list) {
           t <- r$term
@@ -679,54 +677,58 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           tbl$getColumn("effect")$setTitle(if (response_type == "binary") "OR" else "\u03B2")
           
           if (response_type == "binary") {
-            tbl$getColumn("stat0")$setTitle(resp_lv[1]); tbl$getColumn("stat1")$setTitle(resp_lv[2])
-            tbl$getColumn("stat0")$setVisible(TRUE); tbl$getColumn("stat1")$setVisible(TRUE)
+            tbl$getColumn("stat0")$setTitle(resp_lv[1])
+            tbl$getColumn("stat1")$setTitle(resp_lv[2])
+            tbl$getColumn("stat0")$setVisible(TRUE)
+            tbl$getColumn("stat1")$setVisible(TRUE)
           } else {
             tbl$getColumn("stat0")$setTitle("Mean (SD)") 
-            tbl$getColumn("stat0")$setVisible(TRUE); tbl$getColumn("stat1")$setVisible(FALSE)
+            tbl$getColumn("stat0")$setVisible(TRUE)
+            tbl$getColumn("stat1")$setVisible(FALSE)
           }
 
-          # ── Mask for this genotype group (aligned with model complete cases) ──
-          geno_vals <- private$.split_genos(gl)
-          mask_g <- snp_char %in% geno_vals & !is.na(int_var_data) & !is.na(response)
-          if (!is.null(cov_df) && ncol(cov_df) > 0) mask_g <- mask_g & complete.cases(cov_df)
+          # Filter data for this specific genotype group
+          mask_g <- snp_char %in% gl 
 
           int_g       <- int_var_data[mask_g]
           resp_g      <- response[mask_g]
           resp_raw_g  <- response_raw[mask_g]
 
+          if (response_type == "binary") {
+            counts <- table(factor(int_g, levels = cov_levels), 
+                            factor(resp_raw_g, levels = resp_lv))
+            totals  <- colSums(counts)
+          }
+          
           row_key <- 0L
           for (cl in cov_levels) {
-            mask_cl <- as.character(int_g) == as.character(cl)
-            n_cell  <- sum(mask_cl, na.rm = TRUE)
-            if (n_cell == 0) next
-
-            resp_cell_raw <- resp_raw_g[mask_cl]
-            
             if (response_type == "binary") {
-              # Robust counting: forces levels to match resp_lv, prevents 0-count bugs
-              tbl_resp <- table(factor(resp_cell_raw, levels = resp_lv))
-              n0 <- tbl_resp[1]; n1 <- tbl_resp[2]
-              stat0 <- sprintf("%d (%.1f%%)", n0, n0 / n_cell * 100)
-              stat1 <- sprintf("%d (%.1f%%)", n1, n1 / n_cell * 100)
+              # Calculate response distribution within this covariate level
+              
+              stat0 <- fmt_cat(counts[cl,1], totals[1])
+              stat1 <- fmt_cat(counts[cl,2], totals[2])
             } else {
-              vals <- resp_g[mask_cl]
-              stat0 <- sprintf("%.2f (%.2f)", mean(vals, na.rm=TRUE), sd(vals, na.rm=TRUE))
-              stat1 <- " "
+              mask_cl <- as.character(int_g) == as.character(cl)
+              vals  <- resp_g[mask_cl]
+              stat0 <- fmt_cont(vals)
+              stat1 <- ""
             }
 
+            # Retrieve effect sizes from the conditional model
             lookup_key <- paste0(gl, "|", cl)
             res <- res_lookup[[lookup_key]]
+            
             if (!is.null(res)) {
               eff <- res$effect; cl_low <- res$ci_low; cl_high <- res$ci_high; p <- res$pval
             } else {
+              # This is likely the reference level for the interaction
               eff <- if (response_type == "binary") 1.0 else 0.0
               cl_low <- ""; cl_high <- ""; p <- ""
             }
 
             row_key <- row_key + 1L
             tbl$addRow(rowKey = as.character(row_key), values = list(
-              covariate = "", level = as.character(cl),
+              level = as.character(cl),
               stat0 = stat0, stat1 = stat1,
               effect = eff, ciLow = cl_low, ciHigh = cl_high, pval = p))
           }

@@ -115,11 +115,6 @@ options:
     type: Bool
     default: false
 
-  # Genetic model used for interaction analysis.
-  # Implemented as a single-select List now; the fill functions
-  # already build a `models` vector, so switching to multi-select
-  # in the future only requires expanding this option type and
-  # rebuilding that vector from the new option.
   - name: interactionModel
     title: Genetic model for interaction
     type: List
@@ -131,8 +126,8 @@ options:
       - {title: Log-additive, name: logadditive}
     default: codominant
 
-  - name: showStratByResponse
-    title: Stratified analysis by response category
+  - name: showStratByCovariate
+    title: Stratified analysis by covariate
     type: Bool
     default: false
 

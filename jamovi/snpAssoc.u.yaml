@@ -88,7 +88,7 @@ children:
                     name: showCrossClassTable
                     enable: (snpInteraction)
                   - type: CheckBox
-                    name: showStratByResponse
+                    name: showStratByCovariate
                     enable: (snpInteraction)
                   - type: CheckBox
                     name: showStratByGenotype
