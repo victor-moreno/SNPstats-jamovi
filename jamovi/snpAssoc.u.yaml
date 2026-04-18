@@ -82,6 +82,12 @@ children:
                     name: interactionModel
                     enable: (snpInteraction)
                   - type: CheckBox
+                    name: showInteractionTable
+                    enable: (snpInteraction)
+                  - type: CheckBox
+                    name: showCrossClassTable
+                    enable: (snpInteraction)
+                  - type: CheckBox
                     name: showStratByResponse
                     enable: (snpInteraction)
                   - type: CheckBox
@@ -103,4 +109,4 @@ children:
                 format: number
               - type: CheckBox
                 name: showAIC
-                enable: (snpAssoc)
+                enable: (snpAssoc || snpInteraction)

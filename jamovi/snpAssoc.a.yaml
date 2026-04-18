@@ -105,6 +105,16 @@ options:
     type: Bool
     default: false
 
+  - name: showInteractionTable
+    title: Show interaction table
+    type: Bool
+    default: true
+
+  - name: showCrossClassTable
+    title: Show cross-classification table
+    type: Bool
+    default: false
+
   # Genetic model used for interaction analysis.
   # Implemented as a single-select List now; the fill functions
   # already build a `models` vector, so switching to multi-select

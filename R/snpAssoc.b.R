@@ -60,9 +60,11 @@ fit_model <- function(snp_enc, response, covariates_df, model_name,
 }
 
 #' Fit SNP × covariate interaction model under one genetic model.
+#' 
 fit_interaction_model <- function(snp_enc, response, covariates_df,
                                   interaction_var, model_name,
-                                  response_type, ci_width) {
+                                  response_type, ci_width,
+                                  conditional = FALSE, cond_var = interaction_var) {
   df <- data.frame(resp = response, snp = snp_enc)
   adj_covs <- character(0)
   if (!is.null(covariates_df) && ncol(covariates_df) > 0) {
@@ -72,51 +74,83 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
   if (!(interaction_var %in% names(df))) return(NULL)
   df <- df[complete.cases(df), , drop = FALSE]
   if (nrow(df) < 5) return(NULL)
+  adj_part <- if (length(adj_covs) > 0) paste("+", paste(adj_covs, collapse = "+")) else ""
 
-  adj_part     <- if (length(adj_covs) > 0) paste("+", paste(adj_covs, collapse = "+")) else ""
-  formula_int  <- as.formula(paste("resp ~ snp *", interaction_var, adj_part))
-  formula_main <- as.formula(paste("resp ~ snp +", interaction_var, adj_part))
-
-  tryCatch({
-    if (response_type == "binary") {
-      fit_int  <- glm(formula_int,  data = df, family = binomial())
-      fit_main <- glm(formula_main, data = df, family = binomial())
-      pval_col <- "Pr(>|z|)"; lrtest <- "Chisq"; lrtest_label <- "Pr(>Chi)"
+  if (conditional) {
+    # ── FIX: Correct nesting direction based on stratification type ───────────
+    if (cond_var == "snp") {
+      # Stratified by genotype: estimate interaction_var effect within each SNP level
+      formula_fit <- as.formula(paste("resp ~ snp /", interaction_var, adj_part))
     } else {
-      fit_int  <- lm(formula_int,  data = df)
-      fit_main <- lm(formula_main, data = df)
-      pval_col <- "Pr(>|t|)"; lrtest <- "F"; lrtest_label <- "Pr(>F)"
+      # Stratified by covariate: estimate SNP effect within each covariate level
+      formula_fit <- as.formula(paste("resp ~", interaction_var, "/ snp", adj_part))
     }
 
-    lrt     <- tryCatch(anova(fit_main, fit_int, test = lrtest), error = function(e) NULL)
-    p_inter <- if (!is.null(lrt)) lrt[2, lrtest_label] else NA_real_
-    aic_val <- AIC(fit_int)
-    coefs   <- summary(fit_int)$coefficients
-    ci      <- tryCatch(confint(fit_int, level = ci_width / 100),
-                        error = function(e) matrix(NA, nrow = nrow(coefs), ncol = 2,
-                                                   dimnames = list(rownames(coefs), c("lo","hi"))))
+    fit <- if (response_type == "binary") glm(formula_fit, data = df, family = binomial()) else lm(formula_fit, data = df)
+    pval_col <- if (response_type == "binary") "Pr(>|z|)" else "Pr(>|t|)"
+    coefs <- summary(fit)$coefficients
+    ci_mat <- tryCatch(confint(fit, level = ci_width / 100), error = function(e) matrix(NA, nrow = nrow(coefs), ncol = 2))
+    aic_val <- AIC(fit)
 
-    all_rows   <- rownames(coefs)
-    snp_rows   <- grep("^snp", all_rows)
-    inter_rows <- grep(paste0("^snp.*:", interaction_var, "|^", interaction_var, ":.*snp"), all_rows)
-    keep_rows  <- unique(c(snp_rows, inter_rows))
-    if (length(keep_rows) == 0) return(NULL)
+    # Nested terms (e.g., `snpRef:covar` or `covar:snpHet`) represent conditional effects
+    inter_terms <- grep(":", rownames(coefs), value = TRUE)
+    if (length(inter_terms) == 0) return(NULL)
 
-    lapply(keep_rows, function(r) {
-      beta  <- coefs[r, "Estimate"]
-      pval  <- coefs[r, pval_col]
-      ci_lo <- ci[r, 1]; ci_hi <- ci[r, 2]
-      is_inter <- r %in% inter_rows
+    lapply(inter_terms, function(term) {
+      idx <- match(term, rownames(coefs))
+      beta <- coefs[idx, "Estimate"]
+      pval <- coefs[idx, pval_col]
+      ci_lo <- ci_mat[idx, 1]; ci_hi <- ci_mat[idx, 2]
       if (response_type == "binary")
-        list(term = all_rows[r], effect = exp(beta), ci_low = exp(ci_lo), ci_high = exp(ci_hi),
-             pval = pval, pval_interaction = if (is_inter) p_inter else NA_real_,
-             aic = aic_val, is_first = (r == keep_rows[1]))
+        list(term = term, effect = exp(beta), ci_low = exp(ci_lo), ci_high = exp(ci_hi),
+             pval = pval, pval_interaction = NA_real_, aic = aic_val)
       else
-        list(term = all_rows[r], effect = beta, ci_low = ci_lo, ci_high = ci_hi,
-             pval = pval, pval_interaction = if (is_inter) p_inter else NA_real_,
-             aic = aic_val, is_first = (r == keep_rows[1]))
+        list(term = term, effect = beta, ci_low = ci_lo, ci_high = ci_hi,
+             pval = pval, pval_interaction = NA_real_, aic = aic_val)
     })
-  }, error = function(e) NULL)
+  } else {
+    # ── Original * interaction logic ─────────────────────────────────────
+    formula_int  <- as.formula(paste("resp ~ snp *", interaction_var, adj_part))
+    formula_main <- as.formula(paste("resp ~ snp +", interaction_var, adj_part))
+    tryCatch({
+      if (response_type == "binary") {
+        fit_int   <- glm(formula_int,  data = df, family = binomial())
+        fit_main  <- glm(formula_main, data = df, family = binomial())
+        pval_col  <- "Pr(>|z|)"; lrtest  <- "Chisq"; lrtest_label  <- "Pr(>Chi)"
+      } else {
+        fit_int   <- lm(formula_int,  data = df)
+        fit_main  <- lm(formula_main, data = df)
+        pval_col  <- "Pr(>|t|)"; lrtest  <- "F"; lrtest_label  <- "Pr(>F)"
+      }
+      lrt      <- tryCatch(anova(fit_main, fit_int, test = lrtest), error = function(e) NULL)
+      p_inter  <- if (!is.null(lrt)) lrt[2, lrtest_label] else NA_real_
+      aic_val  <- AIC(fit_int)
+      coefs    <- summary(fit_int)$coefficients
+      ci       <- tryCatch(confint(fit_int, level = ci_width / 100),
+                          error = function(e) matrix(NA, nrow = nrow(coefs), ncol = 2,
+                                                      dimnames = list(rownames(coefs), c("lo", "hi"))))
+      all_rows    <- rownames(coefs)
+      snp_rows    <- grep("^snp", all_rows)
+      inter_rows  <- grep(paste0("^snp.*:", interaction_var, "|^", interaction_var, ":.*snp"), all_rows)
+      keep_rows   <- unique(c(snp_rows, inter_rows))
+      if (length(keep_rows) == 0) return(NULL)
+
+      lapply(keep_rows, function(r) {
+        beta   <- coefs[r, "Estimate"]
+        pval   <- coefs[r, pval_col]
+        ci_lo  <- ci[r, 1]; ci_hi  <- ci[r, 2]
+        is_inter <- r %in% inter_rows
+        if (response_type == "binary")
+          list(term = all_rows[r], effect = exp(beta), ci_low = exp(ci_lo), ci_high = exp(ci_hi),
+               pval = pval, pval_interaction = if (is_inter) p_inter else NA_real_,
+               aic = aic_val, is_first = (r == keep_rows[1]))
+        else
+          list(term = all_rows[r], effect = beta, ci_low = ci_lo, ci_high = ci_hi,
+               pval = pval, pval_interaction = if (is_inter) p_inter else NA_real_,
+               aic = aic_val, is_first = (r == keep_rows[1]))
+      })
+    }, error = function(e) NULL)
+  }
 }
 
 snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
@@ -244,6 +278,12 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
               item$stratByGenotype, snp_raw_cc, ref,
               response_cc, cov_df_cc, interaction_var,
               response_type, opts, int_models, user_levels, response_raw, snp_nm)
+
+          if (isTRUE(opts$showCrossClassTable))
+            private$.fill_cross_class(
+              item$crossClassTable, snp_raw_cc, ref,
+              response_cc, cov_df_cc, interaction_var,
+              response_type, opts, int_models, user_levels, response_raw, snp_nm)
         }
       }
     },
@@ -277,21 +317,30 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
     # Compute N(%) per group (binary) or mean(SD) (quantitative)
     .compute_stats = function(geno_labels, snp_char, response, response_type) {
       split_genos <- private$.split_genos
-      if (response_type == "binary") {
-        lv      <- levels(as.factor(response))
-        n_total <- sum(!is.na(snp_char) & !is.na(response))
-        stats0  <- character(length(geno_labels))
-        stats1  <- character(length(geno_labels))
-        for (i in seq_along(geno_labels)) {
-          mask <- snp_char %in% split_genos(geno_labels[i]) & !is.na(response)
-          n0   <- sum(mask & response == lv[1])
-          n1   <- sum(mask & response == lv[2])
-          if ((n0 + n1) == 0) { stats0[i] <- "---"; stats1[i] <- "---"; next }
-          stats0[i] <- sprintf("%d (%.1f%%)", n0, n0 / n_total * 100)
-          stats1[i] <- sprintf("%d (%.1f%%)", n1, n1 / n_total * 100)
-        }
-        list(s0 = stats0, s1 = stats1)
-      } else {
+    if (response_type == "binary") {
+      lv       <- levels(as.factor(response))
+      # Calculate column totals (total N for each response level)
+      n_col0   <- sum(response == lv[1] & !is.na(response))
+      n_col1   <- sum(response == lv[2] & !is.na(response))
+      
+      stats0   <- character(length(geno_labels))
+      stats1   <- character(length(geno_labels))
+      for (i in seq_along(geno_labels)) {
+        mask  <- snp_char %in% split_genos(geno_labels[i]) & !is.na(response)
+        n0    <- sum(mask & response == lv[1])
+        n1    <- sum(mask & response == lv[2])
+        
+        if ((n0 + n1) == 0) { stats0[i] <- "---"; stats1[i] <- "---"; next }
+        
+        # Compute column-wise percentages
+        pct0 <- if (n_col0 > 0) n0 / n_col0 * 100 else 0
+        pct1 <- if (n_col1 > 0) n1 / n_col1 * 100 else 0
+        
+        stats0[i] <- sprintf("%d (%.1f%%)", n0, pct0)
+        stats1[i] <- sprintf("%d (%.1f%%)", n1, pct1)
+      }
+      list(s0 = stats0, s1 = stats1)
+    } else {
         stats0 <- character(length(geno_labels))
         for (i in seq_along(geno_labels)) {
           vals <- response[snp_char %in% split_genos(geno_labels[i]) & !is.na(response)]
@@ -376,11 +425,22 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         bic_val     <- private$.bic_from_aic(aic_val, mdl, n_fit, n_cov)
 
         if (mdl == "logadditive") {
-          res <- res_list[[1]]; row_key <- row_key + 1L
+          res <- res_list[[1]]
+          row_key <- row_key + 1L
+          if (response_type == "binary") {
+            lv <- levels(as.factor(response))
+            stat0_val <- sprintf("%d", sum(response == lv[1], na.rm = TRUE))
+            stat1_val <- sprintf("%d", sum(response == lv[2], na.rm = TRUE))
+          } else {
+            stat0_val <- sprintf("%.2f (%.2f)", mean(response, na.rm = TRUE), sd(response, na.rm = TRUE))
+            stat1_val <- " "
+          }
+          
           tbl$addRow(rowKey = as.character(row_key), values = list(
-            model = model_labels[mdl], genotype = "---", stat0 = "---", stat1 = "",
+            model = model_labels[mdl], genotype = "Per allele", stat0 = stat0_val, stat1 = stat1_val,
             effect = res$effect, ciLow = res$ci_low, ciHigh = res$ci_high,
             pval = res$pval, AIC = aic_val, BIC = bic_val))
+
           next
         }
 
@@ -441,6 +501,7 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
       
       tbl$getColumn("AIC")$setVisible(isTRUE(opts$showAIC))
+      tbl$getColumn("BIC")$setVisible(isTRUE(opts$showAIC))
 
       # now only 1 model in int_models, but keep loop structure for future multi-select
       model_labels <- c(codominant = "Codominant", dominant = "Dominant",
@@ -452,18 +513,33 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         res_list <- fit_interaction_model(snp_enc, response, cov_df,
                                           interaction_var, mdl, response_type, opts$ciWidth)
         if (is.null(res_list)) next
+
+        # Compute n_fit and n_cov for BIC calculation
+        snp_enc_bic   <- encode_model(as.character(snp_raw), ref, mdl, user_levels)
+        n_fit_bic     <- sum(!is.na(snp_enc_bic) & !is.na(response) & complete.cases(cov_df))
+        n_cov_bic     <- ncol(cov_df)
+
         first_row <- TRUE; first_inter <- TRUE
         for (res in res_list) {
           row_key  <- row_key + 1L
           is_inter <- !is.na(res$pval_interaction)
+          # Replace the generic "snp" prefix in term labels with the actual SNP name
+          term_label <- gsub("^snp", snp_lbl, res$term)
+          term_label <- gsub(paste0("snp(.*:", interaction_var, ")"), paste0(snp_lbl, "\\1"), term_label)
+          term_label <- gsub(paste0("(", interaction_var, ":)snp"), paste0("\\1", snp_lbl), term_label)
           vals <- list(
             model  = if (first_row) model_labels[mdl] else "",
-            term   = res$term,
+            term   = term_label,
             effect = res$effect, ciLow = res$ci_low, ciHigh = res$ci_high,
             pval   = res$pval,
             pvalInteraction = if (is_inter && first_inter) res$pval_interaction else "")
-          if (isTRUE(opts$showAIC))
-            vals[["AIC"]] <- if (first_row && !is.nan(res$aic)) round(res$aic, 2) else ""
+          if (isTRUE(opts$showAIC)) {
+            aic_val <- if (first_row && !is.nan(res$aic)) round(res$aic, 2) else ""
+            bic_val <- if (first_row && !is.nan(res$aic))
+              private$.bic_from_aic(res$aic, mdl, n_fit_bic, n_cov_bic) else ""
+            vals[["AIC"]] <- aic_val
+            vals[["BIC"]] <- bic_val
+          }
           tbl$addRow(rowKey = as.character(row_key), values = vals)
           first_row <- FALSE
           if (is_inter) first_inter <- FALSE
@@ -471,203 +547,188 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       }
     },
 
-    # ── Stratified by response (binary: one table per response level) ─────────
-    .fill_strat_by_response = function(arr, snp_raw, ref, response, cov_df,
-                                        interaction_var, response_type, opts,
-                                        int_models, user_levels = NULL, response_raw, snp_lbl) {
-      
-      # Factorize to get internal levels and user-facing labels
-      resp_factor <- as.factor(response)
-      lv          <- levels(resp_factor)
-      
-      # Get the actual labels (e.g., "Control", "Case")
-      resp_raw_factor <- as.factor(response_raw)
-      lv_names        <- levels(resp_raw_factor)
-      
-      resp_lbl <- attr(self$data[[self$options$response]], "label") %||% self$options$response
-      snp_char <- as.character(snp_raw)
+    .fill_cross_class = function(arr, snp_raw, ref, response, cov_df,
+                                  interaction_var, response_type, opts,
+                                  int_models, user_levels = NULL, response_raw, snp_lbl) {
+      snp_char   <- as.character(snp_raw)
+      all_genos  <- c(ref, setdiff(if (!is.null(user_levels)) user_levels else sort(unique(snp_char[!is.na(snp_char)])), ref))
+      int_var_data <- cov_df[[interaction_var]]
+      int_lbl      <- attr(self$data[[interaction_var]], "label") %||% interaction_var
+      model_labels <- c(codominant="Codominant", dominant="Dominant", recessive="Recessive", overdominant="Overdominant", logadditive="Log-additive")
+      adj_vars     <- setdiff(names(cov_df), interaction_var)
+      adj_cov_df   <- if (length(adj_vars) > 0) cov_df[, adj_vars, drop=FALSE] else NULL
+      cov_levels   <- if (is.factor(int_var_data)) levels(int_var_data) else sort(unique(int_var_data[!is.na(int_var_data)]))
 
-      model_labels <- c(codominant = "Codominant", dominant = "Dominant",
-                        recessive  = "Recessive",  overdominant = "Overdominant",
-                        logadditive = "Log-additive")
-      all_genos <- c(ref, setdiff(
-        if (!is.null(user_levels)) user_levels else sort(unique(snp_char[!is.na(snp_char)])),
-        ref))
+      # Optional: compute omnibus interaction p-value for note
+      mdl_for_p <- if ("codominant" %in% int_models) "codominant" else int_models[1]
+      int_res_p <- fit_interaction_model(encode_model(snp_char, ref, mdl_for_p, user_levels), response, cov_df,
+                                        interaction_var, mdl_for_p, response_type, opts$ciWidth, conditional = FALSE)
+      p_inter <- if (!is.null(int_res_p)) int_res_p[[1]]$pval_interaction else NA_real_
 
-      adj_cov_df <- if (!is.null(cov_df) && ncol(cov_df) > 0) cov_df else NULL
-
-      # Loop using index so we can match lv with lv_names
-      for (i_lv in seq_along(lv)) {
-        current_lv    <- lv[i_lv]
-        current_label <- lv_names[i_lv]
-        
-        # CHANGE: New key format "Variable: Label"
-        key_k <- paste0(resp_lbl, ": ", current_label)
-        
-        if (is.null(tryCatch(arr$get(key = key_k), error = function(e) NULL)))
-          arr$addItem(key = key_k)
-        
+      for (cl in cov_levels) {
+        cl_label <- as.character(cl)
+        key_k    <- paste0(int_lbl, ": ", cl_label)
+        if (is.null(tryCatch(arr$get(key = key_k), error = function(e) NULL))) arr$addItem(key = key_k)
         tbl <- arr$get(key = key_k)
-        tbl$getColumn("effect")$setTitle(if (response_type == "binary") "OR" else "\u03B2")
         tbl$getColumn("genotype")$setTitle(snp_lbl)
+        tbl$getColumn("effect")$setTitle(if (response_type == "binary") "OR" else "\u03B2")
+        if (response_type == "binary") {
+          resp_lv <- levels(as.factor(response_raw))
+          tbl$getColumn("stat0")$setTitle(resp_lv[1]); tbl$getColumn("stat1")$setTitle(resp_lv[2])
+          tbl$getColumn("stat0")$setVisible(TRUE); tbl$getColumn("stat1")$setVisible(TRUE)
+        } else {
+          tbl$getColumn("stat0")$setTitle("Mean (SD)"); tbl$getColumn("stat0")$setVisible(TRUE)
+          tbl$getColumn("stat1")$setVisible(FALSE)
+        }
+        if (!is.na(p_inter)) tbl$setNote(key = "pinter", note = paste0("Interaction p-value: ", format.pval(p_inter, digits=3, eps=0.001)))
 
-        # Subset to this response stratum
-        mask_k    <- !is.na(response) & response == current_lv & !is.na(snp_raw)
-        if (!is.null(adj_cov_df) && ncol(adj_cov_df) > 0)
-          mask_k <- mask_k & complete.cases(adj_cov_df)
-
-        snp_k   <- snp_raw[mask_k]
-        snp_c_k <- snp_char[mask_k]
-        
-        # Determine the interaction variable's effect within this stratum
-        int_response_k <- cov_df[[interaction_var]][mask_k]
-        int_resp_type  <- detect_response_type(int_response_k, opts$responseType)
-        adj_cov_k      <- if (!is.null(adj_cov_df)) adj_cov_df[mask_k, setdiff(names(adj_cov_df), interaction_var), drop = FALSE] else NULL
-        if (!is.null(adj_cov_k) && ncol(adj_cov_k) == 0) adj_cov_k <- NULL
+        # Descriptive stats for this stratum
+        mask_k <- !is.na(int_var_data) & int_var_data == cl & !is.na(snp_raw)
+        if (!is.null(adj_cov_df) && ncol(adj_cov_df) > 0) mask_k <- mask_k & complete.cases(adj_cov_df)
+        snp_c_k    <- snp_char[mask_k]
+        response_k <- response[mask_k]
 
         row_key <- 0L
         for (mdl in int_models) {
-          snp_enc  <- encode_model(snp_c_k, ref, mdl, user_levels)
-          res_list <- fit_model(snp_enc, int_response_k, adj_cov_k,
-                                mdl, int_resp_type, opts$ciWidth)
+          # Fit conditional model on FULL data to keep adjustment, then filter
+          res_list <- fit_interaction_model(
+            snp_enc = encode_model(snp_char, ref, mdl, user_levels), response = response,
+            covariates_df = cov_df, interaction_var = interaction_var, model_name = mdl,
+            response_type = response_type, ci_width = opts$ciWidth, conditional = TRUE)
           if (is.null(res_list)) next
 
+          # Extract terms belonging to this covariate level
+          level_res <- res_list[grepl(cl_label, sapply(res_list, `[[`, "term"), fixed = TRUE)]
+          if (length(level_res) == 0) next
+
           geno_labels <- private$.geno_labels_for_model(mdl, all_genos, ref)
+          st          <- private$.compute_stats(geno_labels, snp_c_k, response_k, response_type)
 
           if (mdl == "logadditive") {
-            res <- res_list[[1]]; row_key <- row_key + 1L
+            res <- level_res[[1]]
+            row_key <- row_key + 1L
             tbl$addRow(rowKey = as.character(row_key), values = list(
-              genotype = paste0(model_labels[mdl], " (per allele)" ),
-              n        = sum(!is.na(snp_enc) & !is.na(int_response_k)),
-              effect   = res$effect, ciLow = res$ci_low,
-              ciHigh   = res$ci_high, pval  = res$pval))
+              genotype = paste0(model_labels[mdl], " (per allele)"), stat0 = "---", stat1 = " ",
+              effect = res$effect, ciLow = res$ci_low, ciHigh = res$ci_high, pval = res$pval))
             next
           }
 
           # Reference row
-          ref_mask <- snp_c_k %in% private$.split_genos(geno_labels[1]) & !is.na(int_response_k)
-          row_key  <- row_key + 1L
+          row_key <- row_key + 1L
           tbl$addRow(rowKey = as.character(row_key), values = list(
-            genotype = geno_labels[1],
-            n        = sum(ref_mask),
-            effect   = if (int_resp_type == "binary") 1.0 else 0.0,
-            ciLow    = '', ciHigh = '', pval = ''))
+            genotype = geno_labels[1], stat0 = st$s0[1], stat1 = st$s1[1],
+            effect = if (response_type == "binary") 1.0 else 0.0, ciLow = "", ciHigh = "", pval = ""))
 
-          for (i in seq_along(res_list)) {
-            res <- res_list[[i]]
-            gl  <- if ((i + 1) <= length(geno_labels)) geno_labels[i + 1] else res$comparison
-            gl_mask  <- snp_c_k %in% private$.split_genos(gl) & !is.na(int_response_k)
-            row_key  <- row_key + 1L
+          # Comparison rows
+          for (i in seq_along(level_res)) {
+            res <- level_res[[i]]
+            gl  <- if ((i + 1) <= length(geno_labels)) geno_labels[i + 1] else sub("snp", "", res$term)
+            row_key <- row_key + 1L
             tbl$addRow(rowKey = as.character(row_key), values = list(
-              genotype = gl, 
-              n        = sum(gl_mask),
-              effect   = res$effect, ciLow = res$ci_low,
-              ciHigh   = res$ci_high, pval  = res$pval))
+              genotype = gl,
+              stat0    = if ((i + 1) <= length(st$s0)) st$s0[i + 1] else "-",
+              stat1    = if ((i + 1) <= length(st$s1)) st$s1[i + 1] else " ",
+              effect   = res$effect, ciLow = res$ci_low, ciHigh = res$ci_high, pval = res$pval))
           }
         }
       }
-    },
+    }, 
 
-    # ── Stratified by genotype (one table per genotype group) ─────────────────
-    # For each genotype group g: fit response ~ covariate(s) in the subset
-    # where SNP == g, giving the effect of the covariate within that genotype.
-
-    # ── Stratified by genotype (one table per genotype group) ─────────────────
-    .fill_strat_by_genotype = function(arr, snp_raw, ref, response, cov_df,
-                                       interaction_var, response_type, opts,
-                                       int_models, user_levels = NULL, response_raw, snp_lbl) {
-      snp_char <- as.character(snp_raw)
-      all_genos <- c(ref, setdiff(
-        if (!is.null(user_levels)) user_levels else sort(unique(snp_char[!is.na(snp_char)])),
-        ref))
-
-      # Use the interaction variable name or its label as the column header for levels
-      int_lbl <- attr(self$data[[interaction_var]], "label") %||% interaction_var
-      adj_vars <- setdiff(names(cov_df), interaction_var)
-      int_response <- cov_df[[interaction_var]]
-      int_resp_type <- detect_response_type(int_response, opts$responseType)
+    # ── Stratified by response (binary: one table per response level) ─────────
+   .fill_strat_by_genotype = function(arr, snp_raw, ref, response, cov_df,
+                                   interaction_var, response_type, opts,
+                                   int_models, user_levels = NULL, response_raw, snp_lbl) {
+      snp_char   <- as.character(snp_raw)
+      all_genos  <- c(ref, setdiff(if (!is.null(user_levels)) user_levels else sort(unique(snp_char[!is.na(snp_char)])), ref))
+      int_var_data <- cov_df[[interaction_var]]
+      int_lbl    <- attr(self$data[[interaction_var]], "label") %||% interaction_var
+      resp_lv    <- levels(as.factor(response_raw))
+      cov_levels <- if (is.factor(int_var_data)) levels(int_var_data) else sort(unique(as.character(int_var_data[!is.na(int_var_data)])))
+      model_labels <- c(codominant="Codominant", dominant="Dominant", recessive="Recessive", overdominant="Overdominant")
 
       for (mdl in int_models) {
-        geno_labels <- private$.geno_labels_for_model(mdl, all_genos, ref)
         if (mdl == "logadditive") next
+        geno_labels <- private$.geno_labels_for_model(mdl, all_genos, ref)
+
+        # Fit conditional model on FULL data: resp ~ snp / interaction_var
+        snp_enc_m <- encode_model(snp_char, ref, mdl, user_levels)
+        if (!is.factor(snp_enc_m)) snp_enc_m <- as.factor(snp_enc_m) # Ensure factor for proper term splitting
+
+        res_list <- fit_interaction_model(snp_enc_m, response, cov_df,
+                                          interaction_var, mdl, response_type, opts$ciWidth,
+                                          conditional = TRUE, cond_var = "snp")
+        if (is.null(res_list)) next
+
+        # Build lookup: key = "Genotype|CovariateLevel"
+        res_lookup <- list()
+        for (r in res_list) {
+          t <- r$term
+          gl_match <- geno_labels[sapply(geno_labels, function(x) grepl(x, t, fixed=TRUE))]
+          cl_match <- cov_levels[sapply(cov_levels, function(x) grepl(x, t, fixed=TRUE))]
+          if (length(gl_match) > 0 && length(cl_match) > 0) {
+            res_lookup[[paste0(gl_match[1], "|", cl_match[1])]] <- r
+          }
+        }
 
         for (gl in geno_labels) {
           key_g <- paste0(snp_lbl, ": ", gl)
-#          key_g <- gl 
-          
-          if (is.null(tryCatch(arr$get(key = key_g), error = function(e) NULL)))
-            arr$addItem(key = key_g)
-          
+          if (is.null(tryCatch(arr$get(key = key_g), error = function(e) NULL))) arr$addItem(key = key_g)
           tbl <- arr$get(key = key_g)
           
           tbl$getColumn("level")$setTitle(int_lbl)
+          tbl$getColumn("effect")$setTitle(if (response_type == "binary") "OR" else "\u03B2")
           
-          tbl$getColumn("effect")$setTitle(
-            if (response_type == "binary") "OR" else "\u03B2")
+          if (response_type == "binary") {
+            tbl$getColumn("stat0")$setTitle(resp_lv[1]); tbl$getColumn("stat1")$setTitle(resp_lv[2])
+            tbl$getColumn("stat0")$setVisible(TRUE); tbl$getColumn("stat1")$setVisible(TRUE)
+          } else {
+            tbl$getColumn("stat0")$setTitle("Mean (SD)") 
+            tbl$getColumn("stat0")$setVisible(TRUE); tbl$getColumn("stat1")$setVisible(FALSE)
+          }
 
-          # Subset to this genotype group
-          genos_in_group <- private$.split_genos(gl)
-          mask_g  <- snp_char %in% genos_in_group & !is.na(response) & !is.na(int_response)
-          if (!is.null(cov_df) && ncol(cov_df) > 0)
-            mask_g <- mask_g & complete.cases(cov_df)
+          # ── Mask for this genotype group (aligned with model complete cases) ──
+          geno_vals <- private$.split_genos(gl)
+          mask_g <- snp_char %in% geno_vals & !is.na(int_var_data) & !is.na(response)
+          if (!is.null(cov_df) && ncol(cov_df) > 0) mask_g <- mask_g & complete.cases(cov_df)
 
-          n_g          <- sum(mask_g)
-          response_g   <- response[mask_g]
-          int_resp_g   <- int_response[mask_g]
-          adj_cov_g    <- if (length(adj_vars) > 0)
-                            cov_df[mask_g, adj_vars, drop = FALSE] else NULL
+          int_g       <- int_var_data[mask_g]
+          resp_g      <- response[mask_g]
+          resp_raw_g  <- response_raw[mask_g]
 
-          if (int_resp_type == "binary") {
-            lv_int  <- levels(as.factor(int_resp_g))
-            row_key <- 0L
+          row_key <- 0L
+          for (cl in cov_levels) {
+            mask_cl <- as.character(int_g) == as.character(cl)
+            n_cell  <- sum(mask_cl, na.rm = TRUE)
+            if (n_cell == 0) next
+
+            resp_cell_raw <- resp_raw_g[mask_cl]
             
-            # 1. Reference Row
+            if (response_type == "binary") {
+              # Robust counting: forces levels to match resp_lv, prevents 0-count bugs
+              tbl_resp <- table(factor(resp_cell_raw, levels = resp_lv))
+              n0 <- tbl_resp[1]; n1 <- tbl_resp[2]
+              stat0 <- sprintf("%d (%.1f%%)", n0, n0 / n_cell * 100)
+              stat1 <- sprintf("%d (%.1f%%)", n1, n1 / n_cell * 100)
+            } else {
+              vals <- resp_g[mask_cl]
+              stat0 <- sprintf("%.2f (%.2f)", mean(vals, na.rm=TRUE), sd(vals, na.rm=TRUE))
+              stat1 <- " "
+            }
+
+            lookup_key <- paste0(gl, "|", cl)
+            res <- res_lookup[[lookup_key]]
+            if (!is.null(res)) {
+              eff <- res$effect; cl_low <- res$ci_low; cl_high <- res$ci_high; p <- res$pval
+            } else {
+              eff <- if (response_type == "binary") 1.0 else 0.0
+              cl_low <- ""; cl_high <- ""; p <- ""
+            }
+
             row_key <- row_key + 1L
             tbl$addRow(rowKey = as.character(row_key), values = list(
-              covariate = "", # Removed "Covariate" text
-              level     = as.character(lv_int[1]),
-              n         = sum(int_resp_g == lv_int[1]),
-              effect    = if (response_type == "binary") 1.0 else 0.0,
-              ciLow     = '', ciHigh = '', pval = ''
-            ))
-
-            # 2. Comparison Rows
-            for (i in 2:length(lv_int)) {
-              sub_mask    <- int_resp_g %in% c(lv_int[1], lv_int[i])
-              snp_enc_g   <- as.integer(int_resp_g[sub_mask] == lv_int[i])
-              
-              res_list <- fit_model(snp_enc_g, response_g[sub_mask], 
-                                   if(!is.null(adj_cov_g)) adj_cov_g[sub_mask, , drop=FALSE] else NULL,
-                                   "logadditive", response_type, opts$ciWidth)
-              
-              if (!is.null(res_list)) {
-                res <- res_list[[1]]
-                row_key <- row_key + 1L
-                tbl$addRow(rowKey = as.character(row_key), values = list(
-                  covariate = "", 
-                  level     = as.character(lv_int[i]),
-                  n         = sum(int_resp_g == lv_int[i]),
-                  effect    = res$effect, 
-                  ciLow     = res$ci_low,
-                  ciHigh    = res$ci_high, 
-                  pval      = res$pval))
-              }
-            }
-          } else {
-            # Quantitative interaction: single row
-            row_key   <- 1L
-            snp_enc_g <- int_resp_g  
-            res_list  <- fit_model(snp_enc_g, response_g, adj_cov_g,
-                                   "logadditive", response_type, opts$ciWidth)
-            if (!is.null(res_list)) {
-              res <- res_list[[1]]
-              tbl$addRow(rowKey = as.character(row_key), values = list(
-                covariate = "", 
-                level     = "continuous",
-                n         = n_g,
-                effect    = res$effect, ciLow = res$ci_low,
-                ciHigh    = res$ci_high, pval  = res$pval))
-            }
+              covariate = "", level = as.character(cl),
+              stat0 = stat0, stat1 = stat1,
+              effect = eff, ciLow = cl_low, ciHigh = cl_high, pval = p))
           }
         }
       }
