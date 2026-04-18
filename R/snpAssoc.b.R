@@ -80,7 +80,11 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
     # ── FIX: Correct nesting direction based on stratification type ───────────
     if (cond_var == "snp") {
       # Stratified by genotype: estimate interaction_var effect within each SNP level
-      formula_fit <- as.formula(paste("resp ~ snp /", interaction_var, adj_part))
+      if (is.factor(snp_enc)) {
+        formula_fit <- as.formula(paste("resp ~ snp /", interaction_var, adj_part))
+      } else {
+        formula_fit <- as.formula(paste("resp ~ snp *", interaction_var, adj_part))
+      }
     } else {
       # Stratified by covariate: estimate SNP effect within each covariate level
       formula_fit <- as.formula(paste("resp ~", interaction_var, "/ snp", adj_part))
@@ -93,14 +97,47 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
     aic_val <- AIC(fit)
 
     # Nested terms (e.g., `snpRef:covar` or `covar:snpHet`) represent conditional effects
-    inter_terms <- grep(":", rownames(coefs), value = TRUE)
+    if (cond_var == "snp" && !is.factor(snp_enc)) {
+      # snp*x: standalone covariate terms = effect within ref genotype group
+      #        interaction terms = effect within non-ref genotype group
+      inter_terms <- grep(paste0("^", interaction_var, "|:"),
+                          rownames(coefs), value = TRUE, perl = TRUE)
+    } else {
+      inter_terms <- grep(":", rownames(coefs), value = TRUE)
+    }
     if (length(inter_terms) == 0) return(NULL)
 
-    lapply(inter_terms, function(term) {
-      idx <- match(term, rownames(coefs))
+lapply(inter_terms, function(term) {
+      idx  <- match(term, rownames(coefs))
       beta <- coefs[idx, "Estimate"]
       pval <- coefs[idx, pval_col]
       ci_lo <- ci_mat[idx, 1]; ci_hi <- ci_mat[idx, 2]
+
+      # For snp*x with integer snp: interaction terms (containing ":") represent
+      # the *additional* covariate effect in the non-ref group, not the full effect.
+      # Combine with the corresponding main covariate term using delta method.
+      if (cond_var == "snp" && !is.factor(snp_enc) && grepl(":", term, fixed = TRUE)) {
+        # Find the matching main-effect term (same covariate level, no "snp:" prefix)
+        main_term <- sub(paste0("snp:", interaction_var), interaction_var,
+                         sub("^snp:", "", term))
+        main_term <- gsub("snp", "", term)   # e.g. "snp:xMale" -> ":xMale" -- wrong
+        # More reliably: strip everything up to and including ":"
+        main_term <- sub(".*:", "", term)    # "snp:xMale" -> "xMale"
+        main_idx  <- match(main_term, rownames(coefs))
+        if (!is.na(main_idx)) {
+          beta  <- beta + coefs[main_idx, "Estimate"]
+          # Delta method: Var(a+b) = Var(a) + Var(b) + 2*Cov(a,b)
+          vcov_mat <- vcov(fit)
+          se    <- sqrt(vcov_mat[idx, idx] + vcov_mat[main_idx, main_idx] +
+                        2 * vcov_mat[idx, main_idx])
+          z     <- qnorm(1 - (1 - ci_width / 100) / 2)
+          ci_lo <- beta - z * se
+          ci_hi <- beta + z * se
+          # Combined p-value via z-test
+          pval  <- 2 * pnorm(-abs(beta / se))
+        }
+      }
+
       if (response_type == "binary")
         list(term = term, effect = exp(beta), ci_low = exp(ci_lo), ci_high = exp(ci_hi),
              pval = pval, pval_interaction = NA_real_, aic = aic_val)
@@ -638,6 +675,128 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       }
     }, 
     .fill_strat_by_genotype = function(arr, snp_raw, ref, response, cov_df,
+                                   interaction_var, response_type, opts,
+                                   int_models, user_levels = NULL, response_raw, snp_lbl) {
+      snp_char     <- as.character(snp_raw)
+      all_genos    <- c(ref, setdiff(if (!is.null(user_levels)) user_levels else sort(unique(snp_char[!is.na(snp_char)])), ref))
+      int_var_data <- cov_df[[interaction_var]]
+      int_lbl      <- attr(self$data[[interaction_var]], "label") %||% interaction_var
+      resp_lv      <- levels(as.factor(response_raw))
+
+      is_numerical <- length(unique(int_var_data)) > 6 && sum(is.na(as.numeric(int_var_data))) == 0
+      if (!is_numerical) {
+        cov_levels <- if (is.factor(int_var_data)) levels(int_var_data) else sort(unique(as.character(int_var_data[!is.na(int_var_data)])))
+      } else {
+        cov_levels <- interaction_var
+      }
+
+      for (mdl in int_models) {
+        if (mdl == "logadditive") next
+        geno_labels <- private$.geno_labels_for_model(mdl, all_genos, ref)
+
+        snp_enc_m <- encode_model(snp_char, ref, mdl, user_levels)
+        res_list  <- fit_interaction_model(snp_enc_m, response, cov_df,
+                                           interaction_var, mdl, response_type, opts$ciWidth,
+                                           conditional = TRUE, cond_var = "snp")
+        if (is.null(res_list)) next
+
+        # Number of res_list entries per genotype group:
+        # categorical: one per non-reference covariate level; numerical: one
+        n_cov_contrasts <- if (is_numerical) 1L else max(1L, length(cov_levels) - 1L)
+
+        for (gl in geno_labels) {
+          gl_idx <- match(gl, geno_labels)
+          key_g  <- paste0(snp_lbl, ": ", gl)
+          if (is.null(tryCatch(arr$get(key = key_g), error = function(e) NULL))) arr$addItem(key = key_g)
+          tbl <- arr$get(key = key_g)
+
+          tbl$getColumn("level")$setTitle(int_lbl)
+          tbl$getColumn("effect")$setTitle(if (response_type == "binary") "OR" else "\u03B2")
+
+          if (response_type == "binary") {
+            tbl$getColumn("stat0")$setTitle(resp_lv[1])
+            tbl$getColumn("stat1")$setTitle(resp_lv[2])
+            tbl$getColumn("stat0")$setVisible(TRUE)
+            tbl$getColumn("stat1")$setVisible(TRUE)
+          } else {
+            tbl$getColumn("stat0")$setTitle("Mean (SD)")
+            tbl$getColumn("stat0")$setVisible(TRUE)
+            tbl$getColumn("stat1")$setVisible(FALSE)
+          }
+
+          # split_genos handles combined labels like "A/G-G/G" for aggregated models
+          mask_g     <- snp_char %in% private$.split_genos(gl)
+          int_g      <- int_var_data[mask_g]
+          resp_g     <- response[mask_g]
+          resp_raw_g <- response_raw[mask_g]
+
+          if (response_type == "binary") {
+            counts <- table(factor(int_g, levels = cov_levels),
+                            factor(resp_raw_g, levels = resp_lv))
+            totals <- colSums(counts)
+          }
+
+          # Filter res_list to this genotype group.
+          # For codominant, gl appears literally in term names (e.g. "snpA/G:sex1").
+          # For aggregated models, terms have no gl label (e.g. "snp:sex1"),
+          # so fall back to positional slice: group gl_idx occupies positions
+          # [(gl_idx-1)*n_cov_contrasts+1 .. gl_idx*n_cov_contrasts] in res_list.
+          gl_res <- res_list[grepl(gl, sapply(res_list, `[[`, "term"), fixed = TRUE)]
+          if (length(gl_res) == 0) {
+            # For factor-encoded (codominant), res_list has n_geno_labels * n_cov_contrasts entries.
+            # For integer-encoded (aggregated), res_list has only (n_geno_labels - 1) * n_cov_contrasts
+            # entries — no term for the reference genotype, mirroring how fill_strat_by_covariate
+            # has no term for the reference genotype group.
+            has_ref_terms <- length(res_list) >= length(geno_labels) * n_cov_contrasts
+            gl_offset <- if (has_ref_terms) gl_idx - 1L else gl_idx - 2L
+            start  <- gl_offset * n_cov_contrasts + 1L
+            end    <- min((gl_offset + 1L) * n_cov_contrasts, length(res_list))
+            gl_res <- if (start >= 1L && start <= length(res_list)) res_list[start:end] else list()
+          }
+
+          row_key <- 0L
+          if (!is_numerical) {
+            # Reference covariate level always OR=1 — no model term emitted for it
+            cl_ref  <- cov_levels[1]
+            stat0   <- if (response_type == "binary") fmt_cat(counts[cl_ref, 1], totals[1]) else { vals <- resp_g[as.character(int_g) == cl_ref]; fmt_cont(vals) }
+            stat1   <- if (response_type == "binary") fmt_cat(counts[cl_ref, 2], totals[2]) else ""
+            row_key <- row_key + 1L
+            tbl$addRow(rowKey = as.character(row_key), values = list(
+              level  = cl_ref, stat0 = stat0, stat1 = stat1,
+              effect = if (response_type == "binary") 1.0 else 0.0,
+              ciLow = "", ciHigh = "", pval = ""))
+
+            # Non-reference covariate levels: positional match into gl_res
+            for (i in seq_along(cov_levels[-1])) {
+              cl    <- cov_levels[-1][i]
+              res   <- if (i <= length(gl_res)) gl_res[[i]] else NULL
+              stat0 <- if (response_type == "binary") fmt_cat(counts[cl, 1], totals[1]) else { vals <- resp_g[as.character(int_g) == cl]; fmt_cont(vals) }
+              stat1 <- if (response_type == "binary") fmt_cat(counts[cl, 2], totals[2]) else ""
+              row_key <- row_key + 1L
+              tbl$addRow(rowKey = as.character(row_key), values = list(
+                level  = cl, stat0 = stat0, stat1 = stat1,
+                effect = if (!is.null(res)) res$effect else if (response_type == "binary") 1.0 else 0.0,
+                ciLow  = if (!is.null(res)) res$ci_low  else "",
+                ciHigh = if (!is.null(res)) res$ci_high else "",
+                pval   = if (!is.null(res)) res$pval    else ""))
+            }
+          } else {
+            # Numerical covariate: single summary row, one term per genotype group
+            stat0 <- if (response_type == "binary") fmt_cont(int_g[resp_raw_g == resp_lv[1]]) else fmt_cont(resp_g)
+            stat1 <- if (response_type == "binary") fmt_cont(int_g[resp_raw_g == resp_lv[2]]) else ""
+            res   <- if (length(gl_res) > 0) gl_res[[1]] else NULL
+            row_key <- row_key + 1L
+            tbl$addRow(rowKey = as.character(row_key), values = list(
+              level  = "Overall", stat0 = stat0, stat1 = stat1,
+              effect = if (!is.null(res)) res$effect else if (response_type == "binary") 1.0 else 0.0,
+              ciLow  = if (!is.null(res)) res$ci_low  else "",
+              ciHigh = if (!is.null(res)) res$ci_high else "",
+              pval   = if (!is.null(res)) res$pval    else ""))
+          }
+        }
+      }
+    },
+    .fill_strat_by_genotype_ = function(arr, snp_raw, ref, response, cov_df,
                                    interaction_var, response_type, opts,
                                    int_models, user_levels = NULL, response_raw, snp_lbl) {
       snp_char   <- as.character(snp_raw)

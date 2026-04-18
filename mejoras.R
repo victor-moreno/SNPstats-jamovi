@@ -4,6 +4,7 @@
 # stratified analysis:
 # table labels
 
+# can I have a new function .fill_cross_class that receives the same arguments and generates a table that populates the terms of the interaction model  so that, for a binary response, I get the OR for combinations of SNP and covar levels (assume categorical now). The reference category is the combination reference levels. In rows I get genotypes and in columns the covar categories. for each covar category I get n(%) n(%) OR (95%CI)
 
 # haplotype analysis: 
 # show N in Note, in addition to missings
