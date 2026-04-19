@@ -383,14 +383,17 @@ fmt_cont <- function(x) {
 # ── Inline helper required by haplo.stats ───────────────────────────────
 na.geno.keep <- function(m) {
   mf.gindx <- function(m) {
-    gindx <- which(sapply(m, function(col) inherits(col, "matrix") && ncol(col) == 2))
-    if (length(gindx) == 0) stop("No geno matrix found in data frame")
+    nvars    <- length(m)
+    typevars <- rep(0, nvars)
+    for (i in seq_len(nvars)) typevars[i] <- data.class(m[[i]])
+    gindx <- seq_len(nvars)[typevars == "model.matrix" | typevars == "matrix"]
+    if (length(gindx) == 0) stop("No geno matrix in data frame")
     if (length(gindx) >  1) stop("More than 1 geno matrix in data frame")
     gindx
   }
   gindx    <- mf.gindx(m)
-  yxmiss   <- apply(is.na(m[, -gindx, drop=FALSE]), 1, any)
-  gmiss    <- apply(is.na(m[,  gindx, drop=FALSE]), 1, all)
+  yxmiss   <- apply(is.na(m[, -gindx, drop = FALSE]), 1, any)
+  gmiss    <- apply(is.na(m[,  gindx, drop = FALSE]), 1, all)
   genoAttr <- attributes(m[, gindx])
   allmiss  <- yxmiss | gmiss
   m        <- m[!allmiss, ]
@@ -404,7 +407,9 @@ na.geno.keep <- function(m) {
         genoAttr$unique.alleles[[k]][!is.na(match(seq_len(nalleles), ualleles))]
   }
   for (att in names(genoAttr)) attr(m[, gindx], att) <- genoAttr[[att]]
-  attr(m, "yxmiss") <- yxmiss; attr(m, "gmiss") <- gmiss; m
+  attr(m, "yxmiss") <- yxmiss
+  attr(m, "gmiss")  <- gmiss
+  m
 }
 
 decode_haplo_row <- function(codes, label_list) {
