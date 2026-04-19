@@ -22,10 +22,10 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             interactionType = "multiplicative",
             showInteractionTable = TRUE,
             showInteractionAdjVars = FALSE,
-            showCrossClassTable = FALSE,
             interactionModel = "codominant",
             showStratByCovariate = FALSE,
-            showStratByGenotype = FALSE, ...) {
+            showStratByGenotype = FALSE,
+            showCrossClassTable = FALSE, ...) {
 
             super$initialize(
                 package="SNPstats",
@@ -122,10 +122,6 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "showInteractionAdjVars",
                 showInteractionAdjVars,
                 default=FALSE)
-            private$..showCrossClassTable <- jmvcore::OptionBool$new(
-                "showCrossClassTable",
-                showCrossClassTable,
-                default=FALSE)
             private$..interactionModel <- jmvcore::OptionList$new(
                 "interactionModel",
                 interactionModel,
@@ -144,6 +140,10 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "showStratByGenotype",
                 showStratByGenotype,
                 default=FALSE)
+            private$..showCrossClassTable <- jmvcore::OptionBool$new(
+                "showCrossClassTable",
+                showCrossClassTable,
+                default=FALSE)
 
             self$.addOption(private$..response)
             self$.addOption(private$..snps)
@@ -161,10 +161,10 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..interactionType)
             self$.addOption(private$..showInteractionTable)
             self$.addOption(private$..showInteractionAdjVars)
-            self$.addOption(private$..showCrossClassTable)
             self$.addOption(private$..interactionModel)
             self$.addOption(private$..showStratByCovariate)
             self$.addOption(private$..showStratByGenotype)
+            self$.addOption(private$..showCrossClassTable)
         }),
     active = list(
         response = function() private$..response$value,
@@ -183,10 +183,10 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         interactionType = function() private$..interactionType$value,
         showInteractionTable = function() private$..showInteractionTable$value,
         showInteractionAdjVars = function() private$..showInteractionAdjVars$value,
-        showCrossClassTable = function() private$..showCrossClassTable$value,
         interactionModel = function() private$..interactionModel$value,
         showStratByCovariate = function() private$..showStratByCovariate$value,
-        showStratByGenotype = function() private$..showStratByGenotype$value),
+        showStratByGenotype = function() private$..showStratByGenotype$value,
+        showCrossClassTable = function() private$..showCrossClassTable$value),
     private = list(
         ..response = NA,
         ..snps = NA,
@@ -204,10 +204,10 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..interactionType = NA,
         ..showInteractionTable = NA,
         ..showInteractionAdjVars = NA,
-        ..showCrossClassTable = NA,
         ..interactionModel = NA,
         ..showStratByCovariate = NA,
-        ..showStratByGenotype = NA)
+        ..showStratByGenotype = NA,
+        ..showCrossClassTable = NA)
 )
 
 snpAssocResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
@@ -241,9 +241,9 @@ snpAssocResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                         typingRate = function() private$.items[["typingRate"]],
                         assocTable = function() private$.items[["assocTable"]],
                         interactionTable = function() private$.items[["interactionTable"]],
-                        crossClassTable = function() private$.items[["crossClassTable"]],
                         stratByCovariate = function() private$.items[["stratByCovariate"]],
-                        stratByGenotype = function() private$.items[["stratByGenotype"]]),
+                        stratByGenotype = function() private$.items[["stratByGenotype"]],
+                        crossClassTable = function() private$.items[["crossClassTable"]]),
                     private = list(),
                     public=list(
                         initialize=function(options) {
@@ -363,47 +363,6 @@ snpAssocResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                         `visible`=FALSE))))
                             self$add(jmvcore::Array$new(
                                 options=options,
-                                name="crossClassTable",
-                                title="Cross-Classification",
-                                visible="(snpInteraction && showCrossClassTable)",
-                                template=jmvcore::Table$new(
-                                    options=options,
-                                    title="$key",
-                                    columns=list(
-                                        list(
-                                            `name`="genotype", 
-                                            `title`="Genotype", 
-                                            `type`="text"),
-                                        list(
-                                            `name`="stat0", 
-                                            `title`="Group 0", 
-                                            `type`="text"),
-                                        list(
-                                            `name`="stat1", 
-                                            `title`="Group 1", 
-                                            `type`="text"),
-                                        list(
-                                            `name`="effect", 
-                                            `title`="OR / \u03B2", 
-                                            `type`="number", 
-                                            `format`="zto"),
-                                        list(
-                                            `name`="ciLow", 
-                                            `title`="Lower CI", 
-                                            `type`="number", 
-                                            `format`="zto"),
-                                        list(
-                                            `name`="ciHigh", 
-                                            `title`="Upper CI", 
-                                            `type`="number", 
-                                            `format`="zto"),
-                                        list(
-                                            `name`="pval", 
-                                            `title`="P-value", 
-                                            `type`="number", 
-                                            `format`="zto")))))
-                            self$add(jmvcore::Array$new(
-                                options=options,
                                 name="stratByCovariate",
                                 title="Interaction \u2014 Stratified by Covariate",
                                 visible="(snpInteraction && showStratByCovariate)",
@@ -483,6 +442,42 @@ snpAssocResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                             `name`="pval", 
                                             `title`="P-value", 
                                             `type`="number", 
+                                            `format`="zto")))))
+                            self$add(jmvcore::Array$new(
+                                options=options,
+                                name="crossClassTable",
+                                title="Cross-Classification",
+                                visible="(snpInteraction && showCrossClassTable)",
+                                template=jmvcore::Table$new(
+                                    options=options,
+                                    title="$key",
+                                    columns=list(
+                                        list(
+                                            `name`="genotype", 
+                                            `title`="Genotype", 
+                                            `type`="text"),
+                                        list(
+                                            `name`="stat0", 
+                                            `title`="Group 0", 
+                                            `type`="text"),
+                                        list(
+                                            `name`="stat1", 
+                                            `title`="Group 1", 
+                                            `type`="text"),
+                                        list(
+                                            `name`="effect", 
+                                            `title`="OR / \u03B2", 
+                                            `type`="number", 
+                                            `format`="zto"),
+                                        list(
+                                            `name`="ciLow", 
+                                            `title`="Lower CI", 
+                                            `type`="number", 
+                                            `format`="zto"),
+                                        list(
+                                            `name`="ciHigh", 
+                                            `title`="Upper CI", 
+                                            `type`="number", 
                                             `format`="zto")))))}))$new(options=options)))}))
 
 snpAssocBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
@@ -526,10 +521,10 @@ snpAssocBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param interactionType .
 #' @param showInteractionTable .
 #' @param showInteractionAdjVars .
-#' @param showCrossClassTable .
 #' @param interactionModel .
 #' @param showStratByCovariate .
 #' @param showStratByGenotype .
+#' @param showCrossClassTable .
 #' @return A results object containing:
 #' \tabular{llllll}{
 #'   \code{results$validationMsg} \tab \tab \tab \tab \tab a html \cr
@@ -555,10 +550,10 @@ snpAssoc <- function(
     interactionType = "multiplicative",
     showInteractionTable = TRUE,
     showInteractionAdjVars = FALSE,
-    showCrossClassTable = FALSE,
     interactionModel = "codominant",
     showStratByCovariate = FALSE,
-    showStratByGenotype = FALSE) {
+    showStratByGenotype = FALSE,
+    showCrossClassTable = FALSE) {
 
     if ( ! requireNamespace("jmvcore", quietly=TRUE))
         stop("snpAssoc requires jmvcore to be installed (restart may be required)")
@@ -591,10 +586,10 @@ snpAssoc <- function(
         interactionType = interactionType,
         showInteractionTable = showInteractionTable,
         showInteractionAdjVars = showInteractionAdjVars,
-        showCrossClassTable = showCrossClassTable,
         interactionModel = interactionModel,
         showStratByCovariate = showStratByCovariate,
-        showStratByGenotype = showStratByGenotype)
+        showStratByGenotype = showStratByGenotype,
+        showCrossClassTable = showCrossClassTable)
 
     analysis <- snpAssocClass$new(
         options = options,

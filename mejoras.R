@@ -1,17 +1,7 @@
 
-# descriptives
-# remove missings is not working. Seems data is filtered beforehand
-
 # instead of generating the association for the first covariate, populate a drodown with all covariates and let the user choose  
 
-
-# improve association table as in web version
-#  - p value for LRT in ref cat of codominant 
-
-# stratified analysis:
-# table labels
-
-# can I have a new function .fill_cross_class that receives the same arguments and generates a table that populates the terms of the interaction model  so that, for a binary response, I get the OR for combinations of SNP and covar levels (assume categorical now). The reference category is the combination reference levels. In rows I get genotypes and in columns the covar categories. for each covar category I get n(%) n(%) OR (95%CI)
+# in this jamovi module, fix the table generated in .fill_cross_class. Now is a modified copy of .fill_strat_by_covariate. The requested fix is that the model terms used for the strata of the covariate, except the reference, needs to be calculated so that the values have a common reference for SNP and covariate. Now, the model used is conditional, but it should be the snp*covariate and calculate the ORs/betas for the levels 2+ of the covariate as beta(snp)+beta(covar)+beta(snp:covar), calculate the appropriate standard error, and exponentiate if response is binary.
 
 # haplotype analysis: 
 # show N in Note, in addition to missings

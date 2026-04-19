@@ -92,13 +92,13 @@ children:
                         name: showInteractionAdjVars
                         enable: (snpInteraction && showInteractionTable)
                   - type: CheckBox
-                    name: showCrossClassTable
-                    enable: (snpInteraction)
-                  - type: CheckBox
                     name: showStratByCovariate
                     enable: (snpInteraction)
                   - type: CheckBox
                     name: showStratByGenotype
+                    enable: (snpInteraction)
+                  - type: CheckBox
+                    name: showCrossClassTable
                     enable: (snpInteraction)
 
       - type: LayoutBox

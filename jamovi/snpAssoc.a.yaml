@@ -124,11 +124,6 @@ options:
     type: Bool
     default: false
 
-  - name: showCrossClassTable
-    title: Show cross-classification table
-    type: Bool
-    default: false
-
   - name: interactionModel
     title: Genetic model for interaction
     type: List
@@ -149,3 +144,9 @@ options:
     title: Stratified analysis by genotype
     type: Bool
     default: false
+
+  - name: showCrossClassTable
+    title: Show cross-classification table
+    type: Bool
+    default: false
+

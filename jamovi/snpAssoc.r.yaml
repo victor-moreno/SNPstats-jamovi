@@ -59,24 +59,6 @@ items:
             - {name: AIC,             title: AIC,              type: number, format: zto, visible: false}
             - {name: BIC,             title: BIC,              type: number, format: zto, visible: false}
 
-        # ── Cross-classification table ──────────────────────────
-        # One sub-table per covariate level; populated dynamically.
-        - name: crossClassTable
-          title: Cross-Classification
-          type: Array
-          visible: (snpInteraction && showCrossClassTable)
-          template:
-            title: $key
-            type: Table
-            columns:
-              - {name: genotype, title: Genotype,  type: text}
-              - {name: stat0,    title: Group 0,   type: text}
-              - {name: stat1,    title: Group 1,   type: text}
-              - {name: effect,   title: OR / β,    type: number, format: zto}
-              - {name: ciLow,    title: Lower CI,  type: number, format: zto}
-              - {name: ciHigh,   title: Upper CI,  type: number, format: zto}
-              - {name: pval,     title: P-value,   type: number, format: zto}
-
         # One sub-table per covariate level; populated dynamically.
         - name: stratByCovariate
           title: Interaction — Stratified by Covariate
@@ -111,3 +93,21 @@ items:
               - {name: ciLow,     title: Lower CI,   type: number, format: zto}
               - {name: ciHigh,    title: Upper CI,   type: number, format: zto}
               - {name: pval,      title: P-value,    type: number, format: zto}
+
+        # ── Cross-classification table ──────────────────────────
+        # One sub-table per covariate level; populated dynamically.
+        - name: crossClassTable
+          title: Cross-Classification
+          type: Array
+          visible: (snpInteraction && showCrossClassTable)
+          template:
+            title: $key
+            type: Table
+            columns:
+              - {name: genotype, title: Genotype,  type: text}
+              - {name: stat0,    title: Group 0,   type: text}
+              - {name: stat1,    title: Group 1,   type: text}
+              - {name: effect,   title: OR / β,    type: number, format: zto}
+              - {name: ciLow,    title: Lower CI,  type: number, format: zto}
+              - {name: ciHigh,   title: Upper CI,  type: number, format: zto}
+
