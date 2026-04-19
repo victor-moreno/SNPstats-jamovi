@@ -609,11 +609,56 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                         recessive  = "Recessive",  overdominant = "Overdominant",
                         logadditive = "Log-additive")
 
-      # helper: pretty-print model term by replacing internal "snp" with snp_lbl
-      .label_term <- function(term) {
-        lbl <- gsub("^snp", snp_lbl, term)
-        lbl <- gsub(paste0("snp(.*:", interaction_var, ")"), paste0(snp_lbl, "\\1"), lbl)
-        lbl <- gsub(paste0("(", interaction_var, ":)snp"),   paste0("\\1", snp_lbl), lbl)
+      # helper: pretty-print a model coefficient term for display only.
+      # res$term (the raw R coefficient name) is NEVER modified here — this
+      # function is purely cosmetic and is called only in .fill_interaction.
+      #
+      # Term shapes by formula and model type:
+      #
+      #  snp * covar  (multiplicative, any encoding)
+      #    codominant:  "snpA/G"          "snpA/G:SEXmale"   "SEXmale" (covar main)
+      #    collapsed:   "snp"             "snp:SEXmale"       "SEXmale"
+      #
+      #  snp / covar  (conditional_on_snp, factor snp)
+      #    codominant:  "snpA/G:SEXmale"  (nested covar within genotype)
+      #    collapsed:   "snp:SEXmale"
+      #
+      #  covar / snp  (conditional_on_covar)
+      #    codominant:  "SEXmale:snpA/G"  "SEXmale:snpG/G"   (snp after colon)
+      #    collapsed:   "SEXmale:snp"                         (bare snp after colon)
+      #
+      # In every case the SNP token to replace is either:
+      #   (a) leading "snp" possibly followed by a genotype suffix then ":" or EOL
+      #   (b) ":snp" anywhere in the string, possibly followed by a genotype suffix
+      #
+      # We detect whether a genotype suffix is already present (codominant) vs absent
+      # (collapsed/logadditive), and in the latter case inject geno_labels[2].
+      .label_term <- function(term, mdl, geno_labels) {
+        geno_suffix <- if (mdl == "logadditive") "per allele"
+                       else if (length(geno_labels) >= 2) geno_labels[2]
+                       else ""
+        tag_collapsed <- if (nchar(geno_suffix) > 0) paste0("(", geno_suffix, ")") else ""
+
+        # ── Case A: leading "snp" (multiplicative or conditional_on_snp) ─────
+        # Codominant: "snpA/G:SEX" or standalone "snpA/G"  → wrap suffix in parens
+        # Collapsed:  "snp:SEX"    or standalone "snp"      → inject geno tag
+        lbl <- gsub("^snp([^:]+)",               # codominant leading: has suffix
+                    paste0(snp_lbl, "(\\1)"), term)
+        if (lbl == term) {
+          # No match above → collapsed leading: bare "snp" (possibly "snp:...")
+          lbl <- gsub("^snp(?=:|$)",             # bare snp at start, before ":" or EOL
+                      paste0(snp_lbl, tag_collapsed), term, perl = TRUE)
+        }
+
+        # ── Case B: ":snp" anywhere (conditional_on_covar, covar / snp) ──────
+        # Codominant: "SEXmale:snpA/G"  → "SEXmale:SNP1(A/G)"
+        # Collapsed:  "SEXmale:snp"     → "SEXmale:SNP1(A/G-G/G)"
+        # (Also handles multiplicative covar-leading cross terms if they arise)
+        lbl <- gsub(":snp([^:]+)",               # codominant trailing: has suffix
+                    paste0(":", snp_lbl, "(\\1)"), lbl)
+        lbl <- gsub(":snp(?=:|$)",               # collapsed trailing: bare snp
+                    paste0(":", snp_lbl, tag_collapsed), lbl, perl = TRUE)
+
         lbl
       }
 
@@ -637,6 +682,13 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         }
         if (is.null(res_list)) next
 
+        # geno_labels needed for term labelling in collapsed models
+        snp_char_l  <- as.character(snp_raw)
+        all_genos_l <- c(ref, setdiff(
+          if (!is.null(user_levels)) user_levels
+          else sort(unique(snp_char_l[!is.na(snp_char_l)])), ref))
+        geno_labels_l <- private$.geno_labels_for_model(mdl, all_genos_l, ref)
+
         # BIC denominator
         n_fit_bic <- sum(!is.na(snp_enc) & !is.na(response) & complete.cases(cov_df))
         n_cov_bic <- ncol(cov_df)
@@ -659,7 +711,7 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           row_key  <- row_key + 1L
           is_inter <- !is.na(res$pval_interaction)
 
-          term_label <- .label_term(res$term)
+          term_label <- .label_term(res$term, mdl, geno_labels_l)
 
           # p_interaction: show on the first term that carries it (any model type)
           pval_int_val <- if (!is.na(res$pval_interaction) && first_inter)
