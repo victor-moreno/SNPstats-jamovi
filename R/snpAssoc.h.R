@@ -19,7 +19,10 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             ciWidth = 95,
             showAIC = FALSE,
             snpInteraction = FALSE,
+            interactionType = "multiplicative",
             showInteractionTable = TRUE,
+            showInteractionCovar = TRUE,
+            showInteractionAdjVars = FALSE,
             showCrossClassTable = FALSE,
             interactionModel = "codominant",
             showStratByCovariate = FALSE,
@@ -104,10 +107,26 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "snpInteraction",
                 snpInteraction,
                 default=FALSE)
+            private$..interactionType <- jmvcore::OptionList$new(
+                "interactionType",
+                interactionType,
+                options=list(
+                    "multiplicative",
+                    "conditional_on_snp",
+                    "conditional_on_covar"),
+                default="multiplicative")
             private$..showInteractionTable <- jmvcore::OptionBool$new(
                 "showInteractionTable",
                 showInteractionTable,
                 default=TRUE)
+            private$..showInteractionCovar <- jmvcore::OptionBool$new(
+                "showInteractionCovar",
+                showInteractionCovar,
+                default=TRUE)
+            private$..showInteractionAdjVars <- jmvcore::OptionBool$new(
+                "showInteractionAdjVars",
+                showInteractionAdjVars,
+                default=FALSE)
             private$..showCrossClassTable <- jmvcore::OptionBool$new(
                 "showCrossClassTable",
                 showCrossClassTable,
@@ -144,7 +163,10 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..ciWidth)
             self$.addOption(private$..showAIC)
             self$.addOption(private$..snpInteraction)
+            self$.addOption(private$..interactionType)
             self$.addOption(private$..showInteractionTable)
+            self$.addOption(private$..showInteractionCovar)
+            self$.addOption(private$..showInteractionAdjVars)
             self$.addOption(private$..showCrossClassTable)
             self$.addOption(private$..interactionModel)
             self$.addOption(private$..showStratByCovariate)
@@ -164,7 +186,10 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ciWidth = function() private$..ciWidth$value,
         showAIC = function() private$..showAIC$value,
         snpInteraction = function() private$..snpInteraction$value,
+        interactionType = function() private$..interactionType$value,
         showInteractionTable = function() private$..showInteractionTable$value,
+        showInteractionCovar = function() private$..showInteractionCovar$value,
+        showInteractionAdjVars = function() private$..showInteractionAdjVars$value,
         showCrossClassTable = function() private$..showCrossClassTable$value,
         interactionModel = function() private$..interactionModel$value,
         showStratByCovariate = function() private$..showStratByCovariate$value,
@@ -183,7 +208,10 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..ciWidth = NA,
         ..showAIC = NA,
         ..snpInteraction = NA,
+        ..interactionType = NA,
         ..showInteractionTable = NA,
+        ..showInteractionCovar = NA,
+        ..showInteractionAdjVars = NA,
         ..showCrossClassTable = NA,
         ..interactionModel = NA,
         ..showStratByCovariate = NA,
@@ -503,7 +531,10 @@ snpAssocBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param ciWidth .
 #' @param showAIC .
 #' @param snpInteraction .
+#' @param interactionType .
 #' @param showInteractionTable .
+#' @param showInteractionCovar .
+#' @param showInteractionAdjVars .
 #' @param showCrossClassTable .
 #' @param interactionModel .
 #' @param showStratByCovariate .
@@ -530,7 +561,10 @@ snpAssoc <- function(
     ciWidth = 95,
     showAIC = FALSE,
     snpInteraction = FALSE,
+    interactionType = "multiplicative",
     showInteractionTable = TRUE,
+    showInteractionCovar = TRUE,
+    showInteractionAdjVars = FALSE,
     showCrossClassTable = FALSE,
     interactionModel = "codominant",
     showStratByCovariate = FALSE,
@@ -564,7 +598,10 @@ snpAssoc <- function(
         ciWidth = ciWidth,
         showAIC = showAIC,
         snpInteraction = snpInteraction,
+        interactionType = interactionType,
         showInteractionTable = showInteractionTable,
+        showInteractionCovar = showInteractionCovar,
+        showInteractionAdjVars = showInteractionAdjVars,
         showCrossClassTable = showCrossClassTable,
         interactionModel = interactionModel,
         showStratByCovariate = showStratByCovariate,

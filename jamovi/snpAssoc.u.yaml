@@ -79,11 +79,21 @@ children:
                 enable: (response && snps && covariates)
                 children:
                   - type: ComboBox
+                    name: interactionType
+                    enable: (snpInteraction)
+                  - type: ComboBox
                     name: interactionModel
                     enable: (snpInteraction)
                   - type: CheckBox
                     name: showInteractionTable
                     enable: (snpInteraction)
+                    children:
+                      - type: CheckBox
+                        name: showInteractionCovar
+                        enable: (snpInteraction && showInteractionTable)
+                      - type: CheckBox
+                        name: showInteractionAdjVars
+                        enable: (snpInteraction && showInteractionTable)
                   - type: CheckBox
                     name: showCrossClassTable
                     enable: (snpInteraction)

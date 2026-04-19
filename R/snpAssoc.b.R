@@ -77,74 +77,111 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
   adj_part <- if (length(adj_covs) > 0) paste("+", paste(adj_covs, collapse = "+")) else ""
 
   if (conditional) {
-    # to be reviewd
-    # ── FIX: Correct nesting direction based on stratification type ───────────
+    # ── Build nested formula based on conditioning direction ──────────────────
     if (cond_var == "snp") {
-      # Stratified by genotype: estimate interaction_var effect within each SNP level
+      # covariate effect within each SNP level
       if (is.factor(snp_enc)) {
-        formula_fit <- as.formula(paste("resp ~ snp /", interaction_var, adj_part))
+        formula_fit  <- as.formula(paste("resp ~ snp /", interaction_var, adj_part))
       } else {
-        formula_fit <- as.formula(paste("resp ~ snp *", interaction_var, adj_part))
+        formula_fit  <- as.formula(paste("resp ~ snp *", interaction_var, adj_part))
       }
     } else {
-      # Stratified by covariate: estimate SNP effect within each covariate level
+      # SNP effect within each covariate level
       formula_fit <- as.formula(paste("resp ~", interaction_var, "/ snp", adj_part))
     }
+    # Additive (no-interaction) formula for LRT
+    formula_add <- as.formula(paste("resp ~ snp +", interaction_var, adj_part))
 
-    fit <- if (response_type == "binary") glm(formula_fit, data = df, family = binomial()) else lm(formula_fit, data = df)
-    pval_col <- if (response_type == "binary") "Pr(>|z|)" else "Pr(>|t|)"
-    coefs <- summary(fit)$coefficients
-    ci_mat <- tryCatch(confint(fit, level = ci_width / 100), error = function(e) matrix(NA, nrow = nrow(coefs), ncol = 2))
-    aic_val <- AIC(fit)
-
-    # Nested terms (e.g., `snpRef:covar` or `covar:snpHet`) represent conditional effects
-    if (cond_var == "snp" && !is.factor(snp_enc)) {
-      # snp*x: standalone covariate terms = effect within ref genotype group
-      #        interaction terms = effect within non-ref genotype group
-      inter_terms <- grep(paste0("^", interaction_var, "|:"),
-                          rownames(coefs), value = TRUE, perl = TRUE)
+    if (response_type == "binary") {
+      fit     <- glm(formula_fit, data = df, family = binomial())
+      fit_add <- glm(formula_add, data = df, family = binomial())
+      pval_col <- "Pr(>|z|)"; lrtest <- "Chisq"; lrtest_label <- "Pr(>Chi)"
     } else {
-      inter_terms <- grep(":", rownames(coefs), value = TRUE)
+      fit     <- lm(formula_fit, data = df)
+      fit_add <- lm(formula_add, data = df)
+      pval_col <- "Pr(>|t|)"; lrtest <- "F"; lrtest_label <- "Pr(>F)"
     }
-    if (length(inter_terms) == 0) return(NULL)
 
-lapply(inter_terms, function(term) {
-      idx  <- match(term, rownames(coefs))
+    # ── LRT for interaction (nested vs additive) ──────────────────────────────
+    lrt_cond <- tryCatch(anova(fit_add, fit, test = lrtest), error = function(e) NULL)
+    p_inter  <- if (!is.null(lrt_cond)) lrt_cond[2, lrtest_label] else NA_real_
+
+    coefs   <- summary(fit)$coefficients
+    ci_mat  <- tryCatch(confint(fit, level = ci_width / 100),
+                        error = function(e) matrix(NA, nrow = nrow(coefs), ncol = 2))
+    aic_val <- AIC(fit)
+    all_rows <- rownames(coefs)
+
+    # ── Classify rows ─────────────────────────────────────────────────────────
+    # Nested/interaction terms always contain ":"
+    inter_rows_idx <- grep(":", all_rows)
+    # For snp*x (numeric snp): standalone covariate main-effect terms also belong
+    # to the conditional set (they represent the covariate effect in the ref group)
+    if (cond_var == "snp" && !is.factor(snp_enc)) {
+      cond_extra_idx <- grep(paste0("^", interaction_var), all_rows)
+    } else {
+      cond_extra_idx <- integer(0)
+    }
+    # SNP main-effect rows
+    snp_rows_idx   <- grep("^snp", all_rows)
+    snp_rows_idx   <- setdiff(snp_rows_idx, inter_rows_idx)
+    # Adjustment covariate rows: not intercept, not snp, not interaction_var, not ":"
+    adj_rows_idx   <- setdiff(
+      seq_along(all_rows),
+      c(grep("^\\(Intercept\\)", all_rows),
+        snp_rows_idx, inter_rows_idx, cond_extra_idx,
+        grep(paste0("^", interaction_var), all_rows)))
+
+    if (length(inter_rows_idx) == 0 && length(cond_extra_idx) == 0) return(NULL)
+
+    # All rows we might return (filtering by show_* happens in .fill_interaction)
+    all_keep <- unique(c(snp_rows_idx, cond_extra_idx, inter_rows_idx, adj_rows_idx))
+
+    first_inter_done <- FALSE
+    lapply(all_keep, function(r) {
+      idx  <- r
+      term <- all_rows[r]
       beta <- coefs[idx, "Estimate"]
       pval <- coefs[idx, pval_col]
       ci_lo <- ci_mat[idx, 1]; ci_hi <- ci_mat[idx, 2]
 
-      # For snp*x with integer snp: interaction terms (containing ":") represent
-      # the *additional* covariate effect in the non-ref group, not the full effect.
-      # Combine with the corresponding main covariate term using delta method.
+      is_inter_term <- r %in% inter_rows_idx
+      row_type <- if (r %in% snp_rows_idx)     "snp"
+                  else if (is_inter_term)        "interaction"
+                  else if (r %in% cond_extra_idx) "covariate"
+                  else                            "adjustment"
+
+      # For snp*x with numeric snp: interaction terms represent the *additional*
+      # covariate effect vs ref group — combine with main covariate term (delta method).
       if (cond_var == "snp" && !is.factor(snp_enc) && grepl(":", term, fixed = TRUE)) {
-        # Find the matching main-effect term (same covariate level, no "snp:" prefix)
-        main_term <- sub(paste0("snp:", interaction_var), interaction_var,
-                         sub("^snp:", "", term))
-        main_term <- gsub("snp", "", term)   # e.g. "snp:xMale" -> ":xMale" -- wrong
-        # More reliably: strip everything up to and including ":"
-        main_term <- sub(".*:", "", term)    # "snp:xMale" -> "xMale"
-        main_idx  <- match(main_term, rownames(coefs))
+        main_term <- sub(".*:", "", term)   # "snp:xMale" -> "xMale"
+        main_idx  <- match(main_term, all_rows)
         if (!is.na(main_idx)) {
-          beta  <- beta + coefs[main_idx, "Estimate"]
-          # Delta method: Var(a+b) = Var(a) + Var(b) + 2*Cov(a,b)
+          beta     <- beta + coefs[main_idx, "Estimate"]
           vcov_mat <- vcov(fit)
-          se    <- sqrt(vcov_mat[idx, idx] + vcov_mat[main_idx, main_idx] +
-                        2 * vcov_mat[idx, main_idx])
-          z     <- qnorm(1 - (1 - ci_width / 100) / 2)
-          ci_lo <- beta - z * se
-          ci_hi <- beta + z * se
-          # Combined p-value via z-test
-          pval  <- 2 * pnorm(-abs(beta / se))
+          se       <- sqrt(vcov_mat[idx, idx] + vcov_mat[main_idx, main_idx] +
+                           2 * vcov_mat[idx, main_idx])
+          z        <- qnorm(1 - (1 - ci_width / 100) / 2)
+          ci_lo    <- beta - z * se
+          ci_hi    <- beta + z * se
+          pval     <- 2 * pnorm(-abs(beta / se))
         }
       }
 
+      # Attach p_inter to the first interaction (":") term only
+      attach_p <- is_inter_term && !first_inter_done
+      if (attach_p) first_inter_done <<- TRUE
+
       if (response_type == "binary")
         list(term = term, effect = exp(beta), ci_low = exp(ci_lo), ci_high = exp(ci_hi),
-             pval = pval, pval_interaction = NA_real_, aic = aic_val)
+             pval = pval,
+             pval_interaction = if (attach_p) p_inter else NA_real_,
+             aic = aic_val, row_type = row_type)
       else
         list(term = term, effect = beta, ci_low = ci_lo, ci_high = ci_hi,
-             pval = pval, pval_interaction = NA_real_, aic = aic_val)
+             pval = pval,
+             pval_interaction = if (attach_p) p_inter else NA_real_,
+             aic = aic_val, row_type = row_type)
     })
   } else {
     # ── Original * interaction logic ─────────────────────────────────────
@@ -170,22 +207,34 @@ lapply(inter_terms, function(term) {
       all_rows    <- rownames(coefs)
       snp_rows    <- grep("^snp", all_rows)
       inter_rows  <- grep(paste0("^snp.*:", interaction_var, "|^", interaction_var, ":.*snp"), all_rows)
-      keep_rows   <- unique(c(snp_rows, inter_rows))
+      # covariate main-effect rows (interaction_var but not interaction terms)
+      covar_rows  <- grep(paste0("^", interaction_var), all_rows)
+      covar_rows  <- setdiff(covar_rows, inter_rows)
+      # additional adjustment covariate rows: everything else except intercept, snp, covar, inter
+      adj_rows    <- setdiff(seq_along(all_rows),
+                             c(grep("^\\(Intercept\\)", all_rows),
+                               snp_rows, inter_rows, covar_rows))
+      # always return SNP + interaction rows; flag covar/adj rows for optional display
+      keep_rows   <- unique(c(snp_rows, inter_rows, covar_rows, adj_rows))
       if (length(keep_rows) == 0) return(NULL)
 
       lapply(keep_rows, function(r) {
-        beta   <- coefs[r, "Estimate"]
-        pval   <- coefs[r, pval_col]
-        ci_lo  <- ci[r, 1]; ci_hi  <- ci[r, 2]
+        beta     <- coefs[r, "Estimate"]
+        pval     <- coefs[r, pval_col]
+        ci_lo    <- ci[r, 1]; ci_hi  <- ci[r, 2]
         is_inter <- r %in% inter_rows
+        row_type <- if (r %in% snp_rows)   "snp"
+                    else if (r %in% inter_rows)  "interaction"
+                    else if (r %in% covar_rows)  "covariate"
+                    else                         "adjustment"
         if (response_type == "binary")
           list(term = all_rows[r], effect = exp(beta), ci_low = exp(ci_lo), ci_high = exp(ci_hi),
                pval = pval, pval_interaction = if (is_inter) p_inter else NA_real_,
-               aic = aic_val, is_first = (r == keep_rows[1]))
+               aic = aic_val, is_first = (r == keep_rows[1]), row_type = row_type)
         else
           list(term = all_rows[r], effect = beta, ci_low = ci_lo, ci_high = ci_hi,
                pval = pval, pval_interaction = if (is_inter) p_inter else NA_real_,
-               aic = aic_val, is_first = (r == keep_rows[1]))
+               aic = aic_val, is_first = (r == keep_rows[1]), row_type = row_type)
       })
     }, error = function(e) NULL)
   }
@@ -521,15 +570,26 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       adj_vars   <- setdiff(names(cov_df), interaction_var)
       int_lbl    <- attr(self$data[[interaction_var]], "label") %||% interaction_var
 
-      tbl$setTitle(paste0(snp_lbl, " \u00D7 ", int_lbl, " interaction"))
+      # ── Interaction type: formula parameterisation ──────────────────────────
+      # "multiplicative"       snp * covar   (default)
+      # "conditional_on_snp"   covar / snp   (covar effect within each SNP stratum)
+      # "conditional_on_covar" snp / covar   (SNP effect within each covariate stratum)
+      int_type <- if (is.null(opts$interactionType)) "multiplicative" else opts$interactionType
 
-      if (length(adj_vars) > 0){
-        note_parts <- paste0(". Adjusted for: ", paste(sapply(adj_vars, function(x)
-                               attr(self$data[[x]], "label") %||% x), collapse = ", "))
+      # Human-readable formula token for table title
+      formula_token <- switch(int_type,
+        multiplicative       = paste0(snp_lbl, " \u00D7 ", int_lbl),
+        conditional_on_snp   = paste0(int_lbl,  " | ", snp_lbl),
+        conditional_on_covar = paste0(snp_lbl, " | ", int_lbl))
+      tbl$setTitle(paste0(formula_token, " interaction"))
+
+      if (length(adj_vars) > 0) {
+        note_parts <- paste0("Adjusted for: ", paste(sapply(adj_vars, function(x)
+          attr(self$data[[x]], "label") %||% x), collapse = ", "))
         tbl$setNote(note = note_parts, key = "intcov")
       }
 
-      # report missings (not working previous filter)
+      # missing obs note
       snp_enc_tmp   <- encode_model(as.character(snp_raw), ref, "logadditive", user_levels)
       complete_full <- !is.na(response) & !is.na(snp_enc_tmp) & complete.cases(cov_df)
       n_miss        <- length(response) - sum(complete_full)
@@ -538,40 +598,80 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       else
         tbl$setNote(note = NULL, key = "missing_cov")
 
-      
       tbl$getColumn("AIC")$setVisible(isTRUE(opts$showAIC))
       tbl$getColumn("BIC")$setVisible(isTRUE(opts$showAIC))
 
-      # now only 1 model in int_models, but keep loop structure for future multi-select
+      # display filters
+      show_covar   <- isTRUE(opts$showInteractionCovar)
+      show_adj     <- isTRUE(opts$showInteractionAdjVars)
+
       model_labels <- c(codominant = "Codominant", dominant = "Dominant",
                         recessive  = "Recessive",  overdominant = "Overdominant",
                         logadditive = "Log-additive")
+
+      # helper: pretty-print model term by replacing internal "snp" with snp_lbl
+      .label_term <- function(term) {
+        lbl <- gsub("^snp", snp_lbl, term)
+        lbl <- gsub(paste0("snp(.*:", interaction_var, ")"), paste0(snp_lbl, "\\1"), lbl)
+        lbl <- gsub(paste0("(", interaction_var, ":)snp"),   paste0("\\1", snp_lbl), lbl)
+        lbl
+      }
+
       row_key <- 0L
       for (mdl in int_models) {
         snp_enc  <- encode_model(as.character(snp_raw), ref, mdl, user_levels)
-        res_list <- fit_interaction_model(snp_enc, response, cov_df,
-                                          interaction_var, mdl, response_type, opts$ciWidth)
+
+        # ── Choose conditional flag and cond_var based on interactionType ──
+        if (int_type == "multiplicative") {
+          res_list <- fit_interaction_model(snp_enc, response, cov_df,
+                                            interaction_var, mdl, response_type, opts$ciWidth,
+                                            conditional = FALSE)
+        } else if (int_type == "conditional_on_snp") {
+          res_list <- fit_interaction_model(snp_enc, response, cov_df,
+                                            interaction_var, mdl, response_type, opts$ciWidth,
+                                            conditional = TRUE, cond_var = "snp")
+        } else {   # conditional_on_covar
+          res_list <- fit_interaction_model(snp_enc, response, cov_df,
+                                            interaction_var, mdl, response_type, opts$ciWidth,
+                                            conditional = TRUE, cond_var = interaction_var)
+        }
         if (is.null(res_list)) next
 
-        # Compute n_fit and n_cov for BIC calculation
-        snp_enc_bic   <- encode_model(as.character(snp_raw), ref, mdl, user_levels)
-        n_fit_bic     <- sum(!is.na(snp_enc_bic) & !is.na(response) & complete.cases(cov_df))
-        n_cov_bic     <- ncol(cov_df)
+        # BIC denominator
+        n_fit_bic <- sum(!is.na(snp_enc) & !is.na(response) & complete.cases(cov_df))
+        n_cov_bic <- ncol(cov_df)
 
         first_row <- TRUE; first_inter <- TRUE
+
         for (res in res_list) {
+          # Determine whether to show this row based on its type
+          rtype <- if (is.null(res$row_type)) "snp" else res$row_type
+          # display filters:
+          # - "snp" rows in conditional models = SNP main effects (reference-group offset),
+          #   not conditional effects; suppress them so only nested/":"-terms are shown
+          if (rtype == "snp" && int_type != "multiplicative") next
+          # - "covariate" rows in multiplicative = main-effect of interaction var (optional)
+          # - "covariate" rows in conditional    = conditional effects being estimated (always shown)
+          # - "adjustment" rows: optional in all model types
+          if (rtype == "covariate"  && int_type == "multiplicative" && !show_covar) next
+          if (rtype == "adjustment" && !show_adj)   next
+
           row_key  <- row_key + 1L
           is_inter <- !is.na(res$pval_interaction)
-          # Replace the generic "snp" prefix in term labels with the actual SNP name
-          term_label <- gsub("^snp", snp_lbl, res$term)
-          term_label <- gsub(paste0("snp(.*:", interaction_var, ")"), paste0(snp_lbl, "\\1"), term_label)
-          term_label <- gsub(paste0("(", interaction_var, ":)snp"), paste0("\\1", snp_lbl), term_label)
+
+          term_label <- .label_term(res$term)
+
+          # p_interaction: show on the first term that carries it (any model type)
+          pval_int_val <- if (!is.na(res$pval_interaction) && first_inter)
+                            res$pval_interaction else ""
+
           vals <- list(
             model  = if (first_row) model_labels[mdl] else "",
             term   = term_label,
             effect = res$effect, ciLow = res$ci_low, ciHigh = res$ci_high,
             pval   = res$pval,
-            pvalInteraction = if (is_inter && first_inter) res$pval_interaction else "")
+            pvalInteraction = pval_int_val)
+
           if (isTRUE(opts$showAIC)) {
             aic_val <- if (first_row && !is.nan(res$aic)) round(res$aic, 2) else ""
             bic_val <- if (first_row && !is.nan(res$aic))
@@ -579,9 +679,10 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             vals[["AIC"]] <- aic_val
             vals[["BIC"]] <- bic_val
           }
+
           tbl$addRow(rowKey = as.character(row_key), values = vals)
           first_row <- FALSE
-          if (is_inter) first_inter <- FALSE
+          if (!is.na(res$pval_interaction)) first_inter <- FALSE
         }
       }
     },
