@@ -1,4 +1,3 @@
-# rethink encode_model. It returns a factor for codominant, but an integer
 
 # descriptives
 # remove missings is not working. Seems data is filtered beforehand

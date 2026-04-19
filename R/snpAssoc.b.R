@@ -673,16 +673,11 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       adj_cov_df   <- if (length(adj_vars) > 0) cov_df[, adj_vars, drop=FALSE] else NULL
       cov_levels   <- if (is.factor(int_var_data)) levels(int_var_data) else sort(unique(int_var_data[!is.na(int_var_data)]))
 
-      # VM
-      # Fit to compute omnibus interaction p-value. Could be extracted from the conditional model fit below    
+      # Omnibus interaction p-value for table notes (multiplicative model)
       mdl_for_p <- if ("codominant" %in% int_models) "codominant" else int_models[1]
       int_res_p <- fit_interaction_model(encode_model(snp_char, ref, mdl_for_p, user_levels), response, cov_df,
                                         interaction_var, mdl_for_p, response_type, opts$ciWidth, conditional = FALSE)
       p_inter <- if (!is.null(int_res_p)) int_res_p[[1]]$pval_interaction else NA_real_
-
-
-      # VM
-      # table is OK. bu why the interaction models is refitted for each cov_level?
 
       for (cl in cov_levels) {
         cl_label <- as.character(cl)
@@ -700,53 +695,50 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           tbl$getColumn("stat1")$setVisible(FALSE)
         }
         if (!is.na(p_inter)) tbl$setNote(key = "pinter", note = paste0("Interaction p-value: ", format.pval(p_inter, digits=3, eps=0.001)))
+      }
 
-        # Descriptive stats for this stratum
-        mask_k <- !is.na(int_var_data) & int_var_data == cl & !is.na(snp_raw)
-        if (!is.null(adj_cov_df) && ncol(adj_cov_df) > 0) mask_k <- mask_k & complete.cases(adj_cov_df)
-        snp_c_k    <- snp_char[mask_k]
-        response_k <- response[mask_k]
+      # Fit each model once on full data, then distribute results across
+      # per-covariate-level tables.  Previously the fit was inside the cl loop,
+      # causing identical refits for every level — unnecessary.
+      for (mdl in int_models) {
+        res_list <- fit_interaction_model(
+          snp_enc = encode_model(snp_char, ref, mdl, user_levels), response = response,
+          covariates_df = cov_df, interaction_var = interaction_var, model_name = mdl,
+          response_type = response_type, ci_width = opts$ciWidth, conditional = TRUE)
+        if (is.null(res_list)) next
 
-        row_key <- 0L
-        for (mdl in int_models) {
-          # Fit conditional model on FULL data to keep adjustment, then filter
-          res_list <- fit_interaction_model(
-            snp_enc = encode_model(snp_char, ref, mdl, user_levels), response = response,
-            covariates_df = cov_df, interaction_var = interaction_var, model_name = mdl,
-            response_type = response_type, ci_width = opts$ciWidth, conditional = TRUE)
-          if (is.null(res_list)) next
+        inter_only  <- res_list[sapply(res_list, function(r)
+          is.null(r$row_type) || r$row_type == "interaction")]
+        geno_labels <- private$.geno_labels_for_model(mdl, all_genos, ref)
 
-          # Extract only nested/interaction terms (row_type "interaction"), then
-          # match by covariate level label.  "snp" main-effect and "covariate" rows
-          # must be excluded — the same contamination fix applied to fill_strat_by_genotype.
-          # For collapsed models with snp*covar the reference covariate level produces
-          # no ":" term at all (its SNP effect is in the bare "snp" main-effect row);
-          # level_res will legitimately be empty for that stratum, but we still want
-          # to render the table (ref genotype OR=1, non-ref genotype rows get no estimate).
-          inter_only <- res_list[sapply(res_list, function(r)
-            is.null(r$row_type) || r$row_type == "interaction")]
-          level_res  <- inter_only[grepl(cl_label, sapply(inter_only, `[[`, "term"), fixed = TRUE)]
+        for (cl in cov_levels) {
+          cl_label  <- as.character(cl)
+          level_res <- inter_only[grepl(cl_label, sapply(inter_only, `[[`, "term"), fixed = TRUE)]
           if (length(level_res) == 0) next
 
-          geno_labels <- private$.geno_labels_for_model(mdl, all_genos, ref)
-          st          <- private$.compute_stats(geno_labels, snp_c_k, response_k, response_type)
+          tbl <- arr$get(key = paste0(int_lbl, ": ", cl_label))
+
+          mask_k     <- !is.na(int_var_data) & int_var_data == cl & !is.na(snp_raw)
+          if (!is.null(adj_cov_df) && ncol(adj_cov_df) > 0) mask_k <- mask_k & complete.cases(adj_cov_df)
+          st <- private$.compute_stats(geno_labels, snp_char[mask_k], response[mask_k], response_type)
+
+          row_key <- 0L
 
           if (mdl == "logadditive") {
-            res <- level_res[[1]]
-            row_key <- row_key + 1L
-            tbl$addRow(rowKey = as.character(row_key), values = list(
-              genotype = paste0(model_labels[mdl], " (per allele)"), stat0 = "---", stat1 = " ",
-              effect = res$effect, ciLow = res$ci_low, ciHigh = res$ci_high, pval = res$pval))
+            tbl$addRow(rowKey = "1", values = list(
+              genotype = paste0(model_labels[mdl], " (per allele)"), stat0 = "", stat1 = "",   # perhaps here I could add just N for the level?
+              effect = level_res[[1]]$effect, ciLow = level_res[[1]]$ci_low,
+              ciHigh = level_res[[1]]$ci_high, pval = level_res[[1]]$pval))
+            tbl$getColumn("stat1")$setVisible(FALSE); tbl$getColumn("stat0")$setVisible(FALSE) # hide columns 
             next
           }
 
-          # Reference row
+          # Reference genotype row (OR = 1 by definition)
           row_key <- row_key + 1L
           tbl$addRow(rowKey = as.character(row_key), values = list(
             genotype = geno_labels[1], stat0 = st$s0[1], stat1 = st$s1[1],
             effect = if (response_type == "binary") 1.0 else 0.0, ciLow = "", ciHigh = "", pval = ""))
 
-          # Comparison rows
           for (i in seq_along(level_res)) {
             res <- level_res[[i]]
             gl  <- if ((i + 1) <= length(geno_labels)) geno_labels[i + 1] else sub("snp", "", res$term)
@@ -821,9 +813,6 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                             factor(resp_raw_g, levels = resp_lv))
             totals <- colSums(counts)
           }
-
-          # VM
-          # this logic in not working. values for the reference genotype, that in model is only the covariate, is not shoing in table
 
           # Filter res_list to this genotype group.
           # We want only the nested covariate-within-genotype terms (row_type "interaction"),
