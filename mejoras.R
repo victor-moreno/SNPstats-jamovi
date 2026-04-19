@@ -1,3 +1,11 @@
+# rethink encode_model. It returns a factor for codominant, but an integer
+
+# descriptives
+# remove missings is not working. Seems data is filtered beforehand
+
+# instead of generating the association for the first covariate, populate a drodown with all covariates and let the user choose  
+
+
 # improve association table as in web version
 #  - p value for LRT in ref cat of codominant 
 

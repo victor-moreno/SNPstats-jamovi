@@ -193,7 +193,7 @@ parse_genotype <- function(x, user_levels = NULL) {
       }, USE.NAMES = FALSE))
   }
 
-  tryCatch(genetics::genotype(x_norm, sep = "/"), error = function(e) NULL)
+  genetics::genotype(x_norm, sep = "/")
 }
 
 #' Determine reference genotype (user-specified first, then most-frequent homozygote).

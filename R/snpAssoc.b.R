@@ -65,7 +65,8 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
                                   interaction_var, model_name,
                                   response_type, ci_width,
                                   conditional = FALSE, cond_var = interaction_var) {
-  df <- data.frame(resp = response, snp = snp_enc)
+  # VM fixes table but breaks lables
+  df <- data.frame(resp = response, snp = as.factor(snp_enc))
   adj_covs <- character(0)
   if (!is.null(covariates_df) && ncol(covariates_df) > 0) {
     df       <- cbind(df, covariates_df)
@@ -80,11 +81,7 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
     # ── Build nested formula based on conditioning direction ──────────────────
     if (cond_var == "snp") {
       # covariate effect within each SNP level
-      if (is.factor(snp_enc)) {
-        formula_fit  <- as.formula(paste("resp ~ snp /", interaction_var, adj_part))
-      } else {
-        formula_fit  <- as.formula(paste("resp ~ snp *", interaction_var, adj_part))
-      }
+      formula_fit  <- as.formula(paste("resp ~ snp /", interaction_var, adj_part))
     } else {
       # SNP effect within each covariate level
       formula_fit <- as.formula(paste("resp ~", interaction_var, "/ snp", adj_part))
@@ -269,7 +266,6 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         self$results$validationMsg$setVisible(TRUE)
         return()
       } else {
-        self$results$validationMsg$setContent('')
         self$results$validationMsg$setVisible(FALSE)
       }
 
@@ -320,14 +316,18 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         geno_obj    <- parse_genotype(snp_raw, user_levels)
         if (is.null(geno_obj)) next
 
+        # For each SNP, we need complete cases: no missing in SNP, response, or covariates
         snp_complete_mask <- complete_mask & !is.na(snp_raw)
         n_miss_assoc      <- n_rows - sum(snp_complete_mask)
 
+        # _cc variables are the complete-case versions
         snp_raw_cc  <- snp_raw[snp_complete_mask]
-        geno_obj_cc <- parse_genotype(snp_raw_cc, user_levels)
         response_cc <- response[snp_complete_mask]
         response_raw_cc <- response_raw[snp_complete_mask]
         cov_df_cc   <- if (!is.null(cov_df)) cov_df[snp_complete_mask, , drop = FALSE] else NULL
+
+        user_levels <- get_snp_level_order(snp_raw) # from data ordering 
+        geno_obj_cc <- parse_genotype(snp_raw_cc, user_levels) # get genotype object
         if (is.null(geno_obj_cc)) next
 
         item <- arr$get(key = snp_nm)
@@ -654,7 +654,7 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       }
 
       row_key <- 0L
-      for (mdl in int_models) {
+      for (mdl in int_models) { # for now only  model can be selected, but keep loop structure for future multi-select
         snp_enc  <- encode_model(as.character(snp_raw), ref, mdl, user_levels)
 
         # ── Choose conditional flag and cond_var based on interactionType ──
@@ -892,9 +892,6 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                             factor(resp_raw_g, levels = resp_lv))
             totals <- colSums(counts)
           }
-
-          # VM
-          # this logic in not working. values for the reference genotype, that in model is only the covariate, is not shoing in table
 
           # Filter res_list to this genotype group.
           # We want only the nested covariate-within-genotype terms (row_type "interaction"),
