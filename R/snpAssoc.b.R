@@ -589,14 +589,6 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         tbl$setNote(note = note_parts, key = "intcov")
       }
 
-      # missing obs note
-      snp_enc_tmp   <- encode_model(as.character(snp_raw), ref, "logadditive", user_levels)
-      complete_full <- !is.na(response) & !is.na(snp_enc_tmp) & complete.cases(cov_df)
-      n_miss        <- length(response) - sum(complete_full)
-      if (n_miss > 0)
-        tbl$setNote(note = paste0(n_miss, " observation(s) excluded."), key = "missing_cov")
-      else
-        tbl$setNote(note = NULL, key = "missing_cov")
 
       tbl$getColumn("AIC")$setVisible(isTRUE(opts$showAIC))
       tbl$getColumn("BIC")$setVisible(isTRUE(opts$showAIC))
@@ -697,13 +689,6 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         for (res in res_list) {
           # Determine whether to show this row based on its type
           rtype <- if (is.null(res$row_type)) "snp" else res$row_type
-          # display filters:
-          # - "snp" rows in conditional models = SNP main effects (reference-group offset),
-          #   not conditional effects; suppress them so only nested/":"-terms are shown
-          # if (rtype == "snp" && int_type != "multiplicative") next
-          # - "covariate" rows: always shown for multiplicative (*), never for conditional
-          #   (in conditional models the "interaction" rows are already the conditional effects)
-          # if (rtype == "covariate"  && int_type != "multiplicative") next
           # - "adjustment" rows: optional in all model types
           if (rtype == "adjustment" && !show_adj)   next
 
@@ -753,11 +738,16 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       adj_cov_df   <- if (length(adj_vars) > 0) cov_df[, adj_vars, drop=FALSE] else NULL
       cov_levels   <- if (is.factor(int_var_data)) levels(int_var_data) else sort(unique(int_var_data[!is.na(int_var_data)]))
 
-      # Optional: compute omnibus interaction p-value for note
+      # VM
+      # Fit to compute omnibus interaction p-value. Could be extracted from the conditional model fit below    
       mdl_for_p <- if ("codominant" %in% int_models) "codominant" else int_models[1]
       int_res_p <- fit_interaction_model(encode_model(snp_char, ref, mdl_for_p, user_levels), response, cov_df,
                                         interaction_var, mdl_for_p, response_type, opts$ciWidth, conditional = FALSE)
       p_inter <- if (!is.null(int_res_p)) int_res_p[[1]]$pval_interaction else NA_real_
+
+
+      # VM
+      # table is OK. bu why the interaction models is refitted for each cov_level?
 
       for (cl in cov_levels) {
         cl_label <- as.character(cl)
@@ -791,9 +781,18 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             response_type = response_type, ci_width = opts$ciWidth, conditional = TRUE)
           if (is.null(res_list)) next
 
-          # Extract terms belonging to this covariate level
-          level_res <- res_list[grepl(cl_label, sapply(res_list, `[[`, "term"), fixed = TRUE)]
-          if (length(level_res) == 0) next
+          # Extract only nested/interaction terms (row_type "interaction"), then
+          # match by covariate level label.  "snp" main-effect and "covariate" rows
+          # must be excluded — the same contamination fix applied to fill_strat_by_genotype.
+          # For collapsed models with snp*covar the reference covariate level produces
+          # no ":" term at all (its SNP effect is in the bare "snp" main-effect row);
+          # level_res will legitimately be empty for that stratum, but we still want
+          # to render the table (ref genotype OR=1, non-ref genotype rows get no estimate).
+          inter_only <- res_list[sapply(res_list, function(r)
+            is.null(r$row_type) || r$row_type == "interaction")]
+          level_res  <- inter_only[grepl(cl_label, sapply(inter_only, `[[`, "term"), fixed = TRUE)]
+          is_ref_cov <- cl == cov_levels[1]
+          if (length(level_res) == 0 && !is_ref_cov) next
 
           geno_labels <- private$.geno_labels_for_model(mdl, all_genos, ref)
           st          <- private$.compute_stats(geno_labels, snp_c_k, response_k, response_type)
@@ -814,8 +813,13 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             effect = if (response_type == "binary") 1.0 else 0.0, ciLow = "", ciHigh = "", pval = ""))
 
           # Comparison rows
-          for (i in seq_along(level_res)) {
-            res <- level_res[[i]]
+          # For the reference covariate level of collapsed models, level_res is empty
+          # because the SNP effect at the ref covariate level is the bare "snp" main-effect
+          # term (row_type "snp"), not a ":" term.  Fall back to those rows.
+          cmp_res <- if (length(level_res) > 0) level_res else
+            res_list[sapply(res_list, function(r) !is.null(r$row_type) && r$row_type == "snp")]
+          for (i in seq_along(cmp_res)) {
+            res <- cmp_res[[i]]
             gl  <- if ((i + 1) <= length(geno_labels)) geno_labels[i + 1] else sub("snp", "", res$term)
             row_key <- row_key + 1L
             tbl$addRow(rowKey = as.character(row_key), values = list(
@@ -889,22 +893,23 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             totals <- colSums(counts)
           }
 
+          # VM
+          # this logic in not working. values for the reference genotype, that in model is only the covariate, is not shoing in table
+
           # Filter res_list to this genotype group.
-          # For codominant, gl appears literally in term names (e.g. "snpA/G:sex1").
-          # For aggregated models, terms have no gl label (e.g. "snp:sex1"),
-          # so fall back to positional slice: group gl_idx occupies positions
-          # [(gl_idx-1)*n_cov_contrasts+1 .. gl_idx*n_cov_contrasts] in res_list.
-          gl_res <- res_list[grepl(gl, sapply(res_list, `[[`, "term"), fixed = TRUE)]
+          # We want only the nested covariate-within-genotype terms (row_type "interaction"),
+          # which contain ":". The "snp" main-effect rows (e.g. "snpA/G") must be excluded —
+          # they are the SNP effect at the reference covariate level, not what this table shows.
+          inter_only <- res_list[sapply(res_list, function(r)
+            is.null(r$row_type) || r$row_type == "interaction")]
+          gl_res <- inter_only[grepl(gl, sapply(inter_only, `[[`, "term"), fixed = TRUE)]
           if (length(gl_res) == 0) {
-            # For factor-encoded (codominant), res_list has n_geno_labels * n_cov_contrasts entries.
-            # For integer-encoded (aggregated), res_list has only (n_geno_labels - 1) * n_cov_contrasts
-            # entries — no term for the reference genotype, mirroring how fill_strat_by_covariate
-            # has no term for the reference genotype group.
-            has_ref_terms <- length(res_list) >= length(geno_labels) * n_cov_contrasts
+            # Aggregated models: no gl label in term names → positional slice over inter_only
+            has_ref_terms <- length(inter_only) >= length(geno_labels) * n_cov_contrasts
             gl_offset <- if (has_ref_terms) gl_idx - 1L else gl_idx - 2L
             start  <- gl_offset * n_cov_contrasts + 1L
-            end    <- min((gl_offset + 1L) * n_cov_contrasts, length(res_list))
-            gl_res <- if (start >= 1L && start <= length(res_list)) res_list[start:end] else list()
+            end    <- min((gl_offset + 1L) * n_cov_contrasts, length(inter_only))
+            gl_res <- if (start >= 1L && start <= length(inter_only)) inter_only[start:end] else list()
           }
 
           row_key <- 0L
@@ -945,140 +950,6 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
               ciLow  = if (!is.null(res)) res$ci_low  else "",
               ciHigh = if (!is.null(res)) res$ci_high else "",
               pval   = if (!is.null(res)) res$pval    else ""))
-          }
-        }
-      }
-    },
-    .fill_strat_by_genotype_ = function(arr, snp_raw, ref, response, cov_df,
-                                   interaction_var, response_type, opts,
-                                   int_models, user_levels = NULL, response_raw, snp_lbl) {
-      snp_char   <- as.character(snp_raw)
-      all_genos  <- c(ref, setdiff(if (!is.null(user_levels)) user_levels else sort(unique(snp_char[!is.na(snp_char)])), ref))
-      int_var_data <- cov_df[[interaction_var]]
-      int_lbl    <- attr(self$data[[interaction_var]], "label") %||% interaction_var
-      resp_lv    <- levels(as.factor(response_raw))
-      
-      # Use the specific covariate levels present in the analyzed data
-      is_numerical <- length(unique(int_var_data))  > 6 && sum(is.na(as.numeric(int_var_data))) == 0
-      if (!is_numerical) {
-        cov_levels <- if (is.factor(int_var_data)) levels(int_var_data) else sort(unique(as.character(int_var_data[!is.na(int_var_data)])))
-      } else {
-        cov_levels <- interaction_var
-      }
-
-      for (mdl in int_models) {
-        if (mdl == "logadditive") next
-        geno_labels <- private$.geno_labels_for_model(mdl, all_genos, ref)
-
-        # Fit conditional model to get the correct effects/p-values
-        snp_enc_m <- encode_model(snp_char, ref, mdl, user_levels)
-        res_list <- fit_interaction_model(snp_enc_m, response, cov_df,
-                                          interaction_var, mdl, response_type, opts$ciWidth,
-                                          conditional = TRUE, cond_var = "snp")
-        if (is.null(res_list)) next
-
-        # Map model terms to Genotype|Covariate level pairs
-        res_lookup <- list()
-        for (r in res_list) {
-          t <- r$term
-          gl_match <- geno_labels[sapply(geno_labels, function(x) grepl(x, t, fixed=TRUE))]
-          cl_match <- cov_levels[sapply(cov_levels, function(x) grepl(x, t, fixed=TRUE))]
-          if (length(gl_match) > 0 && length(cl_match) > 0) {
-            res_lookup[[paste0(gl_match[1], "|", cl_match[1])]] <- r
-          }
-        }
-
-        for (gl in geno_labels) {
-          key_g <- paste0(snp_lbl, ": ", gl)
-          if (is.null(tryCatch(arr$get(key = key_g), error = function(e) NULL))) arr$addItem(key = key_g)
-          tbl <- arr$get(key = key_g)
-          
-          tbl$getColumn("level")$setTitle(int_lbl)
-          tbl$getColumn("effect")$setTitle(if (response_type == "binary") "OR" else "\u03B2")
-          
-          if (response_type == "binary") {
-            tbl$getColumn("stat0")$setTitle(resp_lv[1])
-            tbl$getColumn("stat1")$setTitle(resp_lv[2])
-            tbl$getColumn("stat0")$setVisible(TRUE)
-            tbl$getColumn("stat1")$setVisible(TRUE)
-          } else {
-            tbl$getColumn("stat0")$setTitle("Mean (SD)") 
-            tbl$getColumn("stat0")$setVisible(TRUE)
-            tbl$getColumn("stat1")$setVisible(FALSE)
-          }
-
-          # Filter data for this specific genotype group
-          mask_g <- snp_char %in% gl 
-
-          int_g       <- int_var_data[mask_g]
-          resp_g      <- response[mask_g]
-          resp_raw_g  <- response_raw[mask_g]
-
-          if (response_type == "binary") {
-            counts <- table(factor(int_g, levels = cov_levels), 
-                            factor(resp_raw_g, levels = resp_lv))
-            totals  <- colSums(counts)
-          }
-          
-          row_key <- 0L
-          if (!is_numerical){ 
-            # categorical covariate with 5 or fewer levels: show stratified results 
-            for (cl in cov_levels) {
-              if (response_type == "binary") {
-                # Calculate response distribution within this covariate level             
-                stat0 <- fmt_cat(counts[cl,1], totals[1])
-                stat1 <- fmt_cat(counts[cl,2], totals[2])
-              } else {
-                mask_cl <- as.character(int_g) == as.character(cl)
-                vals  <- resp_g[mask_cl]
-                stat0 <- fmt_cont(vals)
-                stat1 <- ""
-              }
-
-              # Retrieve effect sizes from the conditional model
-              lookup_key <- paste0(gl, "|", cl)
-              res <- res_lookup[[lookup_key]]
-              
-              if (!is.null(res)) {
-                eff <- res$effect; cl_low <- res$ci_low; cl_high <- res$ci_high; p <- res$pval
-              } else {
-                # This is likely the reference level for the interaction
-                eff <- if (response_type == "binary") 1.0 else 0.0
-                cl_low <- ""; cl_high <- ""; p <- ""
-              }
-
-              row_key <- row_key + 1L
-              tbl$addRow(rowKey = as.character(row_key), values = list(
-                level = as.character(cl),
-                stat0 = stat0, stat1 = stat1,
-                effect = eff, ciLow = cl_low, ciHigh = cl_high, pval = p))
-            } 
-          } else {
-            # Numerical covariate: show overall effect for this genotype group
-            if (response_type == "binary") {
-              stat0 <- fmt_cont(int_g[resp_raw_g == resp_lv[1]])
-              stat1 <- fmt_cont(int_g[resp_raw_g == resp_lv[2]])
-            } else {
-              stat0 <- fmt_cont(resp_g)
-              stat1 <- ""
-            }
-
-            res_gl <- NULL
-            for(nm in names(res_lookup)) {
-              if(grepl(gl, nm, fixed=TRUE)) { res_gl <- res_lookup[[nm]]; break }
-            }
-            
-            if (!is.null(res_gl)) {
-              eff  <- res_gl$effect; cl_low  <- res_gl$ci_low; cl_high  <- res_gl$ci_high; p  <- res_gl$pval
-            } else {
-              eff  <- if (response_type == "binary") 1.0 else 0.0
-              cl_low  <- ""; cl_high  <- ""; p  <- ""
-            }
-
-            row_key <- row_key + 1L
-            tbl$addRow(rowKey = as.character(row_key), values = list(
-              level = "Overall", stat0 = stat0, stat1 = stat1,
-              effect = eff, ciLow = cl_low, ciHigh = cl_high, pval = p))
           }
         }
       }
