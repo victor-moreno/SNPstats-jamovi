@@ -77,6 +77,7 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
   adj_part <- if (length(adj_covs) > 0) paste("+", paste(adj_covs, collapse = "+")) else ""
 
   if (conditional) {
+    # to be reviewd
     # ── FIX: Correct nesting direction based on stratification type ───────────
     if (cond_var == "snp") {
       # Stratified by genotype: estimate interaction_var effect within each SNP level
