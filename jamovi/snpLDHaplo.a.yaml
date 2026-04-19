@@ -56,12 +56,6 @@ options:
       - {title: Quantitative (linear), name: quantitative}
     default: auto
 
-  # ── Subpopulation ─────────────────────────────────────────────
-  - name: subpop
-    title: Stratify by response groups (haplotype freq)
-    type: Bool
-    default: false
-
   # ── Linkage disequilibrium ────────────────────────────────────
   - name: ldAnalysis
     title: Pairwise LD table
@@ -99,6 +93,11 @@ options:
     min: 0
     max: 0.5
     default: 0.01
+
+  - name: subpop
+    title: Stratify by response groups
+    type: Bool
+    default: false
 
   - name: haploAssoc
     title: Haplotype-response association

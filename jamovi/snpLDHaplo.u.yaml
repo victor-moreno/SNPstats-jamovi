@@ -33,9 +33,6 @@ children:
       - type: ComboBox
         name: responseType
         enable: (response)
-      - type: CheckBox
-        name: subpop
-        enable: (response)
 
   - type: LayoutBox
     margin: large
@@ -85,6 +82,10 @@ children:
                     name: haploFreqMin
                     format: number
                     enable: (haploFreq)
+                  - type: CheckBox
+                    name: subpop
+                    enable: (response)
+
               - type: CheckBox
                 name: haploAssoc
                 enable: (response && snps)

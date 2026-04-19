@@ -378,3 +378,48 @@ fmt_cont <- function(x) {
   if (all(is.na(x))) return("NA")
   sprintf("%.2f \u00B1 %.2f", mean(x, na.rm=TRUE), sd(x, na.rm=TRUE))
 }
+
+
+# ── Inline helper required by haplo.stats ───────────────────────────────
+na.geno.keep <- function(m) {
+  mf.gindx <- function(m) {
+    gindx <- which(sapply(m, function(col) inherits(col, "matrix") && ncol(col) == 2))
+    if (length(gindx) == 0) stop("No geno matrix found in data frame")
+    if (length(gindx) >  1) stop("More than 1 geno matrix in data frame")
+    gindx
+  }
+  gindx    <- mf.gindx(m)
+  yxmiss   <- apply(is.na(m[, -gindx, drop=FALSE]), 1, any)
+  gmiss    <- apply(is.na(m[,  gindx, drop=FALSE]), 1, all)
+  genoAttr <- attributes(m[, gindx])
+  allmiss  <- yxmiss | gmiss
+  m        <- m[!allmiss, ]
+  genoAttr$dim[1] <- genoAttr$dim[1] - sum(allmiss)
+  nloc <- ncol(m[, gindx]) / 2
+  for (k in seq_len(nloc)) {
+    ualleles <- unique(c(m[, gindx][, 2*k-1], m[, gindx][, 2*k]))
+    nalleles <- length(genoAttr$unique.alleles[[k]])
+    if (length(ualleles) < nalleles)
+      genoAttr$unique.alleles[[k]] <-
+        genoAttr$unique.alleles[[k]][!is.na(match(seq_len(nalleles), ualleles))]
+  }
+  for (att in names(genoAttr)) attr(m[, gindx], att) <- genoAttr[[att]]
+  attr(m, "yxmiss") <- yxmiss; attr(m, "gmiss") <- gmiss; m
+}
+
+decode_haplo_row <- function(codes, label_list) {
+  if (all(codes == "*") || any(codes == "*")) return("Rare (combined)")
+  parts <- character(length(codes))
+  for (i in seq_along(codes)) {
+    idx <- as.numeric(codes[i])
+    parts[i] <- if (!is.na(idx)) label_list[[i]][idx] else "?"
+  }
+  paste(parts, collapse = "-")
+}
+
+subset_geno <- function(gs, idx) {
+  saved <- attributes(gs); gs2 <- gs[idx, , drop=FALSE]
+  for (att in setdiff(names(saved), c("dim","dimnames")))
+    attr(gs2, att) <- saved[[att]]
+  gs2
+}

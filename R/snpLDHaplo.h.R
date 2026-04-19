@@ -10,13 +10,13 @@ snpLDHaploOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             snps = NULL,
             covariates = NULL,
             responseType = "auto",
-            subpop = FALSE,
             ldAnalysis = FALSE,
             ldMatrix = FALSE,
             ldMetric = "r2",
             ldPlot = FALSE,
             haploFreq = FALSE,
             haploFreqMin = 0.01,
+            subpop = FALSE,
             haploAssoc = FALSE,
             ciWidth = 95,
             haploInteraction = FALSE, ...) {
@@ -63,10 +63,6 @@ snpLDHaploOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "binary",
                     "quantitative"),
                 default="auto")
-            private$..subpop <- jmvcore::OptionBool$new(
-                "subpop",
-                subpop,
-                default=FALSE)
             private$..ldAnalysis <- jmvcore::OptionBool$new(
                 "ldAnalysis",
                 ldAnalysis,
@@ -97,6 +93,10 @@ snpLDHaploOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 min=0,
                 max=0.5,
                 default=0.01)
+            private$..subpop <- jmvcore::OptionBool$new(
+                "subpop",
+                subpop,
+                default=FALSE)
             private$..haploAssoc <- jmvcore::OptionBool$new(
                 "haploAssoc",
                 haploAssoc,
@@ -116,13 +116,13 @@ snpLDHaploOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..snps)
             self$.addOption(private$..covariates)
             self$.addOption(private$..responseType)
-            self$.addOption(private$..subpop)
             self$.addOption(private$..ldAnalysis)
             self$.addOption(private$..ldMatrix)
             self$.addOption(private$..ldMetric)
             self$.addOption(private$..ldPlot)
             self$.addOption(private$..haploFreq)
             self$.addOption(private$..haploFreqMin)
+            self$.addOption(private$..subpop)
             self$.addOption(private$..haploAssoc)
             self$.addOption(private$..ciWidth)
             self$.addOption(private$..haploInteraction)
@@ -132,13 +132,13 @@ snpLDHaploOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         snps = function() private$..snps$value,
         covariates = function() private$..covariates$value,
         responseType = function() private$..responseType$value,
-        subpop = function() private$..subpop$value,
         ldAnalysis = function() private$..ldAnalysis$value,
         ldMatrix = function() private$..ldMatrix$value,
         ldMetric = function() private$..ldMetric$value,
         ldPlot = function() private$..ldPlot$value,
         haploFreq = function() private$..haploFreq$value,
         haploFreqMin = function() private$..haploFreqMin$value,
+        subpop = function() private$..subpop$value,
         haploAssoc = function() private$..haploAssoc$value,
         ciWidth = function() private$..ciWidth$value,
         haploInteraction = function() private$..haploInteraction$value),
@@ -147,13 +147,13 @@ snpLDHaploOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..snps = NA,
         ..covariates = NA,
         ..responseType = NA,
-        ..subpop = NA,
         ..ldAnalysis = NA,
         ..ldMatrix = NA,
         ..ldMetric = NA,
         ..ldPlot = NA,
         ..haploFreq = NA,
         ..haploFreqMin = NA,
+        ..subpop = NA,
         ..haploAssoc = NA,
         ..ciWidth = NA,
         ..haploInteraction = NA)
@@ -375,13 +375,13 @@ snpLDHaploBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param snps .
 #' @param covariates .
 #' @param responseType .
-#' @param subpop .
 #' @param ldAnalysis .
 #' @param ldMatrix .
 #' @param ldMetric .
 #' @param ldPlot .
 #' @param haploFreq .
 #' @param haploFreqMin .
+#' @param subpop .
 #' @param haploAssoc .
 #' @param ciWidth .
 #' @param haploInteraction .
@@ -403,13 +403,13 @@ snpLDHaplo <- function(
     snps,
     covariates = NULL,
     responseType = "auto",
-    subpop = FALSE,
     ldAnalysis = FALSE,
     ldMatrix = FALSE,
     ldMetric = "r2",
     ldPlot = FALSE,
     haploFreq = FALSE,
     haploFreqMin = 0.01,
+    subpop = FALSE,
     haploAssoc = FALSE,
     ciWidth = 95,
     haploInteraction = FALSE) {
@@ -433,13 +433,13 @@ snpLDHaplo <- function(
         snps = snps,
         covariates = covariates,
         responseType = responseType,
-        subpop = subpop,
         ldAnalysis = ldAnalysis,
         ldMatrix = ldMatrix,
         ldMetric = ldMetric,
         ldPlot = ldPlot,
         haploFreq = haploFreq,
         haploFreqMin = haploFreqMin,
+        subpop = subpop,
         haploAssoc = haploAssoc,
         ciWidth = ciWidth,
         haploInteraction = haploInteraction)
