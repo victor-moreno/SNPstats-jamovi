@@ -68,7 +68,7 @@ options:
     default: false
 
   - name: rmSnpMissing
-    title: Remove SNP missing values
+    title: Remove obesrvations with missing values in SNPs
     type: Bool
     default: false
     

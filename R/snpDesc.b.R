@@ -163,10 +163,10 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       }
     },
 
-    .run_cov_desc = function(cov_df, response_raw, response_type,
-                         subpop = FALSE, response_var = NULL,
-                         data = NULL, snp_vars = NULL,
-                         rm_snp_missing = FALSE) {
+  .run_cov_desc = function(cov_df, response_raw, response_type,
+    subpop = FALSE, response_var = NULL,
+    data = NULL, snp_vars = NULL,
+    rm_snp_missing = FALSE) {
 
       tbl <- self$results$covDescGroup$covDescTable
 
