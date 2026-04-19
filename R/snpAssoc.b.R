@@ -602,7 +602,6 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       tbl$getColumn("BIC")$setVisible(isTRUE(opts$showAIC))
 
       # display filters
-      show_covar   <- isTRUE(opts$showInteractionCovar)
       show_adj     <- isTRUE(opts$showInteractionAdjVars)
 
       model_labels <- c(codominant = "Codominant", dominant = "Dominant",
@@ -701,11 +700,11 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           # display filters:
           # - "snp" rows in conditional models = SNP main effects (reference-group offset),
           #   not conditional effects; suppress them so only nested/":"-terms are shown
-          if (rtype == "snp" && int_type != "multiplicative") next
-          # - "covariate" rows in multiplicative = main-effect of interaction var (optional)
-          # - "covariate" rows in conditional    = conditional effects being estimated (always shown)
+          # if (rtype == "snp" && int_type != "multiplicative") next
+          # - "covariate" rows: always shown for multiplicative (*), never for conditional
+          #   (in conditional models the "interaction" rows are already the conditional effects)
+          # if (rtype == "covariate"  && int_type != "multiplicative") next
           # - "adjustment" rows: optional in all model types
-          if (rtype == "covariate"  && int_type == "multiplicative" && !show_covar) next
           if (rtype == "adjustment" && !show_adj)   next
 
           row_key  <- row_key + 1L

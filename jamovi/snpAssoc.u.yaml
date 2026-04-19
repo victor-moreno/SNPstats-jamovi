@@ -89,9 +89,6 @@ children:
                     enable: (snpInteraction)
                     children:
                       - type: CheckBox
-                        name: showInteractionCovar
-                        enable: (snpInteraction && showInteractionTable)
-                      - type: CheckBox
                         name: showInteractionAdjVars
                         enable: (snpInteraction && showInteractionTable)
                   - type: CheckBox

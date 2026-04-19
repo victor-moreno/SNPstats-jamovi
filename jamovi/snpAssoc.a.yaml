@@ -110,17 +110,12 @@ options:
     type: List
     options:
       - {title: "Multiplicative (SNP × covariate)",      name: multiplicative}
-      - {title: "Conditional on SNP (covariate | SNP)",  name: conditional_on_snp}
       - {title: "Conditional on covariate (SNP | covariate)", name: conditional_on_covar}
+      - {title: "Conditional on genotype  (covariate | SNP)",  name: conditional_on_snp}
     default: multiplicative
 
   - name: showInteractionTable
     title: Show interaction table
-    type: Bool
-    default: true
-
-  - name: showInteractionCovar
-    title: Show covariate parameters
     type: Bool
     default: true
 

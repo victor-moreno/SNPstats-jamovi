@@ -21,7 +21,6 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             snpInteraction = FALSE,
             interactionType = "multiplicative",
             showInteractionTable = TRUE,
-            showInteractionCovar = TRUE,
             showInteractionAdjVars = FALSE,
             showCrossClassTable = FALSE,
             interactionModel = "codominant",
@@ -112,16 +111,12 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 interactionType,
                 options=list(
                     "multiplicative",
-                    "conditional_on_snp",
-                    "conditional_on_covar"),
+                    "conditional_on_covar",
+                    "conditional_on_snp"),
                 default="multiplicative")
             private$..showInteractionTable <- jmvcore::OptionBool$new(
                 "showInteractionTable",
                 showInteractionTable,
-                default=TRUE)
-            private$..showInteractionCovar <- jmvcore::OptionBool$new(
-                "showInteractionCovar",
-                showInteractionCovar,
                 default=TRUE)
             private$..showInteractionAdjVars <- jmvcore::OptionBool$new(
                 "showInteractionAdjVars",
@@ -165,7 +160,6 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..snpInteraction)
             self$.addOption(private$..interactionType)
             self$.addOption(private$..showInteractionTable)
-            self$.addOption(private$..showInteractionCovar)
             self$.addOption(private$..showInteractionAdjVars)
             self$.addOption(private$..showCrossClassTable)
             self$.addOption(private$..interactionModel)
@@ -188,7 +182,6 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         snpInteraction = function() private$..snpInteraction$value,
         interactionType = function() private$..interactionType$value,
         showInteractionTable = function() private$..showInteractionTable$value,
-        showInteractionCovar = function() private$..showInteractionCovar$value,
         showInteractionAdjVars = function() private$..showInteractionAdjVars$value,
         showCrossClassTable = function() private$..showCrossClassTable$value,
         interactionModel = function() private$..interactionModel$value,
@@ -210,7 +203,6 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..snpInteraction = NA,
         ..interactionType = NA,
         ..showInteractionTable = NA,
-        ..showInteractionCovar = NA,
         ..showInteractionAdjVars = NA,
         ..showCrossClassTable = NA,
         ..interactionModel = NA,
@@ -533,7 +525,6 @@ snpAssocBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param snpInteraction .
 #' @param interactionType .
 #' @param showInteractionTable .
-#' @param showInteractionCovar .
 #' @param showInteractionAdjVars .
 #' @param showCrossClassTable .
 #' @param interactionModel .
@@ -563,7 +554,6 @@ snpAssoc <- function(
     snpInteraction = FALSE,
     interactionType = "multiplicative",
     showInteractionTable = TRUE,
-    showInteractionCovar = TRUE,
     showInteractionAdjVars = FALSE,
     showCrossClassTable = FALSE,
     interactionModel = "codominant",
@@ -600,7 +590,6 @@ snpAssoc <- function(
         snpInteraction = snpInteraction,
         interactionType = interactionType,
         showInteractionTable = showInteractionTable,
-        showInteractionCovar = showInteractionCovar,
         showInteractionAdjVars = showInteractionAdjVars,
         showCrossClassTable = showCrossClassTable,
         interactionModel = interactionModel,
