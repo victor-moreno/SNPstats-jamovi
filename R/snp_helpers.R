@@ -308,13 +308,36 @@ prepare_covariates <- function(data, covariate_vars) {
 
 # ── Genetic model encoding ─────────────────────────────────────────────────────
 
-#' Encode SNP under a given genetic model as a numeric/factor vector.
+#' Encode SNP under a given genetic model.
+#'
+#' Returns a named factor for all diploid models (codominant, dominant,
+#' recessive, overdominant) so that R always produces self-documenting
+#' coefficient names (e.g. "snpA/G-G/G:SEXmale") regardless of the model.
+#' This means term matching and display labelling downstream never need to
+#' special-case "collapsed vs codominant" — all factor-encoded models behave
+#' identically in model.matrix.
+#'
+#' logadditive is kept as a 0/1/2 integer (per-allele dose) because its
+#' regression coefficient is naturally the per-allele effect.
 encode_model <- function(geno_char, ref, model, user_levels = NULL) {
   ref_allele <- strsplit(ref, "/")[[1]][1]
   dosage <- sapply(geno_char, function(g) {
     if (is.na(g) || g == "NA") return(NA_integer_)
     sum(strsplit(g, "/")[[1]] == ref_allele)
   })
+
+  # Build a two-level factor with descriptive genotype-label levels.
+  make_geno_factor <- function(values_01, ref_label, alt_label) {
+    lbl <- ifelse(is.na(values_01), NA_character_,
+                  ifelse(values_01 == 0L, ref_label, alt_label))
+    factor(lbl, levels = c(ref_label, alt_label))
+  }
+
+  # Classify observed genotypes into het and hom-alt groups.
+  is_hom_fn <- function(g) { p <- strsplit(g, "/")[[1]]; length(p) == 2 && p[1] == p[2] }
+  obs  <- unique(na.omit(geno_char[geno_char != "NA"]))
+  het  <- obs[obs != ref & !sapply(obs, is_hom_fn)]
+  hom2 <- obs[obs != ref &  sapply(obs, is_hom_fn)]
 
   switch(model,
     codominant = {
@@ -327,16 +350,23 @@ encode_model <- function(geno_char, ref, model, user_levels = NULL) {
       }
       factor(geno_char, levels = lvls)
     },
-    dominant    = ifelse(is.na(dosage), NA_integer_, as.integer(dosage < 2)),
-    recessive   = ifelse(is.na(dosage), NA_integer_, as.integer(dosage == 0)),
-    overdominant = {
-      is_het <- sapply(geno_char, function(g) {
-        if (is.na(g)) return(NA)
-        length(unique(strsplit(g, "/")[[1]])) > 1
-      })
-      as.integer(is_het)
+    dominant = {
+      alt_label <- paste(c(het, hom2), collapse = "-")
+      make_geno_factor(as.integer(dosage < 2), ref, alt_label)
     },
-    logadditive = 2L - as.integer(dosage)
+    recessive = {
+      ref_label <- paste(c(ref, het), collapse = "-")
+      make_geno_factor(as.integer(dosage == 0), ref_label, hom2[1])
+    },
+    overdominant = {
+      ref_label <- paste(c(ref, hom2), collapse = "-")
+      is_het_01 <- as.integer(sapply(geno_char, function(g) {
+        if (is.na(g) || g == "NA") NA_integer_
+        else as.integer(length(unique(strsplit(g, "/")[[1]])) > 1)
+      }))
+      make_geno_factor(is_het_01, ref_label, het[1])
+    },
+    logadditive = 2L - as.integer(dosage)   # numeric 0/1/2 per-allele dose
   )
 }
 

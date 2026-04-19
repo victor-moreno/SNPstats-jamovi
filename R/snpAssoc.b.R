@@ -65,8 +65,7 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
                                   interaction_var, model_name,
                                   response_type, ci_width,
                                   conditional = FALSE, cond_var = interaction_var) {
-  # VM fixes table but breaks lables
-  df <- data.frame(resp = response, snp = as.factor(snp_enc))
+  df <- data.frame(resp = response, snp = snp_enc)
   adj_covs <- character(0)
   if (!is.null(covariates_df) && ncol(covariates_df) > 0) {
     df       <- cbind(df, covariates_df)
@@ -79,14 +78,14 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
 
   if (conditional) {
     # ── Build nested formula based on conditioning direction ──────────────────
+    # encode_model always returns a factor (except logadditive), so snp / covar
+    # always produces proper nested terms for every model.
     if (cond_var == "snp") {
-      # covariate effect within each SNP level
-      formula_fit  <- as.formula(paste("resp ~ snp /", interaction_var, adj_part))
+      formula_fit <- as.formula(paste("resp ~ snp /", interaction_var, adj_part))
     } else {
-      # SNP effect within each covariate level
       formula_fit <- as.formula(paste("resp ~", interaction_var, "/ snp", adj_part))
     }
-    # Additive (no-interaction) formula for LRT
+    # Additive formula for LRT
     formula_add <- as.formula(paste("resp ~ snp +", interaction_var, adj_part))
 
     if (response_type == "binary") {
@@ -103,81 +102,50 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
     lrt_cond <- tryCatch(anova(fit_add, fit, test = lrtest), error = function(e) NULL)
     p_inter  <- if (!is.null(lrt_cond)) lrt_cond[2, lrtest_label] else NA_real_
 
-    coefs   <- summary(fit)$coefficients
-    ci_mat  <- tryCatch(confint(fit, level = ci_width / 100),
-                        error = function(e) matrix(NA, nrow = nrow(coefs), ncol = 2))
-    aic_val <- AIC(fit)
+    coefs    <- summary(fit)$coefficients
+    ci_mat   <- tryCatch(confint(fit, level = ci_width / 100),
+                         error = function(e) matrix(NA, nrow = nrow(coefs), ncol = 2))
+    aic_val  <- AIC(fit)
     all_rows <- rownames(coefs)
 
     # ── Classify rows ─────────────────────────────────────────────────────────
-    # Nested/interaction terms always contain ":"
+    # Nested terms always contain ":"
     inter_rows_idx <- grep(":", all_rows)
-    # For snp*x (numeric snp): standalone covariate main-effect terms also belong
-    # to the conditional set (they represent the covariate effect in the ref group)
-    if (cond_var == "snp" && !is.factor(snp_enc)) {
-      cond_extra_idx <- grep(paste0("^", interaction_var), all_rows)
-    } else {
-      cond_extra_idx <- integer(0)
-    }
-    # SNP main-effect rows
-    snp_rows_idx   <- grep("^snp", all_rows)
-    snp_rows_idx   <- setdiff(snp_rows_idx, inter_rows_idx)
-    # Adjustment covariate rows: not intercept, not snp, not interaction_var, not ":"
+    # SNP main-effect rows (non-nested; represent SNP effect at ref covariate level)
+    snp_rows_idx   <- setdiff(grep("^snp", all_rows), inter_rows_idx)
+    # Adjustment covariate rows
     adj_rows_idx   <- setdiff(
       seq_along(all_rows),
       c(grep("^\\(Intercept\\)", all_rows),
-        snp_rows_idx, inter_rows_idx, cond_extra_idx,
+        snp_rows_idx, inter_rows_idx,
         grep(paste0("^", interaction_var), all_rows)))
 
-    if (length(inter_rows_idx) == 0 && length(cond_extra_idx) == 0) return(NULL)
+    if (length(inter_rows_idx) == 0) return(NULL)
 
-    # All rows we might return (filtering by show_* happens in .fill_interaction)
-    all_keep <- unique(c(snp_rows_idx, cond_extra_idx, inter_rows_idx, adj_rows_idx))
+    all_keep <- unique(c(snp_rows_idx, inter_rows_idx, adj_rows_idx))
 
     first_inter_done <- FALSE
     lapply(all_keep, function(r) {
-      idx  <- r
-      term <- all_rows[r]
-      beta <- coefs[idx, "Estimate"]
-      pval <- coefs[idx, pval_col]
-      ci_lo <- ci_mat[idx, 1]; ci_hi <- ci_mat[idx, 2]
+      term  <- all_rows[r]
+      beta  <- coefs[r, "Estimate"]
+      pval  <- coefs[r, pval_col]
+      ci_lo <- ci_mat[r, 1]; ci_hi <- ci_mat[r, 2]
 
       is_inter_term <- r %in% inter_rows_idx
-      row_type <- if (r %in% snp_rows_idx)     "snp"
-                  else if (is_inter_term)        "interaction"
-                  else if (r %in% cond_extra_idx) "covariate"
-                  else                            "adjustment"
+      row_type <- if (r %in% snp_rows_idx) "snp"
+                  else if (is_inter_term)   "interaction"
+                  else                      "adjustment"
 
-      # For snp*x with numeric snp: interaction terms represent the *additional*
-      # covariate effect vs ref group — combine with main covariate term (delta method).
-      if (cond_var == "snp" && !is.factor(snp_enc) && grepl(":", term, fixed = TRUE)) {
-        main_term <- sub(".*:", "", term)   # "snp:xMale" -> "xMale"
-        main_idx  <- match(main_term, all_rows)
-        if (!is.na(main_idx)) {
-          beta     <- beta + coefs[main_idx, "Estimate"]
-          vcov_mat <- vcov(fit)
-          se       <- sqrt(vcov_mat[idx, idx] + vcov_mat[main_idx, main_idx] +
-                           2 * vcov_mat[idx, main_idx])
-          z        <- qnorm(1 - (1 - ci_width / 100) / 2)
-          ci_lo    <- beta - z * se
-          ci_hi    <- beta + z * se
-          pval     <- 2 * pnorm(-abs(beta / se))
-        }
-      }
-
-      # Attach p_inter to the first interaction (":") term only
       attach_p <- is_inter_term && !first_inter_done
       if (attach_p) first_inter_done <<- TRUE
 
       if (response_type == "binary")
         list(term = term, effect = exp(beta), ci_low = exp(ci_lo), ci_high = exp(ci_hi),
-             pval = pval,
-             pval_interaction = if (attach_p) p_inter else NA_real_,
+             pval = pval, pval_interaction = if (attach_p) p_inter else NA_real_,
              aic = aic_val, row_type = row_type)
       else
         list(term = term, effect = beta, ci_low = ci_lo, ci_high = ci_hi,
-             pval = pval,
-             pval_interaction = if (attach_p) p_inter else NA_real_,
+             pval = pval, pval_interaction = if (attach_p) p_inter else NA_real_,
              aic = aic_val, row_type = row_type)
     })
   } else {
@@ -321,7 +289,8 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         n_miss_assoc      <- n_rows - sum(snp_complete_mask)
 
         # _cc variables are the complete-case versions
-        snp_raw_cc  <- snp_raw[snp_complete_mask]
+        # VM as.factor
+        snp_raw_cc  <- as.factor(snp_raw[snp_complete_mask])
         response_cc <- response[snp_complete_mask]
         response_raw_cc <- response_raw[snp_complete_mask]
         cov_df_cc   <- if (!is.null(cov_df)) cov_df[snp_complete_mask, , drop = FALSE] else NULL
@@ -601,55 +570,21 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                         logadditive = "Log-additive")
 
       # helper: pretty-print a model coefficient term for display only.
-      # res$term (the raw R coefficient name) is NEVER modified here — this
-      # function is purely cosmetic and is called only in .fill_interaction.
+      # res$term (the raw R coefficient name) is NEVER modified here.
       #
-      # Term shapes by formula and model type:
-      #
-      #  snp * covar  (multiplicative, any encoding)
-      #    codominant:  "snpA/G"          "snpA/G:SEXmale"   "SEXmale" (covar main)
-      #    collapsed:   "snp"             "snp:SEXmale"       "SEXmale"
-      #
-      #  snp / covar  (conditional_on_snp, factor snp)
-      #    codominant:  "snpA/G:SEXmale"  (nested covar within genotype)
-      #    collapsed:   "snp:SEXmale"
-      #
-      #  covar / snp  (conditional_on_covar)
-      #    codominant:  "SEXmale:snpA/G"  "SEXmale:snpG/G"   (snp after colon)
-      #    collapsed:   "SEXmale:snp"                         (bare snp after colon)
-      #
-      # In every case the SNP token to replace is either:
-      #   (a) leading "snp" possibly followed by a genotype suffix then ":" or EOL
-      #   (b) ":snp" anywhere in the string, possibly followed by a genotype suffix
-      #
-      # We detect whether a genotype suffix is already present (codominant) vs absent
-      # (collapsed/logadditive), and in the latter case inject geno_labels[2].
+      # Since encode_model now returns a named factor for all diploid models,
+      # every term already embeds the full genotype label, e.g.:
+      #   codominant:   "snpA/G:SEXmale"   "SEXmale:snpA/G"
+      #   dominant:     "snpA/G-G/G:SEXmale"
+      #   recessive:    "snpG/G:SEXmale"
+      # We just replace the "snp" token with snp_lbl and wrap the suffix in parens.
+      # logadditive is the only model that keeps a numeric snp (no suffix) —
+      # it never appears in the interaction table so no special case is needed.
       .label_term <- function(term, mdl, geno_labels) {
-        geno_suffix <- if (mdl == "logadditive") "per allele"
-                       else if (length(geno_labels) >= 2) geno_labels[2]
-                       else ""
-        tag_collapsed <- if (nchar(geno_suffix) > 0) paste0("(", geno_suffix, ")") else ""
-
-        # ── Case A: leading "snp" (multiplicative or conditional_on_snp) ─────
-        # Codominant: "snpA/G:SEX" or standalone "snpA/G"  → wrap suffix in parens
-        # Collapsed:  "snp:SEX"    or standalone "snp"      → inject geno tag
-        lbl <- gsub("^snp([^:]+)",               # codominant leading: has suffix
-                    paste0(snp_lbl, "(\\1)"), term)
-        if (lbl == term) {
-          # No match above → collapsed leading: bare "snp" (possibly "snp:...")
-          lbl <- gsub("^snp(?=:|$)",             # bare snp at start, before ":" or EOL
-                      paste0(snp_lbl, tag_collapsed), term, perl = TRUE)
-        }
-
-        # ── Case B: ":snp" anywhere (conditional_on_covar, covar / snp) ──────
-        # Codominant: "SEXmale:snpA/G"  → "SEXmale:SNP1(A/G)"
-        # Collapsed:  "SEXmale:snp"     → "SEXmale:SNP1(A/G-G/G)"
-        # (Also handles multiplicative covar-leading cross terms if they arise)
-        lbl <- gsub(":snp([^:]+)",               # codominant trailing: has suffix
-                    paste0(":", snp_lbl, "(\\1)"), lbl)
-        lbl <- gsub(":snp(?=:|$)",               # collapsed trailing: bare snp
-                    paste0(":", snp_lbl, tag_collapsed), lbl, perl = TRUE)
-
+        # Case A: leading "snp<suffix>" — multiplicative or conditional_on_snp
+        lbl <- gsub("^snp([^:]+)", paste0(snp_lbl, "(\\1)"), term)
+        # Case B: ":snp<suffix>" — conditional_on_covar  (covar / snp)
+        lbl <- gsub(":snp([^:]+)", paste0(":", snp_lbl, "(\\1)"), lbl)
         lbl
       }
 
@@ -791,8 +726,7 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           inter_only <- res_list[sapply(res_list, function(r)
             is.null(r$row_type) || r$row_type == "interaction")]
           level_res  <- inter_only[grepl(cl_label, sapply(inter_only, `[[`, "term"), fixed = TRUE)]
-          is_ref_cov <- cl == cov_levels[1]
-          if (length(level_res) == 0 && !is_ref_cov) next
+          if (length(level_res) == 0) next
 
           geno_labels <- private$.geno_labels_for_model(mdl, all_genos, ref)
           st          <- private$.compute_stats(geno_labels, snp_c_k, response_k, response_type)
@@ -813,13 +747,8 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             effect = if (response_type == "binary") 1.0 else 0.0, ciLow = "", ciHigh = "", pval = ""))
 
           # Comparison rows
-          # For the reference covariate level of collapsed models, level_res is empty
-          # because the SNP effect at the ref covariate level is the bare "snp" main-effect
-          # term (row_type "snp"), not a ":" term.  Fall back to those rows.
-          cmp_res <- if (length(level_res) > 0) level_res else
-            res_list[sapply(res_list, function(r) !is.null(r$row_type) && r$row_type == "snp")]
-          for (i in seq_along(cmp_res)) {
-            res <- cmp_res[[i]]
+          for (i in seq_along(level_res)) {
+            res <- level_res[[i]]
             gl  <- if ((i + 1) <= length(geno_labels)) geno_labels[i + 1] else sub("snp", "", res$term)
             row_key <- row_key + 1L
             tbl$addRow(rowKey = as.character(row_key), values = list(
@@ -892,6 +821,9 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                             factor(resp_raw_g, levels = resp_lv))
             totals <- colSums(counts)
           }
+
+          # VM
+          # this logic in not working. values for the reference genotype, that in model is only the covariate, is not shoing in table
 
           # Filter res_list to this genotype group.
           # We want only the nested covariate-within-genotype terms (row_type "interaction"),
