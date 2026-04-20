@@ -125,7 +125,7 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
     all_keep <- unique(c(snp_rows_idx, inter_rows_idx, adj_rows_idx))
 
     first_inter_done <- FALSE
-    lapply(all_keep, function(r) {
+    result <- lapply(all_keep, function(r) {
       term  <- all_rows[r]
       beta  <- coefs[r, "Estimate"]
       pval  <- coefs[r, pval_col]
@@ -148,6 +148,8 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
              pval = pval, pval_interaction = if (attach_p) p_inter else NA_real_,
              aic = aic_val, row_type = row_type)
     })
+    attr(result, "pval_interaction") <- p_inter
+    result
   } else {
     # ── Original * interaction logic ─────────────────────────────────────
     formula_int  <- as.formula(paste("resp ~ snp *", interaction_var, adj_part))
@@ -183,7 +185,7 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
       keep_rows   <- unique(c(snp_rows, inter_rows, covar_rows, adj_rows))
       if (length(keep_rows) == 0) return(NULL)
 
-      lapply(keep_rows, function(r) {
+      result <- lapply(keep_rows, function(r) {
         beta     <- coefs[r, "Estimate"]
         pval     <- coefs[r, pval_col]
         ci_lo    <- ci[r, 1]; ci_hi  <- ci[r, 2]
@@ -201,6 +203,8 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
                pval = pval, pval_interaction = if (is_inter) p_inter else NA_real_,
                aic = aic_val, is_first = (r == keep_rows[1]), row_type = row_type)
       })
+      attr(result, "pval_interaction") <- p_inter
+      result
     }, error = function(e) NULL)
     # VM
   } # capture return object and add pval_interaction as attribute to be used in notes for stratified tables
@@ -425,7 +429,7 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       tbl$getColumn("genotype")$setTitle(snp_lbl)
 
       resp_lbl <- attr(self$data[[self$options$response]], "label") %||% self$options$response
-      tbl$setTitle(paste0("Association with ", resp_lbl))
+      tbl$setTitle(paste0("<b>Association with ", resp_lbl, "</b>"))
 
       if (response_type == "binary") {
         lv       <- levels(as.factor(response_raw))
@@ -590,7 +594,8 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       }
 
       row_key <- 0L
-      for (mdl in int_models) { # for now only  model can be selected, but keep loop structure for future multi-select
+      last_pval_interaction <- NA_real_
+      for (mdl in int_models) { # for now only one model can be selected, but keep loop structure for future multi-select
         snp_enc  <- encode_model(as.character(snp_raw), ref, mdl, user_levels)
 
         # ── Choose conditional flag and cond_var based on interactionType ──
@@ -609,6 +614,9 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         }
         if (is.null(res_list)) next
 
+        p_inter <- attr(res_list, "pval_interaction")
+        if (!is.null(p_inter) && !is.na(p_inter)) last_pval_interaction <- p_inter
+
         # geno_labels needed for term labelling in collapsed models
         snp_char_l  <- as.character(snp_raw)
         all_genos_l <- c(ref, setdiff(
@@ -620,7 +628,7 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         n_fit_bic <- sum(!is.na(snp_enc) & !is.na(response) & complete.cases(cov_df))
         n_cov_bic <- ncol(cov_df)
 
-        first_row <- TRUE; first_inter <- TRUE
+        first_row <- TRUE
 
         for (res in res_list) {
           # Determine whether to show this row based on its type
@@ -629,20 +637,14 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           if (rtype == "adjustment" && !show_adj)   next
 
           row_key  <- row_key + 1L
-          is_inter <- !is.na(res$pval_interaction)
 
           term_label <- .label_term(res$term, mdl, geno_labels_l)
-
-          # p_interaction: show on the first term that carries it (any model type)
-          pval_int_val <- if (!is.na(res$pval_interaction) && first_inter)
-                            res$pval_interaction else ""
 
           vals <- list(
             model  = if (first_row) model_labels[mdl] else "",
             term   = term_label,
             effect = res$effect, ciLow = res$ci_low, ciHigh = res$ci_high,
-            pval   = res$pval,
-            pvalInteraction = pval_int_val)
+            pval   = res$pval)
 
           if (isTRUE(opts$showAIC)) {
             aic_val <- if (first_row && !is.nan(res$aic)) round(res$aic, 2) else ""
@@ -654,8 +656,14 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
           tbl$addRow(rowKey = as.character(row_key), values = vals)
           first_row <- FALSE
-          if (!is.na(res$pval_interaction)) first_inter <- FALSE
         }
+      }
+
+      # ── Interaction p-value note ──────────────────────────────────────────────
+      if (!is.na(last_pval_interaction)) {
+        tbl$setNote(
+          note = paste0("Interaction p-value (LRT): ", format.pval(last_pval_interaction, digits = 3, eps = 0.001)),
+          key  = "interactionPval")
       }
     },
 
@@ -744,7 +752,7 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         }
         note_txt <- paste0("The reference group is <b>",  snp_lbl, ": ",geno_labels[1], "</b> across all strata.")
         tbl$setNote(note = note_txt, key = "interStratCov")
-        pval_interaction <- res_list[[1]]$pval_interaction
+        pval_interaction <- attr(res_list, "pval_interaction")
         note_pval <- paste0("Interaction p-value: ", format.pval(pval_interaction, digits = 3, eps = 0.001))
         tbl$setNote(note = note_pval, key = "interStratCovPval")
 
@@ -870,7 +878,7 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         }
         note_txt <- paste0("The reference group is <b>", interaction_var, ": ", cov_levels[1], "</b> across all strata.")
         tbl$setNote(note = note_txt, key = "interStatGeno")
-        pval_interaction <- res_list[[1]]$pval_interaction
+        pval_interaction <- attr(res_list, "pval_interaction")
         note_pval <- paste0("Interaction p-value: ", format.pval(pval_interaction, digits = 3, eps = 0.001))
         tbl$setNote(note = note_pval, key = "interStratGenoPval")
       }
@@ -912,13 +920,25 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         if (length(adj_vars) > 0) df_fit <- cbind(df_fit, cov_df[, adj_vars, drop=FALSE])
         
         adj_part <- if (length(adj_vars) > 0) paste("+", paste(adj_vars, collapse = "+")) else ""
-        formula_str <- paste("resp ~ snp * interaction_var", adj_part)
+        formula_str     <- paste("resp ~ snp * interaction_var", adj_part)
+        formula_main_str <- paste("resp ~ snp + interaction_var", adj_part)
         
         fit <- if (response_type == "binary") {
           glm(as.formula(formula_str), data = df_fit, family = binomial())
         } else {
           lm(as.formula(formula_str), data = df_fit)
         }
+        fit_main_cc <- if (response_type == "binary") {
+          glm(as.formula(formula_main_str), data = df_fit, family = binomial())
+        } else {
+          lm(as.formula(formula_main_str), data = df_fit)
+        }
+
+        # Compute interaction p-value via LRT
+        lrtest_str   <- if (response_type == "binary") "Chisq" else "F"
+        lrtest_label <- if (response_type == "binary") "Pr(>Chi)" else "Pr(>F)"
+        lrt_cc       <- tryCatch(anova(fit_main_cc, fit, test = lrtest_str), error = function(e) NULL)
+        p_inter_cc   <- if (!is.null(lrt_cc)) lrt_cc[2, lrtest_label] else NA_real_
 
         betas <- coef(fit)
         v_cov <- vcov(fit)
@@ -979,9 +999,8 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         }
         note_txt <- paste0("The reference group is <b>", interaction_var, ": ", cov_levels[1], " and ", snp_lbl, ": ", geno_labels[1], "</b>")
         tbl$setNote(note = note_txt, key = "interCrossClass")
-        # pval_interaction <- "" # not directly available since we are not fitting a single interaction term, but rather decomposing the combined effect post-hoc
-        # note_pval <- paste0("Interaction p-value: ", format.pval(pval_interaction, digits = 3, eps = 0.001))
-        # tbl$setNote(note = note_pval, key = "interCrossClassPval")
+        note_pval <- paste0("Interaction p-value: ", format.pval(p_inter_cc, digits = 3, eps = 0.001))
+        tbl$setNote(note = note_pval, key = "interCrossClassPval")
       }
     }
   )

@@ -55,7 +55,6 @@ items:
             - {name: ciLow,           title: Lower CI,         type: number, format: zto}
             - {name: ciHigh,          title: Upper CI,         type: number, format: zto}
             - {name: pval,            title: P-value,          type: number, format: zto}
-            - {name: pvalInteraction, title: P (interaction),  type: number, format: zto}
             - {name: AIC,             title: AIC,              type: number, format: zto, visible: false}
             - {name: BIC,             title: BIC,              type: number, format: zto, visible: false}
 

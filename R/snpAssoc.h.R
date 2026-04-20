@@ -345,11 +345,6 @@ snpAssocResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                         `type`="number", 
                                         `format`="zto"),
                                     list(
-                                        `name`="pvalInteraction", 
-                                        `title`="P (interaction)", 
-                                        `type`="number", 
-                                        `format`="zto"),
-                                    list(
                                         `name`="AIC", 
                                         `title`="AIC", 
                                         `type`="number", 
