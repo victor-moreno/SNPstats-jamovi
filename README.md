@@ -55,6 +55,10 @@ This tool has been developed with support of the Instituto de Salud Carlos III (
 
 This tool was migrated from SNPstats.net using Claude AI.
 
+## License
+
+This code is released under MIT license
+
 ## Report issues
 
 The code has not been extensively tested and could have bugs. Please use github Issues to report any problems and enhancement requests.
