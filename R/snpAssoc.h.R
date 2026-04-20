@@ -503,7 +503,7 @@ snpAssocBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             super$initialize(
                 package = "SNPstats",
                 name = "snpAssoc",
-                version = c(1,0,0),
+                version = c(0,2,0),
                 options = options,
                 results = snpAssocResults$new(options=options),
                 data = data,

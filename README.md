@@ -59,7 +59,7 @@ This tool was migrated from SNPstats.net using Claude AI.
 
 ## License
 
-This code is released under MIT license
+This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
 
 ## Report issues
 

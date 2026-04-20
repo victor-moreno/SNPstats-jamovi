@@ -354,7 +354,7 @@ snpLDHaploBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             super$initialize(
                 package = "SNPstats",
                 name = "snpLDHaplo",
-                version = c(1,0,0),
+                version = c(0,2,0),
                 options = options,
                 results = snpLDHaploResults$new(options=options),
                 data = data,
