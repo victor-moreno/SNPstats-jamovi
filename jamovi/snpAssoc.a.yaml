@@ -124,16 +124,30 @@ options:
     type: Bool
     default: false
 
-  - name: interactionModel
-    title: Genetic model for interaction
-    type: List
-    options:
-      - {title: Codominant,   name: codominant}
-      - {title: Dominant,     name: dominant}
-      - {title: Recessive,    name: recessive}
-      - {title: Overdominant, name: overdominant}
-      - {title: Log-additive, name: logadditive}
-    default: codominant
+  - name: interactionModelCodominant
+    title: Codominant
+    type: Bool
+    default: true
+
+  - name: interactionModelDominant
+    title: Dominant
+    type: Bool
+    default: false
+
+  - name: interactionModelRecessive
+    title: Recessive
+    type: Bool
+    default: false
+
+  - name: interactionModelOverdominant
+    title: Overdominant
+    type: Bool
+    default: false
+
+  - name: interactionModelLogAdditive
+    title: Log-additive
+    type: Bool
+    default: false
 
   - name: showStratByCovariate
     title: Stratified analysis by covariate

@@ -81,9 +81,6 @@ children:
                   - type: ComboBox
                     name: interactionType
                     enable: (snpInteraction)
-                  - type: ComboBox
-                    name: interactionModel
-                    enable: (snpInteraction)
                   - type: CheckBox
                     name: showInteractionTable
                     enable: (snpInteraction)
@@ -100,7 +97,19 @@ children:
                   - type: CheckBox
                     name: showCrossClassTable
                     enable: (snpInteraction)
-
+          - type: LayoutBox
+            margin: large
+            children:
+              - type: CheckBox
+                name: interactionModelCodominant
+              - type: CheckBox
+                name: interactionModelDominant
+              - type: CheckBox
+                name: interactionModelRecessive
+              - type: CheckBox
+                name: interactionModelOverdominant
+              - type: CheckBox
+                name: interactionModelLogAdditive
       - type: LayoutBox
         cell:
           column: 1

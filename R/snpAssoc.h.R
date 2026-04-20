@@ -22,7 +22,11 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             interactionType = "multiplicative",
             showInteractionTable = TRUE,
             showInteractionAdjVars = FALSE,
-            interactionModel = "codominant",
+            interactionModelCodominant = TRUE,
+            interactionModelDominant = FALSE,
+            interactionModelRecessive = FALSE,
+            interactionModelOverdominant = FALSE,
+            interactionModelLogAdditive = FALSE,
             showStratByCovariate = FALSE,
             showStratByGenotype = FALSE,
             showCrossClassTable = FALSE, ...) {
@@ -122,16 +126,26 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "showInteractionAdjVars",
                 showInteractionAdjVars,
                 default=FALSE)
-            private$..interactionModel <- jmvcore::OptionList$new(
-                "interactionModel",
-                interactionModel,
-                options=list(
-                    "codominant",
-                    "dominant",
-                    "recessive",
-                    "overdominant",
-                    "logadditive"),
-                default="codominant")
+            private$..interactionModelCodominant <- jmvcore::OptionBool$new(
+                "interactionModelCodominant",
+                interactionModelCodominant,
+                default=TRUE)
+            private$..interactionModelDominant <- jmvcore::OptionBool$new(
+                "interactionModelDominant",
+                interactionModelDominant,
+                default=FALSE)
+            private$..interactionModelRecessive <- jmvcore::OptionBool$new(
+                "interactionModelRecessive",
+                interactionModelRecessive,
+                default=FALSE)
+            private$..interactionModelOverdominant <- jmvcore::OptionBool$new(
+                "interactionModelOverdominant",
+                interactionModelOverdominant,
+                default=FALSE)
+            private$..interactionModelLogAdditive <- jmvcore::OptionBool$new(
+                "interactionModelLogAdditive",
+                interactionModelLogAdditive,
+                default=FALSE)
             private$..showStratByCovariate <- jmvcore::OptionBool$new(
                 "showStratByCovariate",
                 showStratByCovariate,
@@ -161,7 +175,11 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..interactionType)
             self$.addOption(private$..showInteractionTable)
             self$.addOption(private$..showInteractionAdjVars)
-            self$.addOption(private$..interactionModel)
+            self$.addOption(private$..interactionModelCodominant)
+            self$.addOption(private$..interactionModelDominant)
+            self$.addOption(private$..interactionModelRecessive)
+            self$.addOption(private$..interactionModelOverdominant)
+            self$.addOption(private$..interactionModelLogAdditive)
             self$.addOption(private$..showStratByCovariate)
             self$.addOption(private$..showStratByGenotype)
             self$.addOption(private$..showCrossClassTable)
@@ -183,7 +201,11 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         interactionType = function() private$..interactionType$value,
         showInteractionTable = function() private$..showInteractionTable$value,
         showInteractionAdjVars = function() private$..showInteractionAdjVars$value,
-        interactionModel = function() private$..interactionModel$value,
+        interactionModelCodominant = function() private$..interactionModelCodominant$value,
+        interactionModelDominant = function() private$..interactionModelDominant$value,
+        interactionModelRecessive = function() private$..interactionModelRecessive$value,
+        interactionModelOverdominant = function() private$..interactionModelOverdominant$value,
+        interactionModelLogAdditive = function() private$..interactionModelLogAdditive$value,
         showStratByCovariate = function() private$..showStratByCovariate$value,
         showStratByGenotype = function() private$..showStratByGenotype$value,
         showCrossClassTable = function() private$..showCrossClassTable$value),
@@ -204,7 +226,11 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..interactionType = NA,
         ..showInteractionTable = NA,
         ..showInteractionAdjVars = NA,
-        ..interactionModel = NA,
+        ..interactionModelCodominant = NA,
+        ..interactionModelDominant = NA,
+        ..interactionModelRecessive = NA,
+        ..interactionModelOverdominant = NA,
+        ..interactionModelLogAdditive = NA,
         ..showStratByCovariate = NA,
         ..showStratByGenotype = NA,
         ..showCrossClassTable = NA)
@@ -240,10 +266,7 @@ snpAssocResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     active = list(
                         typingRate = function() private$.items[["typingRate"]],
                         assocTable = function() private$.items[["assocTable"]],
-                        interactionTable = function() private$.items[["interactionTable"]],
-                        stratByCovariate = function() private$.items[["stratByCovariate"]],
-                        stratByGenotype = function() private$.items[["stratByGenotype"]],
-                        crossClassTable = function() private$.items[["crossClassTable"]]),
+                        interactionResults = function() private$.items[["interactionResults"]]),
                     private = list(),
                     public=list(
                         initialize=function(options) {
@@ -310,170 +333,207 @@ snpAssocResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                         `type`="number", 
                                         `format`="zto", 
                                         `visible`=FALSE))))
-                            self$add(jmvcore::Table$new(
-                                options=options,
-                                name="interactionTable",
-                                title="SNP \u00D7 Covariate Interaction",
-                                visible="(snpInteraction && showInteractionTable)",
-                                columns=list(
-                                    list(
-                                        `name`="model", 
-                                        `title`="Model", 
-                                        `type`="text"),
-                                    list(
-                                        `name`="term", 
-                                        `title`="Term", 
-                                        `type`="text"),
-                                    list(
-                                        `name`="effect", 
-                                        `title`="OR / \u03B2", 
-                                        `type`="number", 
-                                        `format`="zto"),
-                                    list(
-                                        `name`="ciLow", 
-                                        `title`="Lower CI", 
-                                        `type`="number", 
-                                        `format`="zto"),
-                                    list(
-                                        `name`="ciHigh", 
-                                        `title`="Upper CI", 
-                                        `type`="number", 
-                                        `format`="zto"),
-                                    list(
-                                        `name`="pval", 
-                                        `title`="P-value", 
-                                        `type`="number", 
-                                        `format`="zto"),
-                                    list(
-                                        `name`="AIC", 
-                                        `title`="AIC", 
-                                        `type`="number", 
-                                        `format`="zto", 
-                                        `visible`=FALSE),
-                                    list(
-                                        `name`="BIC", 
-                                        `title`="BIC", 
-                                        `type`="number", 
-                                        `format`="zto", 
-                                        `visible`=FALSE))))
                             self$add(jmvcore::Array$new(
                                 options=options,
-                                name="stratByCovariate",
-                                title="Interaction \u2014 Stratified by Covariate",
-                                visible="(snpInteraction && showStratByCovariate)",
-                                template=jmvcore::Table$new(
-                                    options=options,
-                                    title="$key",
-                                    columns=list(
-                                        list(
-                                            `name`="genotype", 
-                                            `title`="Genotype", 
-                                            `type`="text"),
-                                        list(
-                                            `name`="stat0", 
-                                            `title`="Group 0", 
-                                            `type`="text"),
-                                        list(
-                                            `name`="stat1", 
-                                            `title`="Group 1", 
-                                            `type`="text"),
-                                        list(
-                                            `name`="effect", 
-                                            `title`="OR / \u03B2", 
-                                            `type`="number", 
-                                            `format`="zto"),
-                                        list(
-                                            `name`="ciLow", 
-                                            `title`="Lower CI", 
-                                            `type`="number", 
-                                            `format`="zto"),
-                                        list(
-                                            `name`="ciHigh", 
-                                            `title`="Upper CI", 
-                                            `type`="number", 
-                                            `format`="zto"),
-                                        list(
-                                            `name`="pval", 
-                                            `title`="P-value", 
-                                            `type`="number", 
-                                            `format`="zto")))))
-                            self$add(jmvcore::Array$new(
-                                options=options,
-                                name="stratByGenotype",
-                                title="Interaction \u2014 Stratified by Genotype",
-                                visible="(snpInteraction && showStratByGenotype)",
-                                template=jmvcore::Table$new(
-                                    options=options,
-                                    title="$key",
-                                    columns=list(
-                                        list(
-                                            `name`="level", 
-                                            `title`="Level", 
-                                            `type`="text"),
-                                        list(
-                                            `name`="stat0", 
-                                            `title`="Group 0", 
-                                            `type`="text"),
-                                        list(
-                                            `name`="stat1", 
-                                            `title`="Group 1", 
-                                            `type`="text"),
-                                        list(
-                                            `name`="effect", 
-                                            `title`="OR / \u03B2", 
-                                            `type`="number", 
-                                            `format`="zto"),
-                                        list(
-                                            `name`="ciLow", 
-                                            `title`="Lower CI", 
-                                            `type`="number", 
-                                            `format`="zto"),
-                                        list(
-                                            `name`="ciHigh", 
-                                            `title`="Upper CI", 
-                                            `type`="number", 
-                                            `format`="zto"),
-                                        list(
-                                            `name`="pval", 
-                                            `title`="P-value", 
-                                            `type`="number", 
-                                            `format`="zto")))))
-                            self$add(jmvcore::Array$new(
-                                options=options,
-                                name="crossClassTable",
-                                title="Cross-Classification",
-                                visible="(snpInteraction && showCrossClassTable)",
-                                template=jmvcore::Table$new(
-                                    options=options,
-                                    title="$key",
-                                    columns=list(
-                                        list(
-                                            `name`="genotype", 
-                                            `title`="Genotype", 
-                                            `type`="text"),
-                                        list(
-                                            `name`="stat0", 
-                                            `title`="Group 0", 
-                                            `type`="text"),
-                                        list(
-                                            `name`="stat1", 
-                                            `title`="Group 1", 
-                                            `type`="text"),
-                                        list(
-                                            `name`="effect", 
-                                            `title`="OR / \u03B2", 
-                                            `type`="number", 
-                                            `format`="zto"),
-                                        list(
-                                            `name`="ciLow", 
-                                            `title`="Lower CI", 
-                                            `type`="number", 
-                                            `format`="zto"),
-                                        list(
-                                            `name`="ciHigh", 
-                                            `title`="Upper CI", 
-                                            `type`="number", 
-                                            `format`="zto")))))}))$new(options=options)))}))
+                                name="interactionResults",
+                                title="Interaction Results",
+                                visible="(snpInteraction)",
+                                template=R6::R6Class(
+                                    inherit = jmvcore::Group,
+                                    active = list(
+                                        interactionTable = function() private$.items[["interactionTable"]],
+                                        stratByCovariateHeading = function() private$.items[["stratByCovariateHeading"]],
+                                        stratByCovariate = function() private$.items[["stratByCovariate"]],
+                                        stratByGenotypeHeading = function() private$.items[["stratByGenotypeHeading"]],
+                                        stratByGenotype = function() private$.items[["stratByGenotype"]],
+                                        crossClassHeading = function() private$.items[["crossClassHeading"]],
+                                        crossClassTable = function() private$.items[["crossClassTable"]]),
+                                    private = list(),
+                                    public=list(
+                                        initialize=function(options) {
+                                            super$initialize(
+                                                options=options,
+                                                name="undefined",
+                                                title="$key")
+                                            self$add(jmvcore::Table$new(
+                                                options=options,
+                                                name="interactionTable",
+                                                title="SNP \u00D7 Covariate Interaction",
+                                                visible="(snpInteraction && showInteractionTable)",
+                                                columns=list(
+                                                    list(
+                                                        `name`="model", 
+                                                        `title`="Model", 
+                                                        `type`="text"),
+                                                    list(
+                                                        `name`="term", 
+                                                        `title`="Term", 
+                                                        `type`="text"),
+                                                    list(
+                                                        `name`="effect", 
+                                                        `title`="OR / \u03B2", 
+                                                        `type`="number", 
+                                                        `format`="zto"),
+                                                    list(
+                                                        `name`="ciLow", 
+                                                        `title`="Lower CI", 
+                                                        `type`="number", 
+                                                        `format`="zto"),
+                                                    list(
+                                                        `name`="ciHigh", 
+                                                        `title`="Upper CI", 
+                                                        `type`="number", 
+                                                        `format`="zto"),
+                                                    list(
+                                                        `name`="pval", 
+                                                        `title`="P-value", 
+                                                        `type`="number", 
+                                                        `format`="zto"),
+                                                    list(
+                                                        `name`="AIC", 
+                                                        `title`="AIC", 
+                                                        `type`="number", 
+                                                        `format`="zto", 
+                                                        `visible`=FALSE),
+                                                    list(
+                                                        `name`="BIC", 
+                                                        `title`="BIC", 
+                                                        `type`="number", 
+                                                        `format`="zto", 
+                                                        `visible`=FALSE))))
+                                            self$add(jmvcore::Html$new(
+                                                options=options,
+                                                name="stratByCovariateHeading",
+                                                title="",
+                                                visible="(snpInteraction && showStratByCovariate)"))
+                                            self$add(jmvcore::Array$new(
+                                                options=options,
+                                                name="stratByCovariate",
+                                                title="",
+                                                visible="(snpInteraction && showStratByCovariate)",
+                                                template=jmvcore::Table$new(
+                                                    options=options,
+                                                    title="$key",
+                                                    columns=list(
+                                                        list(
+                                                            `name`="genotype", 
+                                                            `title`="Genotype", 
+                                                            `type`="text"),
+                                                        list(
+                                                            `name`="stat0", 
+                                                            `title`="Group 0", 
+                                                            `type`="text"),
+                                                        list(
+                                                            `name`="stat1", 
+                                                            `title`="Group 1", 
+                                                            `type`="text"),
+                                                        list(
+                                                            `name`="effect", 
+                                                            `title`="OR / \u03B2", 
+                                                            `type`="number", 
+                                                            `format`="zto"),
+                                                        list(
+                                                            `name`="ciLow", 
+                                                            `title`="Lower CI", 
+                                                            `type`="number", 
+                                                            `format`="zto"),
+                                                        list(
+                                                            `name`="ciHigh", 
+                                                            `title`="Upper CI", 
+                                                            `type`="number", 
+                                                            `format`="zto"),
+                                                        list(
+                                                            `name`="pval", 
+                                                            `title`="P-value", 
+                                                            `type`="number", 
+                                                            `format`="zto")))))
+                                            self$add(jmvcore::Html$new(
+                                                options=options,
+                                                name="stratByGenotypeHeading",
+                                                title="",
+                                                visible="(snpInteraction && showStratByGenotype)"))
+                                            self$add(jmvcore::Array$new(
+                                                options=options,
+                                                name="stratByGenotype",
+                                                title="",
+                                                visible="(snpInteraction && showStratByGenotype)",
+                                                template=jmvcore::Table$new(
+                                                    options=options,
+                                                    title="$key",
+                                                    columns=list(
+                                                        list(
+                                                            `name`="level", 
+                                                            `title`="Level", 
+                                                            `type`="text"),
+                                                        list(
+                                                            `name`="stat0", 
+                                                            `title`="Group 0", 
+                                                            `type`="text"),
+                                                        list(
+                                                            `name`="stat1", 
+                                                            `title`="Group 1", 
+                                                            `type`="text"),
+                                                        list(
+                                                            `name`="effect", 
+                                                            `title`="OR / \u03B2", 
+                                                            `type`="number", 
+                                                            `format`="zto"),
+                                                        list(
+                                                            `name`="ciLow", 
+                                                            `title`="Lower CI", 
+                                                            `type`="number", 
+                                                            `format`="zto"),
+                                                        list(
+                                                            `name`="ciHigh", 
+                                                            `title`="Upper CI", 
+                                                            `type`="number", 
+                                                            `format`="zto"),
+                                                        list(
+                                                            `name`="pval", 
+                                                            `title`="P-value", 
+                                                            `type`="number", 
+                                                            `format`="zto")))))
+                                            self$add(jmvcore::Html$new(
+                                                options=options,
+                                                name="crossClassHeading",
+                                                title="",
+                                                visible="(snpInteraction && showCrossClassTable)"))
+                                            self$add(jmvcore::Array$new(
+                                                options=options,
+                                                name="crossClassTable",
+                                                title="",
+                                                visible="(snpInteraction && showCrossClassTable)",
+                                                template=jmvcore::Table$new(
+                                                    options=options,
+                                                    title="$key",
+                                                    columns=list(
+                                                        list(
+                                                            `name`="genotype", 
+                                                            `title`="Genotype", 
+                                                            `type`="text"),
+                                                        list(
+                                                            `name`="stat0", 
+                                                            `title`="Group 0", 
+                                                            `type`="text"),
+                                                        list(
+                                                            `name`="stat1", 
+                                                            `title`="Group 1", 
+                                                            `type`="text"),
+                                                        list(
+                                                            `name`="effect", 
+                                                            `title`="OR / \u03B2", 
+                                                            `type`="number", 
+                                                            `format`="zto"),
+                                                        list(
+                                                            `name`="ciLow", 
+                                                            `title`="Lower CI", 
+                                                            `type`="number", 
+                                                            `format`="zto"),
+                                                        list(
+                                                            `name`="ciHigh", 
+                                                            `title`="Upper CI", 
+                                                            `type`="number", 
+                                                            `format`="zto")))))}))$new(options=options)))}))$new(options=options)))}))
 
 snpAssocBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
     "snpAssocBase",
@@ -516,7 +576,11 @@ snpAssocBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param interactionType .
 #' @param showInteractionTable .
 #' @param showInteractionAdjVars .
-#' @param interactionModel .
+#' @param interactionModelCodominant .
+#' @param interactionModelDominant .
+#' @param interactionModelRecessive .
+#' @param interactionModelOverdominant .
+#' @param interactionModelLogAdditive .
 #' @param showStratByCovariate .
 #' @param showStratByGenotype .
 #' @param showCrossClassTable .
@@ -545,7 +609,11 @@ snpAssoc <- function(
     interactionType = "multiplicative",
     showInteractionTable = TRUE,
     showInteractionAdjVars = FALSE,
-    interactionModel = "codominant",
+    interactionModelCodominant = TRUE,
+    interactionModelDominant = FALSE,
+    interactionModelRecessive = FALSE,
+    interactionModelOverdominant = FALSE,
+    interactionModelLogAdditive = FALSE,
     showStratByCovariate = FALSE,
     showStratByGenotype = FALSE,
     showCrossClassTable = FALSE) {
@@ -581,7 +649,11 @@ snpAssoc <- function(
         interactionType = interactionType,
         showInteractionTable = showInteractionTable,
         showInteractionAdjVars = showInteractionAdjVars,
-        interactionModel = interactionModel,
+        interactionModelCodominant = interactionModelCodominant,
+        interactionModelDominant = interactionModelDominant,
+        interactionModelRecessive = interactionModelRecessive,
+        interactionModelOverdominant = interactionModelOverdominant,
+        interactionModelLogAdditive = interactionModelLogAdditive,
         showStratByCovariate = showStratByCovariate,
         showStratByGenotype = showStratByGenotype,
         showCrossClassTable = showCrossClassTable)

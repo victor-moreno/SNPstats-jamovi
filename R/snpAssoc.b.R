@@ -216,10 +216,21 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
   private = list(
 
     .init = function() {
-      snp_names <- self$options$snps
+      snp_names    <- self$options$snps
       if (length(snp_names) == 0) return()
-      arr <- self$results$snpResults
-      for (nm in snp_names) arr$addItem(key = nm)
+      arr          <- self$results$snpResults
+      int_models   <- private$.get_interaction_models(self$options)
+      model_labels <- c(codominant = "Codominant", dominant = "Dominant",
+                        recessive  = "Recessive",  overdominant = "Overdominant",
+                        logadditive = "Log-additive")
+      for (nm in snp_names) {
+        arr$addItem(key = nm)
+        if (isTRUE(self$options$snpInteraction) && length(int_models) > 0) {
+          int_arr <- arr$get(key = nm)$interactionResults
+          for (mdl in int_models)
+            int_arr$addItem(key = model_labels[[mdl]])
+        }
+      }
     },
 
     .run = function() {
@@ -318,44 +329,63 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
         if (run_snpInteraction && !is.null(cov_df_cc) && ncol(cov_df_cc) >= 1) {
           interaction_var <- names(cov_df_cc)[1]
+          int_models      <- private$.get_interaction_models(opts)
+          model_labels    <- c(codominant = "Codominant", dominant = "Dominant",
+                               recessive  = "Recessive",  overdominant = "Overdominant",
+                               logadditive = "Log-additive")
 
-          # Vector of models for interaction — currently single element from
-          # the dropdown.  When interactionModel becomes multi-select, replace
-          # this one line with: private$.get_interaction_models(opts)
-          int_models <- opts$interactionModel
+          int_lbl <- attr(self$data[[interaction_var]], "label") %||% interaction_var
 
-          private$.fill_interaction(
-            item$interactionTable, snp_raw_cc, ref,
-            response_cc, cov_df_cc, interaction_var,
-            response_type, opts, int_models, user_levels, response_raw, snp_nm)
+          for (mdl in int_models) {
+            mdl_label  <- model_labels[[mdl]]
+            mdl_item   <- item$interactionResults$get(key = mdl_label)
 
-          if (isTRUE(opts$showStratByCovariate))
-            private$.fill_strat_by_covariate(
-              item$stratByCovariate, snp_raw_cc, ref,
-              response_cc, cov_df_cc, interaction_var,
-              response_type, opts, int_models, user_levels, response_raw, snp_nm)
+            if (isTRUE(opts$showInteractionTable))
+              private$.fill_interaction(
+                mdl_item$interactionTable, snp_raw_cc, ref,
+                response_cc, cov_df_cc, interaction_var,
+                response_type, opts, mdl, user_levels, response_raw, snp_nm)
 
-          if (isTRUE(opts$showStratByGenotype))
-            private$.fill_strat_by_genotype(
-              item$stratByGenotype, snp_raw_cc, ref,
-              response_cc, cov_df_cc, interaction_var,
-              response_type, opts, int_models, user_levels, response_raw_cc, snp_nm)
+            if (isTRUE(opts$showStratByCovariate)) {
+              mdl_item$stratByCovariateHeading$setContent(
+                paste0("<h4>Stratified by Covariate: ", int_lbl,"</h4>"))
+              private$.fill_strat_by_covariate(
+                mdl_item$stratByCovariate, snp_raw_cc, ref,
+                response_cc, cov_df_cc, interaction_var,
+                response_type, opts, mdl, user_levels, response_raw, snp_nm)
+            }
 
-          if (isTRUE(opts$showCrossClassTable))
-            private$.fill_cross_class(
-              item$crossClassTable, snp_raw_cc, ref,
-              response_cc, cov_df_cc, interaction_var,
-              response_type, opts, int_models, user_levels, response_raw_cc, snp_nm)
+            if (isTRUE(opts$showStratByGenotype)) {
+              mdl_item$stratByGenotypeHeading$setContent(
+                paste0("<h4>Stratified by Genotype: ", snp_nm,"</h4>"))
+              private$.fill_strat_by_genotype(
+                mdl_item$stratByGenotype, snp_raw_cc, ref,
+                response_cc, cov_df_cc, interaction_var,
+                response_type, opts, mdl, user_levels, response_raw_cc, snp_nm)
+            }
+
+            if (isTRUE(opts$showCrossClassTable)) {
+              mdl_item$crossClassHeading$setContent(
+                paste0("<h4>Cross-Classification: ", snp_nm, " × ", int_lbl,"</h4>"))
+              private$.fill_cross_class(
+                mdl_item$crossClassTable, snp_raw_cc, ref,
+                response_cc, cov_df_cc, interaction_var,
+                response_type, opts, mdl, user_levels, response_raw_cc, snp_nm)
+            }
+          }
         }
       }
     },
 
     # ── Helper: build interaction model vector from options ───────────────────
-    # Currently wraps the single List option.  To support multi-select in the
-    # future: add Bool options interactionModelCodominant etc., then replace
-    # the body of this function with the c(if...) pattern used in .fill_assoc.
     .get_interaction_models = function(opts) {
-      opts$interactionModel   # returns e.g. "logadditive"
+      c(
+        if (isTRUE(opts$interactionModelCodominant))   "codominant",
+        if (isTRUE(opts$interactionModelDominant))     "dominant",
+        if (isTRUE(opts$interactionModelRecessive))    "recessive",
+        if (isTRUE(opts$interactionModelOverdominant)) "overdominant",
+        if (isTRUE(opts$interactionModelLogAdditive))  "logadditive"
+      )
     },
 
     # ── Shared helpers ────────────────────────────────────────────────────────
@@ -429,7 +459,7 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       tbl$getColumn("genotype")$setTitle(snp_lbl)
 
       resp_lbl <- attr(self$data[[self$options$response]], "label") %||% self$options$response
-      tbl$setTitle(paste0("<b>Association with ", resp_lbl, "</b>"))
+      tbl$setTitle(paste0("Association with ", resp_lbl))
 
       if (response_type == "binary") {
         lv       <- levels(as.factor(response_raw))
@@ -595,7 +625,7 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
       row_key <- 0L
       last_pval_interaction <- NA_real_
-      for (mdl in int_models) { # for now only one model can be selected, but keep loop structure for future multi-select
+      for (mdl in int_models) { # int_models may be a single string (called per-model from .run) or a vector
         snp_enc  <- encode_model(as.character(snp_raw), ref, mdl, user_levels)
 
         # ── Choose conditional flag and cond_var based on interactionType ──
