@@ -8,8 +8,7 @@ The **SNPstats** module provides an interface for conducting single-SNP and mult
 
 See the mini [tutorial](docs/TUTORIAL.md) for more detailed information.
 
-## 
-    Features
+## Features
 
 * **Descriptives:** Allele and genotype frequencies with subpopulation stratification.
 * **Quality Control:** Hardy-Weinberg equilibrium (exact test) per SNP.
@@ -65,3 +64,8 @@ This code is released under MIT license
 ## Report issues
 
 The code has not been extensively tested and could have bugs. Please use github Issues to report any problems and enhancement requests.
+
+Often problems are related to data, mainly when sample size is small and zeros appear in cells. Then, models may fail.
+
+© [Catalan Institute of Oncology](http://iconcologia.net/)
+
