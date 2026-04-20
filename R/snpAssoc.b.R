@@ -348,7 +348,7 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
             if (isTRUE(opts$showStratByCovariate)) {
               mdl_item$stratByCovariateHeading$setContent(
-                paste0("<h4>Stratified by Covariate: ", int_lbl,"</h4>"))
+                paste0("<h3>Stratified by Covariate: ", int_lbl, "</h3>"))
               private$.fill_strat_by_covariate(
                 mdl_item$stratByCovariate, snp_raw_cc, ref,
                 response_cc, cov_df_cc, interaction_var,
@@ -357,7 +357,7 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
             if (isTRUE(opts$showStratByGenotype)) {
               mdl_item$stratByGenotypeHeading$setContent(
-                paste0("<h4>Stratified by Genotype: ", snp_nm,"</h4>"))
+                paste0("<h3>Stratified by Genotype: ", snp_nm, "</h3>"))
               private$.fill_strat_by_genotype(
                 mdl_item$stratByGenotype, snp_raw_cc, ref,
                 response_cc, cov_df_cc, interaction_var,
@@ -366,7 +366,7 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
             if (isTRUE(opts$showCrossClassTable)) {
               mdl_item$crossClassHeading$setContent(
-                paste0("<h4>Cross-Classification: ", snp_nm, " × ", int_lbl,"</h4>"))
+                paste0("<h3>Cross-Classification: ", snp_nm, " × ", int_lbl, "</h3>"))
               private$.fill_cross_class(
                 mdl_item$crossClassTable, snp_raw_cc, ref,
                 response_cc, cov_df_cc, interaction_var,
@@ -378,13 +378,14 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
     },
 
     # ── Helper: build interaction model vector from options ───────────────────
+    # Reuses the same genetic model checkboxes as the association table.
     .get_interaction_models = function(opts) {
       c(
-        if (isTRUE(opts$interactionModelCodominant))   "codominant",
-        if (isTRUE(opts$interactionModelDominant))     "dominant",
-        if (isTRUE(opts$interactionModelRecessive))    "recessive",
-        if (isTRUE(opts$interactionModelOverdominant)) "overdominant",
-        if (isTRUE(opts$interactionModelLogAdditive))  "logadditive"
+        if (isTRUE(opts$modelCodominant))   "codominant",
+        if (isTRUE(opts$modelDominant))     "dominant",
+        if (isTRUE(opts$modelRecessive))    "recessive",
+        if (isTRUE(opts$modelOverdominant)) "overdominant",
+        if (isTRUE(opts$modelLogAdditive))  "logadditive"
       )
     },
 

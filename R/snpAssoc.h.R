@@ -22,11 +22,6 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             interactionType = "multiplicative",
             showInteractionTable = TRUE,
             showInteractionAdjVars = FALSE,
-            interactionModelCodominant = TRUE,
-            interactionModelDominant = FALSE,
-            interactionModelRecessive = FALSE,
-            interactionModelOverdominant = FALSE,
-            interactionModelLogAdditive = FALSE,
             showStratByCovariate = FALSE,
             showStratByGenotype = FALSE,
             showCrossClassTable = FALSE, ...) {
@@ -126,26 +121,6 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "showInteractionAdjVars",
                 showInteractionAdjVars,
                 default=FALSE)
-            private$..interactionModelCodominant <- jmvcore::OptionBool$new(
-                "interactionModelCodominant",
-                interactionModelCodominant,
-                default=TRUE)
-            private$..interactionModelDominant <- jmvcore::OptionBool$new(
-                "interactionModelDominant",
-                interactionModelDominant,
-                default=FALSE)
-            private$..interactionModelRecessive <- jmvcore::OptionBool$new(
-                "interactionModelRecessive",
-                interactionModelRecessive,
-                default=FALSE)
-            private$..interactionModelOverdominant <- jmvcore::OptionBool$new(
-                "interactionModelOverdominant",
-                interactionModelOverdominant,
-                default=FALSE)
-            private$..interactionModelLogAdditive <- jmvcore::OptionBool$new(
-                "interactionModelLogAdditive",
-                interactionModelLogAdditive,
-                default=FALSE)
             private$..showStratByCovariate <- jmvcore::OptionBool$new(
                 "showStratByCovariate",
                 showStratByCovariate,
@@ -175,11 +150,6 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..interactionType)
             self$.addOption(private$..showInteractionTable)
             self$.addOption(private$..showInteractionAdjVars)
-            self$.addOption(private$..interactionModelCodominant)
-            self$.addOption(private$..interactionModelDominant)
-            self$.addOption(private$..interactionModelRecessive)
-            self$.addOption(private$..interactionModelOverdominant)
-            self$.addOption(private$..interactionModelLogAdditive)
             self$.addOption(private$..showStratByCovariate)
             self$.addOption(private$..showStratByGenotype)
             self$.addOption(private$..showCrossClassTable)
@@ -201,11 +171,6 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         interactionType = function() private$..interactionType$value,
         showInteractionTable = function() private$..showInteractionTable$value,
         showInteractionAdjVars = function() private$..showInteractionAdjVars$value,
-        interactionModelCodominant = function() private$..interactionModelCodominant$value,
-        interactionModelDominant = function() private$..interactionModelDominant$value,
-        interactionModelRecessive = function() private$..interactionModelRecessive$value,
-        interactionModelOverdominant = function() private$..interactionModelOverdominant$value,
-        interactionModelLogAdditive = function() private$..interactionModelLogAdditive$value,
         showStratByCovariate = function() private$..showStratByCovariate$value,
         showStratByGenotype = function() private$..showStratByGenotype$value,
         showCrossClassTable = function() private$..showCrossClassTable$value),
@@ -226,11 +191,6 @@ snpAssocOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..interactionType = NA,
         ..showInteractionTable = NA,
         ..showInteractionAdjVars = NA,
-        ..interactionModelCodominant = NA,
-        ..interactionModelDominant = NA,
-        ..interactionModelRecessive = NA,
-        ..interactionModelOverdominant = NA,
-        ..interactionModelLogAdditive = NA,
         ..showStratByCovariate = NA,
         ..showStratByGenotype = NA,
         ..showCrossClassTable = NA)
@@ -576,11 +536,6 @@ snpAssocBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param interactionType .
 #' @param showInteractionTable .
 #' @param showInteractionAdjVars .
-#' @param interactionModelCodominant .
-#' @param interactionModelDominant .
-#' @param interactionModelRecessive .
-#' @param interactionModelOverdominant .
-#' @param interactionModelLogAdditive .
 #' @param showStratByCovariate .
 #' @param showStratByGenotype .
 #' @param showCrossClassTable .
@@ -609,11 +564,6 @@ snpAssoc <- function(
     interactionType = "multiplicative",
     showInteractionTable = TRUE,
     showInteractionAdjVars = FALSE,
-    interactionModelCodominant = TRUE,
-    interactionModelDominant = FALSE,
-    interactionModelRecessive = FALSE,
-    interactionModelOverdominant = FALSE,
-    interactionModelLogAdditive = FALSE,
     showStratByCovariate = FALSE,
     showStratByGenotype = FALSE,
     showCrossClassTable = FALSE) {
@@ -649,11 +599,6 @@ snpAssoc <- function(
         interactionType = interactionType,
         showInteractionTable = showInteractionTable,
         showInteractionAdjVars = showInteractionAdjVars,
-        interactionModelCodominant = interactionModelCodominant,
-        interactionModelDominant = interactionModelDominant,
-        interactionModelRecessive = interactionModelRecessive,
-        interactionModelOverdominant = interactionModelOverdominant,
-        interactionModelLogAdditive = interactionModelLogAdditive,
         showStratByCovariate = showStratByCovariate,
         showStratByGenotype = showStratByGenotype,
         showCrossClassTable = showCrossClassTable)

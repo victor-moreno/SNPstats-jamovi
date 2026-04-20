@@ -46,28 +46,37 @@ children:
             label: Genetic models
             children:
               - type: CheckBox
-                name: snpAssoc
+                name: modelCodominant
                 enable: (response && snps)
-                children:
-                  - type: CheckBox
-                    name: modelCodominant
-                    enable: (snpAssoc)
-                  - type: CheckBox
-                    name: modelDominant
-                    enable: (snpAssoc)
-                  - type: CheckBox
-                    name: modelRecessive
-                    enable: (snpAssoc)
-                  - type: CheckBox
-                    name: modelOverdominant
-                    enable: (snpAssoc)
-                  - type: CheckBox
-                    name: modelLogAdditive
-                    enable: (snpAssoc)
+              - type: CheckBox
+                name: modelDominant
+                enable: (response && snps)
+              - type: CheckBox
+                name: modelRecessive
+                enable: (response && snps)
+              - type: CheckBox
+                name: modelOverdominant
+                enable: (response && snps)
+              - type: CheckBox
+                name: modelLogAdditive
+                enable: (response && snps)
       - type: LayoutBox
         cell:
           column: 0
           row: 1
+        margin: large
+        stretchFactor: 1
+        children:
+          - type: Label
+            label: Association analysis
+            children:
+              - type: CheckBox
+                name: snpAssoc
+                enable: (response && snps)
+      - type: LayoutBox
+        cell:
+          column: 0
+          row: 2
         margin: large
         stretchFactor: 1
         children:
@@ -78,13 +87,13 @@ children:
                 name: snpInteraction
                 enable: (response && snps && covariates)
                 children:
-                  - type: ComboBox
-                    name: interactionType
-                    enable: (snpInteraction)
                   - type: CheckBox
                     name: showInteractionTable
                     enable: (snpInteraction)
                     children:
+                      - type: ComboBox
+                        name: interactionType
+                        enable: (snpInteraction)
                       - type: CheckBox
                         name: showInteractionAdjVars
                         enable: (snpInteraction && showInteractionTable)
@@ -97,19 +106,7 @@ children:
                   - type: CheckBox
                     name: showCrossClassTable
                     enable: (snpInteraction)
-          - type: LayoutBox
-            margin: large
-            children:
-              - type: CheckBox
-                name: interactionModelCodominant
-              - type: CheckBox
-                name: interactionModelDominant
-              - type: CheckBox
-                name: interactionModelRecessive
-              - type: CheckBox
-                name: interactionModelOverdominant
-              - type: CheckBox
-                name: interactionModelLogAdditive
+
       - type: LayoutBox
         cell:
           column: 1

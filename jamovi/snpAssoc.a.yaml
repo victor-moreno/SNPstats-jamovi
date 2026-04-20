@@ -124,31 +124,6 @@ options:
     type: Bool
     default: false
 
-  - name: interactionModelCodominant
-    title: Codominant
-    type: Bool
-    default: true
-
-  - name: interactionModelDominant
-    title: Dominant
-    type: Bool
-    default: false
-
-  - name: interactionModelRecessive
-    title: Recessive
-    type: Bool
-    default: false
-
-  - name: interactionModelOverdominant
-    title: Overdominant
-    type: Bool
-    default: false
-
-  - name: interactionModelLogAdditive
-    title: Log-additive
-    type: Bool
-    default: false
-
   - name: showStratByCovariate
     title: Stratified analysis by covariate
     type: Bool
