@@ -6,7 +6,10 @@ A jamovi module for genetic epidemiology SNP analysis, replicating the functiona
 
 The **SNPstats** module provides an interface for conducting single-SNP and multi-SNP (haplotype) association studies. It handles the complexities of genetic data, including automated format detection, HWE testing, linkage disequilimium calculation and the estimation of haplotype phases via the EM algorithm.
 
-## Features
+See the mini [tutorial](docs/TUTORIAL.md) for more detailed information.
+
+## 
+    Features
 
 * **Descriptives:** Allele and genotype frequencies with subpopulation stratification.
 * **Quality Control:** Hardy-Weinberg equilibrium (exact test) per SNP.
