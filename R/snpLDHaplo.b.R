@@ -273,10 +273,13 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       # Metadata needed by sub-functions
       u_alleles <- attr(geno_setup, "unique.alleles")
 
-      # Missing Management 
+      # Missing Management
+      # Count only rows newly excluded at this stage: rows passing complete_mask
+      # that have at least one SNP missing.  Rows already excluded by
+      # complete_mask (response/covariate missing) are NOT double-counted.
       snp_miss_mask <- apply(is.na(allele_mat), 1, any)
-      keep <- complete_mask & !snp_miss_mask
-      n_miss <- sum(!keep)
+      keep   <- complete_mask & !snp_miss_mask
+      n_miss <- sum(snp_miss_mask & complete_mask)
 
       # ── Dispatch to specialized methods ──
       if (run_haploFreq) {
@@ -438,12 +441,13 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           ci_mat   <- tryCatch(confint(haplo_fit, level = opts$ciWidth / 100),
                               error = function(e) NULL)
 
-          # summary(haplo_fit)$coefficients columns are: coef | se | t.stat | pval
+          # summary(haplo_fit)$coefficients columns are: coef | SE | t.stat | pval
           # (haplo.glm uses its own summary method, not summary.glm)
-          # haplo_rows: positions of geno.* rows in coef_sum (intercept is row 1)
+          # Modern haplo.stats uses "SE" (capital); guard against both spellings.
           haplo_rows <- if (!is.null(coef_sum)) {
             grep("^geno", rownames(coef_sum))
           } else integer(0)
+          se_col <- if (!is.null(coef_sum) && "SE" %in% colnames(coef_sum)) "SE" else "se"
 
           # Helper: get beta, se, pval, ci for haplo-term at position pos
           # (1-based within haplo_rows, matching order of haplo.common).
@@ -457,7 +461,7 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             }
             rn   <- rownames(coef_sum)[row_idx]
             beta <- coef_sum[row_idx, "coef"]
-            se   <- coef_sum[row_idx, "se"]
+            se   <- coef_sum[row_idx, se_col]
             pval <- coef_sum[row_idx, "pval"]
             # CI from ci_mat if available, otherwise Wald ± z * se
             if (!is.null(ci_mat) && rn %in% rownames(ci_mat)) {
@@ -657,6 +661,10 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
             rare_label <- paste0("Rare (<", opts$haploFreqMin, ")")
 
+            # Define base_label here so it is in scope for the reference row below.
+            base_idx   <- haplo_int_fit$haplo.base
+            base_label <- decode_haplo_label(haplo_int_fit$haplo.unique[base_idx, ])
+
             # haplo.names holds the full coefficient names, e.g. "geno.5", "geno.6",
             # "geno.rare".  The numeric suffix IS the row index into haplo.unique —
             # confirmed from debug output.  Build the map from every geno main-effect
@@ -693,7 +701,7 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                               all_rows_int)
             show_rows  <- c(main_rows, inter_rows)
 
-            # reference haplotype row (OR = 1) 
+            # reference haplotype row (OR = 1) — base_idx/base_label defined above
             tbl_int$addRow(
               rowKey = "base", values = list(
                 term      = paste0(base_label, " (Ref)"),
@@ -731,7 +739,7 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                 ci_lo <- ci_int[raw_nm, 1]; ci_hi <- ci_int[raw_nm, 2]
               } else {
                 z     <- qnorm(1 - (1 - opts$ciWidth / 100) / 2)
-                se    <- coef_sum_int[r, "se"]
+                se    <- coef_sum_int[r, if ("SE" %in% colnames(coef_sum_int)) "SE" else "se"]
                 ci_lo <- beta - z * se; ci_hi <- beta + z * se
               }
 
