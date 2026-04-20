@@ -1,7 +1,7 @@
 ---
 name: snpDesc
 title: SNP Descriptive
-version: '1.0.0'
+version: '0.2.0'
 jas: '1.2'
 menuGroup: SNPstats
 menuTitle: SNP Descriptive

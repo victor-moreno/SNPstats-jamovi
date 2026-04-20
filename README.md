@@ -2,7 +2,6 @@
 
 A jamovi module for genetic epidemiology SNP analysis, replicating the
 functionality of the [SNPStats web application](https://www.snpstats.net)
-from the Catalan Institute of Oncology.
 
 ---
 
