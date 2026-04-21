@@ -1,4 +1,3 @@
-# ![snpstats logo](snpstats_logo.svg)
 # SNP Analysis Tutorial
 
 ## Overview
@@ -11,12 +10,12 @@ The **snpstats** jamovi module provides a complete pipeline for single-SNP and m
 
 Each row in the dataset represents one individual. SNP genotypes must be stored as character columns using diploid notation — two alleles separated by a delimiter, or concatenated as two characters. The module accepts the following formats:
 
-| Format | Separator | Example values |
-| --- | --- | --- |
-| A/B | slash `/` | T/T, T/C, C/C |
-| A\|B | pipe `\|` | T\|T, T\|C, C\|C |
-| A>B | greater-than `>` | T>T, T>C, C>C |
-| AB | none (2 chars) | TT, TC, CC |
+| Format | Separator          | Example values   |
+| ------ | ------------------ | ---------------- |
+| A/B    | slash `/`        | T/T, T/C, C/C    |
+| A\|B   | pipe `\|`         | T\|T, T\|C, C\|C |
+| A>B    | greater-than `>` | T>T, T>C, C>C    |
+| AB     | none (2 chars)     | TT, TC, CC       |
 
 Any allele names are accepted (single nucleotides, insertion/deletion codes, etc.), provided that exactly two distinct alleles appear across the column. Columns with three or more alleles, or inconsistent genotype combinations (e.g. A/A, A/C, B/C) are flagged and excluded with an informative message.
 
@@ -39,13 +38,13 @@ The panel exposes the following options:
 
 Under **SNP descriptive**, individual outputs can be toggled independently:
 
-| Checkbox | Output produced |
-| --- | --- |
-| SNP summary table | One-row-per-SNP overview: alleles, N typed, missing, MAF, AA/AB/BB counts, HWE p-value |
-| Allele frequencies | Per-SNP allele counts and proportions, stratified when applicable |
-| Genotype frequencies | Per-SNP genotype counts and proportions, stratified when applicable |
-| Hardy–Weinberg equilibrium | Exact HWE test p-value, overall and per stratum |
-| Show missing values | Adds a Missing row to frequency tables |
+| Checkbox                    | Output produced                                                                        |
+| --------------------------- | -------------------------------------------------------------------------------------- |
+| SNP summary table           | One-row-per-SNP overview: alleles, N typed, missing, MAF, AA/AB/BB counts, HWE p-value |
+| Allele frequencies          | Per-SNP allele counts and proportions, stratified when applicable                      |
+| Genotype frequencies        | Per-SNP genotype counts and proportions, stratified when applicable                    |
+| Hardy–Weinberg equilibrium | Exact HWE test p-value, overall and per stratum                                        |
+| Show missing values         | Adds a Missing row to frequency tables                                                 |
 
 ### Covariate summary
 
@@ -83,7 +82,9 @@ Enable **Allele frequencies** and **Genotype frequencies** for per-SNP detailed 
 
 Allele frequencies are derived by counting each allele separately across both chromosomes:
 
-$$\text{Allele freq}(A) = \frac{2 \times N_{AA} + N_{AB}}{2 \times N_{\text{typed}}}$$
+$$
+\text{Allele freq}(A) = \frac{2 \times N_{AA} + N_{AB}}{2 \times N_{\text{typed}}}
+$$
 
 ![Figure 4 – Allele and Genotype Frequencies for SNP1](images/f3_SNP_frequencies.jpg)
 *Figure 4. Allele frequencies, genotype frequencies, and HWE test for SNP1 (C/G). The C allele is more common (63.9%). Genotype distributions are similar between controls and cases.*
@@ -111,13 +112,13 @@ Assign the response variable, one or more SNPs, and any covariates. When covaria
 
 Enable **SNP-response association** to fit a regression model — logistic for binary, linear for continuous — for each SNP under each selected genetic model (Figure 6). Let **A** be the reference allele (the allele in the most frequent homozygote) and **B** the variant allele. The five available models are:
 
-| Model | Comparison encoded | Interpretation |
-| --- | --- | --- |
-| Codominant | AA = 0, AB = 1, BB = 2 (two dummy variables) | Tests each heterozygote and homozygote separately vs. AA |
-| Dominant | AA = 0, AB + BB = 1 | Any copy of B increases risk equally |
-| Recessive | AA + AB = 0, BB = 1 | Two copies of B required for effect |
-| Overdominant | AA + BB = 0, AB = 1 | Heterozygote advantage/disadvantage |
-| Log-additive | 0, 1, 2 copies of B | Each additional B allele multiplies OR by a constant factor |
+| Model        | Comparison encoded                           | Interpretation                                              |
+| ------------ | -------------------------------------------- | ----------------------------------------------------------- |
+| Codominant   | AA = 0, AB = 1, BB = 2 (two dummy variables) | Tests each heterozygote and homozygote separately vs. AA    |
+| Dominant     | AA = 0, AB + BB = 1                          | Any copy of B increases risk equally                        |
+| Recessive    | AA + AB = 0, BB = 1                          | Two copies of B required for effect                         |
+| Overdominant | AA + BB = 0, AB = 1                          | Heterozygote advantage/disadvantage                         |
+| Log-additive | 0, 1, 2 copies of B                          | Each additional B allele multiplies OR by a constant factor |
 
 For each model the table reports: genotype group counts by case/control status, OR (or β for linear), lower and upper confidence interval bounds, p-value, AIC, and BIC. The **first p-value in the Codominant model is the likelihood ratio test (LRT) p-value** for overall association, comparing the two-degree-of-freedom codominant model against the null. AIC and BIC facilitate model comparison across genetic models — a lower value indicates a better-fitting, more parsimonious model.
 
@@ -130,7 +131,9 @@ In the example, SNP1 shows no significant association with STATUS under any mode
 
 Enable **SNP × covariate interaction** to test whether the SNP effect on outcome differs across levels of the first covariate listed (Figure 7). The interaction model is:
 
-$$\text{logit}(p) = \beta_0 + \beta_1{\text{SNP}} + \beta_2{\text{Z}} + \beta_{\text{int}}{SNP \times Z}$$
+$$
+\text{logit}(p) = \beta_0 + \beta_1{\text{SNP}} + \beta_2{\text{Z}} + \beta_{\text{int}}{SNP \times Z}
+$$
 
 The interaction table lists OR and 95% CI for SNP main effects, the covariate main effect, and each SNP × covariate product term $\beta_{\text{int}}$, that is a vector ans size depends on the genetic model and covariate categories. The **Interaction p-value (LRT)** compares the full interaction model against the additive main-effects model and is reported in a table note. The **Interaction parameterisation** dropdown offers three options:
 
@@ -181,11 +184,11 @@ Linkage disequilibrium (LD) is the non-random association of alleles at differen
 
 Enable **Pairwise LD table** to compute three statistics for every pair of SNPs (Figure 12):
 
-| Statistic | Range | Interpretation |
-| --- | --- | --- |
-| **D** | (−∞, +∞) | Raw covariance of allele frequencies; magnitude depends on allele frequencies |
-| **D′** | [0, 1] | Scaled D; D′ = 1 means no recombination has been observed between the two alleles |
-| **r²** | [0, 1] | Squared correlation; r² = 1 means the two SNPs are perfectly interchangeable as tag SNPs |
+| Statistic     | Range       | Interpretation                                                                            |
+| ------------- | ----------- | ----------------------------------------------------------------------------------------- |
+| **D**   | (−∞, +∞) | Raw covariance of allele frequencies; magnitude depends on allele frequencies             |
+| **D′** | [0, 1]      | Scaled D; D′ = 1 means no recombination has been observed between the two alleles        |
+| **r²** | [0, 1]      | Squared correlation; r² = 1 means the two SNPs are perfectly interchangeable as tag SNPs |
 
 A p-value testing departure from linkage equilibrium (D = 0) is also reported.
 
@@ -227,21 +230,19 @@ regarding sample size used, haplotypes estimated with the EM algorithm allow for
 
 Enable **Haplotype × covariate interaction** to test whether haplotype effects differ across levels of the first covariate (Figure 16). The interaction model is:
 
-$$\text{logit}(p) = \beta_0 + \sum_h \beta_h H_h + \beta_Z Z + \sum_h \beta_{h \times Z}(H_h \times Z)$$
+$$
+\text{logit}(p) = \beta_0 + \sum_h \beta_h H_h + \beta_Z Z + \sum_h \beta_{h \times Z}(H_h \times Z)
+$$
 
 The table lists main haplotype effects, the covariate main effect, and each haplotype × covariate product term with OR, 95% CI, and p-value. An overall likelihood ratio test for interaction is reported in a table note, computed as the deviance difference between the full interaction model and the main-effects-only model.
-Conditional models can be also ajdusted, which reparameterize the model. However, caution is required to interpret the model conditional on haplotype, because the terms haplotype:covariate for the reference haplotype are not estimable.
 
 ![Figure 16 – Haplotype × Covariate Interaction](images/f15_haplotype_interaction.jpg)
 *Figure 16. Haplotype × SEX interaction. No haplotype × SEX interaction term is individually significant, and the overall LRT for interaction is p = 0.852, indicating that the haplotype effects do not differ by sex.*
 
 ---
 
-
 ## References
 
 Sole X, Guino E, Valls J, Iniesta R, Moreno V (2006). SNPStats: a web tool for the analysis of association studies. *Bioinformatics* 22(15):1928–1929.
 
-Daniel S, Sinnwell J (2026). haplo.stats: Statistical Analysis of Haplotypes with Traits and Covariates when Linkage Phase is Ambiguous. R package version 1.9.8.3, https://CRAN.R-project.org/package=haplo.stats. 
-
-
+Daniel S, Sinnwell J (2026). haplo.stats: Statistical Analysis of Haplotypes with Traits and Covariates when Linkage Phase is Ambiguous. R package version 1.9.8.3, https://CRAN.R-project.org/package=haplo.stats.
