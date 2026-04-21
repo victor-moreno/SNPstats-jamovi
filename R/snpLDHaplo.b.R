@@ -348,7 +348,9 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             tbl$getColumn('freq_g0')$setVisible(FALSE)
             tbl$getColumn('freq_g1')$setVisible(FALSE)
         }
-        for (i in seq_along(freqs)) {
+        # Sort indices by frequency descending (rare rows are excluded in the loop)
+        sorted_idx <- order(freqs, decreasing = TRUE)
+        for (i in sorted_idx) {
           if (freqs[i] < opts$haploFreqMin) { rare_sum <- rare_sum + freqs[i]; next }
           label    <- decode_haplo_row(as.numeric(em_all$haplotype[i,]), u_alleles)
           row_vals <- list(haplotype=label, freq=round(freqs[i],3))
@@ -505,8 +507,11 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           # ── Common haplotypes ──────────────────────────────────────
           # haplo.common: integer index vector into haplo.unique rows,
           # in the same order as haplo.names / the GLM coefficients.
-          common_idx <- haplo_fit$haplo.common
-          for (j in seq_along(common_idx)) {
+          # Sort by frequency descending so most-frequent haplotypes appear first.
+          common_idx   <- haplo_fit$haplo.common
+          common_freqs <- haplo_fit$haplo.freq[common_idx]
+          sorted_j     <- order(common_freqs, decreasing = TRUE)
+          for (j in sorted_j) {
             h_idx   <- common_idx[j]
             h_label <- label_from_unique_row(haplo_fit$haplo.unique[h_idx, ])
             h_freq  <- haplo_fit$haplo.freq[h_idx]
@@ -699,7 +704,35 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             inter_rows <- grep(paste0("^geno.*:", int_var,
                                       "|^", int_var, ":.*geno"),
                               all_rows_int)
-            show_rows  <- c(main_rows, inter_rows)
+
+            # Sort main-effect rows by haplotype frequency descending, then
+            # interleave each main row immediately followed by its interaction row.
+            get_haplo_freq_for_row <- function(r) {
+              rn     <- all_rows_int[r]
+              suffix <- sub("^geno\\.", "", rn)
+              if (grepl("^[0-9]+$", suffix)) {
+                idx <- as.integer(suffix)
+                if (!is.na(idx) && idx >= 1L &&
+                    idx <= length(haplo_int_fit$haplo.freq))
+                  return(haplo_int_fit$haplo.freq[idx])
+              }
+              return(0)   # rare / unknown → sort to end
+            }
+            main_freqs      <- sapply(main_rows, get_haplo_freq_for_row)
+            sorted_main_pos <- main_rows[order(main_freqs, decreasing = TRUE)]
+
+            # Build show_rows: sorted main rows, each followed by its interaction row
+            show_rows <- integer(0)
+            for (mr in sorted_main_pos) {
+              show_rows <- c(show_rows, mr)
+              rn_mr <- all_rows_int[mr]
+              matching_inter <- inter_rows[grep(paste0("^", rn_mr, ":"),
+                                               all_rows_int[inter_rows])]
+              if (length(matching_inter) > 0)
+                show_rows <- c(show_rows, matching_inter)
+            }
+            # Append any interaction rows not yet included (safety net)
+            show_rows <- c(show_rows, setdiff(inter_rows, show_rows))
 
             # reference haplotype row (OR = 1) — base_idx/base_label defined above
             tbl_int$addRow(
