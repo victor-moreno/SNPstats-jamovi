@@ -97,7 +97,3 @@ children:
               - type: CheckBox
                 name: haploInteraction
                 enable: (response && snps && covariates)
-                children:
-                  - type: ComboBox
-                    name: haploInteractionType
-                    enable: (haploInteraction)

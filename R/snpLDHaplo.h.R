@@ -19,8 +19,7 @@ snpLDHaploOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             subpop = FALSE,
             haploAssoc = FALSE,
             ciWidth = 95,
-            haploInteraction = FALSE,
-            haploInteractionType = "multiplicative", ...) {
+            haploInteraction = FALSE, ...) {
 
             super$initialize(
                 package="SNPstats",
@@ -112,14 +111,6 @@ snpLDHaploOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "haploInteraction",
                 haploInteraction,
                 default=FALSE)
-            private$..haploInteractionType <- jmvcore::OptionList$new(
-                "haploInteractionType",
-                haploInteractionType,
-                options=list(
-                    "multiplicative",
-                    "conditional_on_haplo",
-                    "conditional_on_covar"),
-                default="multiplicative")
 
             self$.addOption(private$..response)
             self$.addOption(private$..snps)
@@ -135,7 +126,6 @@ snpLDHaploOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..haploAssoc)
             self$.addOption(private$..ciWidth)
             self$.addOption(private$..haploInteraction)
-            self$.addOption(private$..haploInteractionType)
         }),
     active = list(
         response = function() private$..response$value,
@@ -151,8 +141,7 @@ snpLDHaploOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         subpop = function() private$..subpop$value,
         haploAssoc = function() private$..haploAssoc$value,
         ciWidth = function() private$..ciWidth$value,
-        haploInteraction = function() private$..haploInteraction$value,
-        haploInteractionType = function() private$..haploInteractionType$value),
+        haploInteraction = function() private$..haploInteraction$value),
     private = list(
         ..response = NA,
         ..snps = NA,
@@ -167,8 +156,7 @@ snpLDHaploOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..subpop = NA,
         ..haploAssoc = NA,
         ..ciWidth = NA,
-        ..haploInteraction = NA,
-        ..haploInteractionType = NA)
+        ..haploInteraction = NA)
 )
 
 snpLDHaploResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
@@ -263,7 +251,9 @@ snpLDHaploResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 active = list(
                     haploFreqTable = function() private$.items[["haploFreqTable"]],
                     haploAssocTable = function() private$.items[["haploAssocTable"]],
-                    haploInteractionTable = function() private$.items[["haploInteractionTable"]]),
+                    haploInteractionTable = function() private$.items[["haploInteractionTable"]],
+                    haploCondCovarTable = function() private$.items[["haploCondCovarTable"]],
+                    haploCondHaploTable = function() private$.items[["haploCondHaploTable"]]),
                 private = list(),
                 public=list(
                     initialize=function(options) {
@@ -333,28 +323,46 @@ snpLDHaploResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                         self$add(jmvcore::Table$new(
                             options=options,
                             name="haploInteractionTable",
-                            title="Haplotype \u00D7 Covariate Interaction",
+                            title="Haplotype \u00D7 Covariate Interaction (cross-classification)",
                             visible="(haploInteraction)",
                             columns=list(
                                 list(
                                     `name`="term", 
-                                    `title`="Term", 
+                                    `title`="Haplotype", 
                                     `type`="text"),
                                 list(
-                                    `name`="effect", 
-                                    `title`="OR / \u03B2", 
-                                    `type`="number"),
+                                    `name`="freq", 
+                                    `title`="Frequency", 
+                                    `type`="number", 
+                                    `format`="zto"))))
+                        self$add(jmvcore::Table$new(
+                            options=options,
+                            name="haploCondCovarTable",
+                            title="Haplotype Effect within Covariate Levels",
+                            visible="(haploInteraction)",
+                            columns=list(
                                 list(
-                                    `name`="ciLow", 
-                                    `title`="Lower CI", 
-                                    `type`="number"),
+                                    `name`="term", 
+                                    `title`="Haplotype", 
+                                    `type`="text"),
                                 list(
-                                    `name`="ciHigh", 
-                                    `title`="Upper CI", 
-                                    `type`="number"),
+                                    `name`="freq", 
+                                    `title`="Frequency", 
+                                    `type`="number", 
+                                    `format`="zto"))))
+                        self$add(jmvcore::Table$new(
+                            options=options,
+                            name="haploCondHaploTable",
+                            title="Covariate Effect within Haplotypes",
+                            visible="(haploInteraction)",
+                            columns=list(
                                 list(
-                                    `name`="pval", 
-                                    `title`="P-value", 
+                                    `name`="term", 
+                                    `title`="Haplotype", 
+                                    `type`="text"),
+                                list(
+                                    `name`="freq", 
+                                    `title`="Frequency", 
                                     `type`="number", 
                                     `format`="zto"))))}))$new(options=options))}))
 
@@ -397,7 +405,6 @@ snpLDHaploBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param haploAssoc .
 #' @param ciWidth .
 #' @param haploInteraction .
-#' @param haploInteractionType .
 #' @return A results object containing:
 #' \tabular{llllll}{
 #'   \code{results$validationMsg} \tab \tab \tab \tab \tab a html \cr
@@ -407,6 +414,8 @@ snpLDHaploBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'   \code{results$haploGroup$haploFreqTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$haploGroup$haploAssocTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$haploGroup$haploInteractionTable} \tab \tab \tab \tab \tab a table \cr
+#'   \code{results$haploGroup$haploCondCovarTable} \tab \tab \tab \tab \tab a table \cr
+#'   \code{results$haploGroup$haploCondHaploTable} \tab \tab \tab \tab \tab a table \cr
 #' }
 #'
 #' @export
@@ -425,8 +434,7 @@ snpLDHaplo <- function(
     subpop = FALSE,
     haploAssoc = FALSE,
     ciWidth = 95,
-    haploInteraction = FALSE,
-    haploInteractionType = "multiplicative") {
+    haploInteraction = FALSE) {
 
     if ( ! requireNamespace("jmvcore", quietly=TRUE))
         stop("snpLDHaplo requires jmvcore to be installed (restart may be required)")
@@ -456,8 +464,7 @@ snpLDHaplo <- function(
         subpop = subpop,
         haploAssoc = haploAssoc,
         ciWidth = ciWidth,
-        haploInteraction = haploInteraction,
-        haploInteractionType = haploInteractionType)
+        haploInteraction = haploInteraction)
 
     analysis <- snpLDHaploClass$new(
         options = options,

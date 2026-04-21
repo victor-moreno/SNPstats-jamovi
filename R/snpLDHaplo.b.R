@@ -877,42 +877,32 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
     .compute_haplo_interaction = function(geno_setup, response, response_type, cov_df, keep,
                                           n_miss, opts, snp_names, u_alleles) {
-      
+
       int_var  <- names(cov_df)[1]   # first covariate is the interaction term
-      adj_vars <- setdiff(names(cov_df), int_var)
-
-      tbl_int <- self$results$haploGroup$haploInteractionTable
-      tbl_int$getColumn("effect")$setTitle(
-        if (response_type == "binary") "OR" else "\u03B2")
-
-      int_type <- if (is.null(opts$haploInteractionType)) "multiplicative"
-                  else opts$haploInteractionType
-
-      # Set Title
-      formula_token <- switch(int_type,
-        multiplicative        = paste0("Haplotype \u00D7 ", int_var),
-        conditional_on_covar  = paste0(int_var, " | Haplotype"),
-        conditional_on_haplo  = paste0("Haplotype | ", int_var))
-      tbl_int$setTitle(paste0("<b>Interaction: ", formula_token, "</b>"))
-
-      if (length(adj_vars) > 0){
-        note_parts <- paste0(". Adjusted for: ", paste(adj_vars, collapse = ", "))
-        tbl_int$setNote(note = note_parts, key = "intcov")
+      int_var_vals <- cov_df[[int_var]]
+      if (!is.factor(int_var_vals) && !is.character(int_var_vals)) {
+        self$results$validationMsg$setContent(
+          paste0("<p style='color:orange;'>Haplotype interaction tables require a categorical covariate. '",
+                int_var, "' is numeric — please convert it to a factor.</p>"))
+        self$results$validationMsg$setVisible(TRUE)
+        return()
+      }
+      if (length(unique(na.omit(as.character(int_var_vals)))) > 6) {
+        self$results$validationMsg$setContent(
+          paste0("<p style='color:orange;'>Haplotype interaction tables require a covariate with at most 6 categories. '",
+                int_var, "' has more.</p>"))
+        self$results$validationMsg$setVisible(TRUE)
+        return()
       }
 
-      # ── Missing note ──────────────────────────────────────────────
-      if (n_miss > 0)
-        tbl_int$setNote(
-          note = paste0(n_miss, " observation(s) with missing data excluded."),
-          key  = "missing_snp")
-      else
-        tbl_int$setNote(note = NULL, key = "missing_snp")
+      adj_vars <- setdiff(names(cov_df), int_var)
 
+      # ── Common setup ──────────────────────────────────────────────
       family_int <- if (response_type == "binary") "binomial" else "gaussian"
-      y_int <- if (response_type == "binary")
-        as.numeric(as.factor(response[keep])) - 1L
-      else
-        response[keep]
+      is_binary  <- (response_type == "binary")
+
+      y_int <- if (is_binary) as.numeric(as.factor(response[keep])) - 1L
+               else response[keep]
 
       m_int      <- data.frame(y = y_int)
       m_int$geno <- subset_geno(geno_setup, keep)
@@ -922,19 +912,17 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       adj_part <- if (length(adj_vars) > 0)
         paste("+", paste(adj_vars, collapse = "+")) else ""
 
-      # ── Build formulae depending on parameterisation ──────────────
-      # The "additive" formula (no interaction) is always used for the LRT.
-      formula_add_str <- paste("y ~ geno +", int_var, adj_part)
+      # ── Fit the multiplicative model y ~ geno * int_var ───────────
+      # All three derived tables (cross-classification, conditional on covariate,
+      # conditional on haplotype) are computed from this single fit via linear
+      # combinations of its coefficients — avoiding the known haplo.stats
+      # bug in the conditional_on_haplo parameterisation.
+      formula_mult_str <- paste("y ~ geno *", int_var, adj_part)
+      formula_add_str  <- paste("y ~ geno +", int_var, adj_part)
 
-      formula_fit_str <- switch(int_type,
-        multiplicative       = paste("y ~ geno *",   int_var, adj_part),
-        conditional_on_haplo = paste("y ~ geno /",   int_var, adj_part),
-        conditional_on_covar = paste("y ~", int_var, "/ geno", adj_part)
-      )
-
-      haplo_fit_int <- tryCatch(
+      haplo_fit_mult <- tryCatch(
         haplo.stats::haplo.glm(
-          as.formula(formula_fit_str),
+          as.formula(formula_mult_str),
           family    = family_int,
           data      = m_int,
           na.action = na.geno.keep,
@@ -946,6 +934,7 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           NULL
         }
       )
+
       haplo_fit_add <- tryCatch(
         haplo.stats::haplo.glm(
           as.formula(formula_add_str),
@@ -957,146 +946,361 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         error = function(e) NULL
       )
 
+      if (is.null(haplo_fit_mult)) return()
 
-      if (!is.null(haplo_fit_int) && !is.null(haplo_fit_add)) {
+      coef_sum <- tryCatch(summary(haplo_fit_mult)$coefficients, error = function(e) NULL)
+      if (is.null(coef_sum)) return()
 
-        p_inter_haplo <- NA_real_   # initialised here so note is always settable
+      se_col   <- if ("SE" %in% colnames(coef_sum)) "SE" else "se"
+      vcov_mat <- tryCatch(vcov(haplo_fit_mult), error = function(e) NULL)
 
-        # ── LRT: fitted model vs additive baseline ────────────────────
-        # anova.haplo.glm can fail on mismatched EM sets; use deviance diff directly.
-        dev_diff <- haplo_fit_add$deviance - haplo_fit_int$deviance
-        df_diff  <- haplo_fit_add$df.residual - haplo_fit_int$df.residual
-        p_inter_haplo <- if (!is.na(dev_diff) && !is.na(df_diff) && df_diff > 0)
+      # ── Helpers ───────────────────────────────────────────────────
+      decode_haplo_label <- function(row_vec) paste(as.character(row_vec), collapse = "-")
+      rare_label         <- paste0("Rare (<", opts$haploFreqMin, ")")
+      z_crit             <- qnorm(1 - (1 - opts$ciWidth / 100) / 2)
+
+      base_idx   <- haplo_fit_mult$haplo.base
+      base_label <- decode_haplo_label(haplo_fit_mult$haplo.unique[base_idx, ])
+
+      int_var_factor <- as.factor(m_int[[int_var]])
+      covar_levels   <- levels(int_var_factor)
+      ref_covar_lvl  <- covar_levels[1]
+
+      # Build a named vector: haplo_index -> allele_label (for all non-base)
+      # common_idx is ordered as the GLM coefficients
+      common_idx   <- haplo_fit_mult$haplo.common
+      common_freqs <- haplo_fit_mult$haplo.freq[common_idx]
+      has_rare     <- isTRUE(haplo_fit_mult$haplo.rare.term) ||
+                       (length(haplo_fit_mult$haplo.rare) > 0)
+      rare_freq    <- if (has_rare) sum(haplo_fit_mult$haplo.freq[haplo_fit_mult$haplo.rare]) else 0
+
+      # Ordered haplotype entries (base first, then by freq desc, rare last)
+      all_haplo_entries <- list()
+      all_haplo_entries[["base"]] <- list(
+        label = base_label,
+        freq  = haplo_fit_mult$haplo.freq[base_idx],
+        coef_pos = NA_integer_   # reference
+      )
+      sorted_common_j <- order(common_freqs, decreasing = TRUE)
+      for (j in sorted_common_j) {
+        h_idx   <- common_idx[j]
+        h_label <- decode_haplo_label(haplo_fit_mult$haplo.unique[h_idx, ])
+        all_haplo_entries[[h_label]] <- list(
+          label    = h_label,
+          freq     = haplo_fit_mult$haplo.freq[h_idx],
+          coef_pos = j   # position in haplo_rows (geno.N row index within geno rows)
+        )
+      }
+      if (has_rare) {
+        all_haplo_entries[["rare"]] <- list(
+          label    = rare_label,
+          freq     = rare_freq,
+          coef_pos = length(common_idx) + 1L   # last geno row is the rare term
+        )
+      }
+
+      # Row names from the model coefficients
+      all_coef_names <- rownames(coef_sum)
+      haplo_rows     <- grep("^geno", all_coef_names)   # main + interaction geno rows
+
+      # Helper: get beta+SE for a named coefficient row
+      get_beta_se <- function(nm) {
+        idx <- match(nm, all_coef_names)
+        if (is.na(idx)) return(list(beta = NA_real_, se = NA_real_))
+        list(beta = coef_sum[idx, "coef"],
+             se   = coef_sum[idx, se_col])
+      }
+
+      # Helper: combine two coefficient rows with vcov for SE of sum/contrast
+      # returns list(beta, se)
+      combine_coefs <- function(nm1, nm2 = NULL, sign2 = 1) {
+        i1 <- match(nm1, all_coef_names)
+        if (is.na(i1)) return(list(beta = NA_real_, se = NA_real_))
+        b1 <- coef_sum[i1, "coef"]
+        if (is.null(nm2)) return(list(beta = b1, se = coef_sum[i1, se_col]))
+        i2 <- match(nm2, all_coef_names)
+        if (is.na(i2)) return(list(beta = b1, se = coef_sum[i1, se_col]))
+        b2 <- coef_sum[i2, "coef"]
+        beta_comb <- b1 + sign2 * b2
+        if (!is.null(vcov_mat) && i1 <= nrow(vcov_mat) && i2 <= nrow(vcov_mat)) {
+          var_comb <- vcov_mat[i1, i1] + vcov_mat[i2, i2] + 2 * sign2 * vcov_mat[i1, i2]
+          se_comb  <- sqrt(max(0, var_comb))
+        } else {
+          se_comb <- sqrt(coef_sum[i1, se_col]^2 + coef_sum[i2, se_col]^2)
+        }
+        list(beta = beta_comb, se = se_comb)
+      }
+
+      # Helper: format OR (95% CI) as a single string for jamovi
+      fmt_or_ci <- function(beta, se) {
+        if (is.na(beta) || is.na(se)) return(NA_character_)
+        or    <- exp(beta)
+        ci_lo <- exp(beta - z_crit * se)
+        ci_hi <- exp(beta + z_crit * se)
+        sprintf("%.2f (%.2f\u2013%.2f)", or, ci_lo, ci_hi)
+      }
+
+      # Helper: format beta (95% CI) as a single string (quantitative)
+      fmt_b_ci <- function(beta, se) {
+        if (is.na(beta) || is.na(se)) return(NA_character_)
+        ci_lo <- beta - z_crit * se
+        ci_hi <- beta + z_crit * se
+        sprintf("%.3f (%.3f\u2013%.3f)", beta, ci_lo, ci_hi)
+      }
+
+      fmt_effect_ci <- if (is_binary) fmt_or_ci else fmt_b_ci
+
+      # Helper: note string for adjustments + missing
+      build_notes <- function(tbl) {
+        if (length(adj_vars) > 0) {
+          adj_lbl <- sapply(adj_vars, function(x) attr(self$data[[x]], "label") %||% x)
+          tbl$setNote(note = paste0("Adjusted for: ", paste(adj_lbl, collapse = ", ")),
+                      key  = "intcov")
+        }
+        if (n_miss > 0)
+          tbl$setNote(note = paste0(n_miss, " observation(s) with missing data excluded."),
+                      key  = "missing_snp")
+        else
+          tbl$setNote(note = NULL, key = "missing_snp")
+      }
+
+      # ── LRT p-value for multiplicative interaction ─────────────────
+      p_inter <- NA_real_
+      if (!is.null(haplo_fit_add)) {
+        dev_diff <- haplo_fit_add$deviance - haplo_fit_mult$deviance
+        df_diff  <- haplo_fit_add$df.residual - haplo_fit_mult$df.residual
+        p_inter  <- if (!is.na(dev_diff) && !is.na(df_diff) && df_diff > 0)
           pchisq(dev_diff, df = df_diff, lower.tail = FALSE)
         else NA_real_
-
-        if (!is.na(p_inter_haplo))
-          tbl_int$setNote(
-            note = paste0("Likelihood ratio test for interaction (vs additive): P = ",
-                          format.pval(p_inter_haplo, digits = 3)),
-            key  = "lrt_inter")
-        else
-          tbl_int$setNote(note = NULL, key = "lrt_inter")
-
-        coef_sum_int <- tryCatch(summary(haplo_fit_int)$coefficients, error = function(e) NULL)
-        ci_int       <- tryCatch(confint(haplo_fit_int, level = opts$ciWidth / 100), error = function(e) NULL)
-        se_col_int   <- if (!is.null(coef_sum_int) && "SE" %in% colnames(coef_sum_int)) "SE" else "se"
-
-        if (!is.null(coef_sum_int)) {
-          all_rows_int <- rownames(coef_sum_int)
-          decode_haplo_label <- function(row_vec) paste(as.character(row_vec), collapse = "-")
-          rare_label <- paste0("Rare (<", opts$haploFreqMin, ")")
-          
-          base_idx   <- haplo_fit_int$haplo.base
-          base_label <- decode_haplo_label(haplo_fit_int$haplo.unique[base_idx, ])
-          
-          # We need to find the reference level of the interaction variable
-          # haplo.glm usually leaves the first level as the baseline in the intercept
-          int_var_factor <- as.factor(cov_df[[int_var]])
-          ref_covar_lvl  <- levels(int_var_factor)[1]
-
-          raw_to_label <- character(0)
-
-          # 1. Map geno main suffixes (geno.1, geno.rare) to Allele Strings
-          for (rn in all_rows_int) {
-            # Extract geno part from strings like "geno.12" or "SEXFemale:geno.12"
-            if (grepl("geno\\.", rn)) {
-              g_match  <- regmatches(rn, regexpr("geno\\.([0-9]+|rare)", rn))
-              g_suffix <- sub("geno\\.", "", g_match)
-              
-              g_label <- if (grepl("^[0-9]+$", g_suffix)) {
-                idx <- as.integer(g_suffix)
-                decode_haplo_label(haplo_fit_int$haplo.unique[idx, ])
-              } else { rare_label }
-              
-              # Replace the geno component in the raw name with the label
-              if (grepl(":", rn)) {
-                # Handle nested terms: e.g., "SEXFemale:geno.12" -> "SEXFemale:G-C-A"
-                raw_to_label[rn] <- sub("geno\\.([0-9]+|rare)", g_label, rn)
-              } else {
-                # Handle main geno terms: e.g., "geno.12" -> "G-C-A"
-                raw_to_label[rn] <- g_label
-              }
-            }
-          }
-
-          # 2. Specifically handle Covariate Main Effects for "conditional models"
-          covar_main_rows <- grep(paste0("^", int_var, "[^:]*$"), all_rows_int, value = TRUE)
-          if (int_type == "conditional_on_covar") {
-            # These appear as "SEXFemale" but represent "SEXFemale:BaseHaplotype"
-            for (crn in covar_main_rows) {
-               if (crn != covar_main_rows[1])
-                 raw_to_label[crn] <- paste0(crn, ":", base_label)
-              else
-                raw_to_label[crn] <- crn
-            }
-          } else if (int_type == "conditional_on_haplo") {
-            # These appear as "SEXFemale" but represent "BaseHaplotype:SEXFemale"
-            for (crn in covar_main_rows) {
-               raw_to_label[crn] <- paste0(base_label, ":", crn)
-            }
-          } else {
-            for (crn in covar_main_rows) {
-               raw_to_label[crn] <- crn
-            }
-          }
-          
-          
-          # 3. Identify rows to show
-          # here add option to show all terms
-          show_mask <- grepl("geno", all_rows_int) | grepl(int_var, all_rows_int)           
-          show_rows <- which(show_mask)
-
-          # --- Emit Rows ---
-          
-          # Reference Row: Now specifically labeled with Ref Covariate
-          tbl_int$addRow(
-            rowKey = "base",
-            values = list(
-              term   = paste0(base_label, " (Ref)"),
-              effect = if (response_type == "binary") 1.0 else 0.0,
-              ciLow  = '', ciHigh = '', pval = ''
-            )
-          )
-
-          # ── Helper: extract beta / CI for one row ──────────────────
-          get_row_stats <- function(r) {
-            raw_nm <- all_rows_int[r]
-            beta   <- coef_sum_int[r, "coef"]
-            pval   <- coef_sum_int[r, "pval"]
-            if (!is.null(ci_int) && raw_nm %in% rownames(ci_int)) {
-              ci_lo <- ci_int[raw_nm, 1]; ci_hi <- ci_int[raw_nm, 2]
-            } else {
-              z     <- qnorm(1 - (1 - opts$ciWidth / 100) / 2)
-              se    <- coef_sum_int[r, se_col_int]
-              ci_lo <- beta - z * se; ci_hi <- beta + z * se
-            }
-            list(beta = beta, pval = pval, ci_lo = ci_lo, ci_hi = ci_hi)
-          }
-
-          for (r in show_rows) {
-            raw_nm <- all_rows_int[r]
-            label  <- raw_to_label[raw_nm] %||% raw_nm
-            st     <- get_row_stats(r) # Uses logic from your original code
-            
-            tbl_int$addRow(
-              rowKey = paste0("hi", r),
-              values = list(
-                term   = label,
-                effect = if (response_type == "binary") exp(st$beta) else st$beta,
-                ciLow  = if (response_type == "binary") exp(st$ci_lo) else st$ci_lo,
-                ciHigh = if (response_type == "binary") exp(st$ci_hi) else st$ci_hi,
-                pval   = st$pval
-              )
-            )
-          }
-        }
       }
-      # ── LRT note (set regardless of fit outcome) ──────────────────
-      if (int_type == "conditional_on_haplo") {
-        tbl_int$setNote(
-          note = paste0("This model misses terms reference haplotype:covariate; interpret with caution."),
-          key  = "cond_hap")
+
+      # ── Identify interaction coefficient row names ─────────────────
+      # haplo.glm names interaction terms as:
+      #   covar main effect:    "<int_var><level>"  (non-reference levels)
+      #   geno main effects:    "geno.<N>" / "geno.rare"
+      #   interaction terms:    "<int_var><level>:geno.<N>"   or
+      #                         "geno.<N>:<int_var><level>"   (order may vary)
+      # We look up by pattern for robustness.
+
+      covar_main_nms <- grep(paste0("^", int_var, ".+$"), all_coef_names, value = TRUE)
+      covar_main_nms <- covar_main_nms[!grepl(":", covar_main_nms)]
+
+      # Map non-reference covariate level -> its main-effect coefficient name
+      covar_lvl_to_main <- setNames(covar_main_nms,
+        sub(paste0("^", int_var), "", covar_main_nms))
+
+      # Helper: find the interaction coefficient name for (haplo_coef_name, covar_level_suffix)
+      find_inter_nm <- function(geno_nm, covar_lvl_suffix) {
+        # Try both orderings that haplo.glm might produce
+        cand1 <- paste0(int_var, covar_lvl_suffix, ":", geno_nm)
+        cand2 <- paste0(geno_nm, ":", int_var, covar_lvl_suffix)
+        if (cand1 %in% all_coef_names) return(cand1)
+        if (cand2 %in% all_coef_names) return(cand2)
+        NA_character_
+      }
+
+      # haplo_coef_nm: the "geno.<N>" / "geno.rare" row name for a given coef_pos
+      # (matches position j in haplo_rows relative to the geno main-effect block)
+      get_geno_coef_nm <- function(coef_pos) {
+        if (is.na(coef_pos) || coef_pos < 1L || coef_pos > length(haplo_rows))
+          return(NA_character_)
+        all_coef_names[haplo_rows[coef_pos]]
+      }
+
+      # ══════════════════════════════════════════════════════════════
+      # TABLE 1: Cross-classification (haplo × covariate)
+      #   Columns: Haplotype, Frequency, <covar_level1> OR (95%CI), <covar_level2> OR(95%CI), ...
+      #   Reference cell: base_haplotype × ref_covar_level  → OR = 1
+      #   Other cells computed by adding coefficients from the multiplicative model
+      # ══════════════════════════════════════════════════════════════
+      tbl_cross <- self$results$haploGroup$haploInteractionTable
+      tbl_cross$setTitle(paste0("<b>Haplotype \u00D7 ", int_var, " (cross-classification)</b>"))
+      build_notes(tbl_cross)
+      if (!is.na(p_inter))
+        tbl_cross$setNote(
+          note = paste0("Interaction p-value (LRT): ", format.pval(p_inter, digits = 3)),
+          key  = "lrt_inter")
+
+      # Add one column per covariate level (dynamic)
+      for (lvl in covar_levels) {
+        col_nm <- paste0("cross_", make.names(lvl))
+        safe_lvl <- gsub("[^A-Za-z0-9_]", "_", lvl)
+        tbl_cross$addColumn(name  = col_nm,
+                            title = paste0(lvl, if (is_binary) " OR (95%CI)" else " \u03B2 (95%CI)"),
+                            type  = "text")
+      }
+
+      for (entry_nm in names(all_haplo_entries)) {
+        entry   <- all_haplo_entries[[entry_nm]]
+        h_label <- entry$label
+        h_freq  <- entry$freq
+        cp      <- entry$coef_pos
+        geno_nm <- get_geno_coef_nm(cp)
+
+        row_vals <- list(
+          term = h_label,
+          freq = round(h_freq, 4)
+        )
+
+        for (lvl in covar_levels) {
+          col_nm    <- paste0("cross_", make.names(lvl))
+          lvl_suf   <- sub(paste0("^", int_var), "", covar_lvl_to_main[lvl] %||% "")
+          is_ref_covar <- (lvl == ref_covar_lvl)
+          is_ref_haplo <- is.na(cp)
+
+          val <- if (is_ref_haplo && is_ref_covar) {
+            # Reference cell
+            if (is_binary) "1.00 (Ref)" else "0 (Ref)"
+          } else if (is_ref_haplo) {
+            # Reference haplotype, non-reference covariate level
+            covar_main_nm <- covar_lvl_to_main[lvl_suf]
+            if (!is.null(covar_main_nm) && !is.na(covar_main_nm)) {
+              bs <- get_beta_se(covar_main_nm)
+              fmt_effect_ci(bs$beta, bs$se)
+            } else NA_character_
+          } else if (is_ref_covar) {
+            # Non-reference haplotype, reference covariate level
+            bs <- get_beta_se(geno_nm)
+            fmt_effect_ci(bs$beta, bs$se)
+          } else {
+            # Non-reference haplotype AND non-reference covariate level:
+            # beta = b_haplo + b_covar + b_interaction
+            covar_main_nm <- covar_lvl_to_main[lvl_suf]
+            inter_nm      <- if (!is.na(geno_nm)) find_inter_nm(geno_nm, lvl_suf) else NA_character_
+            i1 <- match(geno_nm,       all_coef_names)
+            i2 <- match(covar_main_nm, all_coef_names)
+            i3 <- if (!is.na(inter_nm)) match(inter_nm, all_coef_names) else NA_integer_
+
+            if (is.na(i1) || is.na(i2)) {
+              NA_character_
+            } else if (is.na(i3) || is.null(vcov_mat)) {
+              # No vcov or no interaction term: simple sum of SE (conservative)
+              beta_sum <- coef_sum[i1,"coef"] + coef_sum[i2,"coef"] +
+                          if (!is.na(i3)) coef_sum[i3,"coef"] else 0
+              se_sum   <- sqrt(coef_sum[i1,se_col]^2 + coef_sum[i2,se_col]^2 +
+                               if (!is.na(i3)) coef_sum[i3,se_col]^2 else 0)
+              fmt_effect_ci(beta_sum, se_sum)
+            } else {
+              # Full delta method via vcov
+              idx_used <- c(i1, i2, i3)
+              idx_used <- idx_used[!is.na(idx_used)]
+              beta_sum <- sum(coef_sum[idx_used, "coef"])
+              var_sum  <- sum(vcov_mat[idx_used, idx_used])
+              fmt_effect_ci(beta_sum, sqrt(max(0, var_sum)))
+            }
+          }
+          row_vals[[col_nm]] <- val %||% ""
+        }
+
+        tbl_cross$addRow(rowKey = paste0("cross_", entry_nm), values = row_vals)
+      }
+
+      # ══════════════════════════════════════════════════════════════
+      # TABLE 2: Haplotype effect conditional on covariate level
+      #   i.e. OR for each haplotype vs base, separately within each covariate level
+      #   Columns: Haplotype, Frequency, <level1> OR(95%CI), <level2> OR(95%CI), ...
+      #   For ref covariate level: same as main association (geno main effects)
+      #   For non-ref covariate levels: b_haplo + b_interaction
+      # ══════════════════════════════════════════════════════════════
+      tbl_cond_covar <- self$results$haploGroup$haploCondCovarTable
+      tbl_cond_covar$setTitle(paste0("<b>Haplotype effect within ", int_var, " levels</b>"))
+      build_notes(tbl_cond_covar)
+
+      for (lvl in covar_levels) {
+        col_nm <- paste0("condcovar_", make.names(lvl))
+        tbl_cond_covar$addColumn(name  = col_nm,
+                                 title = paste0(lvl, if (is_binary) " OR (95%CI)" else " \u03B2 (95%CI)"),
+                                 type  = "text")
+      }
+
+      for (entry_nm in names(all_haplo_entries)) {
+        entry   <- all_haplo_entries[[entry_nm]]
+        h_label <- entry$label
+        h_freq  <- entry$freq
+        cp      <- entry$coef_pos
+        geno_nm <- get_geno_coef_nm(cp)
+        is_ref_haplo <- is.na(cp)
+
+        row_vals <- list(term = h_label, freq = round(h_freq, 4))
+
+        for (lvl in covar_levels) {
+          col_nm      <- paste0("condcovar_", make.names(lvl))
+          lvl_suf     <- sub(paste0("^", int_var), "", covar_lvl_to_main[lvl] %||% "")
+          is_ref_covar <- (lvl == ref_covar_lvl)
+
+          val <- if (is_ref_haplo) {
+            if (is_binary) "1.00 (Ref)" else "0 (Ref)"
+          } else if (is_ref_covar) {
+            # OR within reference covariate level = geno main effect
+            bs <- get_beta_se(geno_nm)
+            fmt_effect_ci(bs$beta, bs$se)
+          } else {
+            # OR within non-reference covariate level = b_haplo + b_interaction
+            inter_nm <- if (!is.na(geno_nm)) find_inter_nm(geno_nm, lvl_suf) else NA_character_
+            bs <- if (!is.na(inter_nm)) combine_coefs(geno_nm, inter_nm)
+                  else get_beta_se(geno_nm)
+            fmt_effect_ci(bs$beta, bs$se)
+          }
+          row_vals[[col_nm]] <- val %||% ""
+        }
+        tbl_cond_covar$addRow(rowKey = paste0("cc_", entry_nm), values = row_vals)
+      }
+
+      # ══════════════════════════════════════════════════════════════
+      # TABLE 3: Covariate effect conditional on haplotype
+      #   i.e. OR for each covariate level vs its reference, separately within
+      #   each haplotype (treating base_haplo as reference haplotype background)
+      #   For base haplotype: covariate main effect
+      #   For non-base haplotype: b_covar + b_interaction
+      # ══════════════════════════════════════════════════════════════
+      tbl_cond_haplo <- self$results$haploGroup$haploCondHaploTable
+      tbl_cond_haplo$setTitle(paste0("<b>", int_var, " effect within haplotypes</b>"))
+      build_notes(tbl_cond_haplo)
+
+      # Columns: one per non-reference covariate level
+      non_ref_covar_levels <- covar_levels[-1]
+      for (lvl in non_ref_covar_levels) {
+        col_nm <- paste0("condhaplo_", make.names(lvl))
+        tbl_cond_haplo$addColumn(name  = col_nm,
+                                 title = paste0(lvl, if (is_binary) " OR (95%CI)" else " \u03B2 (95%CI)"),
+                                 type  = "text")
+      }
+
+      for (entry_nm in names(all_haplo_entries)) {
+        entry   <- all_haplo_entries[[entry_nm]]
+        h_label <- entry$label
+        h_freq  <- entry$freq
+        cp      <- entry$coef_pos
+        geno_nm <- get_geno_coef_nm(cp)
+        is_ref_haplo <- is.na(cp)
+
+        row_vals <- list(term = h_label, freq = round(h_freq, 4))
+
+        for (lvl in non_ref_covar_levels) {
+          col_nm      <- paste0("condhaplo_", make.names(lvl))
+          lvl_suf     <- sub(paste0("^", int_var), "", covar_lvl_to_main[lvl] %||% "")
+          covar_main_nm <- covar_lvl_to_main[lvl_suf]
+
+          val <- if (is_ref_haplo) {
+            # Covariate effect within base haplotype = covariate main effect
+            if (!is.null(covar_main_nm) && !is.na(covar_main_nm)) {
+              bs <- get_beta_se(covar_main_nm)
+              fmt_effect_ci(bs$beta, bs$se)
+            } else NA_character_
+          } else {
+            # Covariate effect within non-base haplotype = b_covar + b_interaction
+            inter_nm <- if (!is.na(geno_nm)) find_inter_nm(geno_nm, lvl_suf) else NA_character_
+            if (!is.null(covar_main_nm) && !is.na(covar_main_nm) && !is.na(inter_nm)) {
+              bs <- combine_coefs(covar_main_nm, inter_nm)
+              fmt_effect_ci(bs$beta, bs$se)
+            } else if (!is.null(covar_main_nm) && !is.na(covar_main_nm)) {
+              bs <- get_beta_se(covar_main_nm)
+              fmt_effect_ci(bs$beta, bs$se)
+            } else NA_character_
+          }
+          row_vals[[col_nm]] <- val %||% ""
+        }
+        tbl_cond_haplo$addRow(rowKey = paste0("ch_", entry_nm), values = row_vals)
       }
     }
   )

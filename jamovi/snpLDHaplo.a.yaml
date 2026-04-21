@@ -115,12 +115,3 @@ options:
     title: Haplotype × covariate interaction (first covariate)
     type: Bool
     default: false
-
-  - name: haploInteractionType
-    title: Interaction parameterisation
-    type: List
-    options:
-      - {title: Multiplicative (haplotype × covariate),    name: multiplicative}
-      - {title: Conditional on haplotype (covariate | haplotype), name: conditional_on_haplo}
-      - {title: Conditional on covariate (haplotype | covariate), name: conditional_on_covar}
-    default: multiplicative

@@ -73,13 +73,33 @@ items:
           - {name: ciHigh,    title: Upper CI,  type: number}
           - {name: pval,      title: P-value,   type: number, format: zto}
 
+      # Table 1 – cross-classification (haplo × covariate cell ORs)
+      # Columns beyond 'term' and 'freq' are added dynamically in R
+      # (one text column per covariate level).
       - name: haploInteractionTable
-        title: Haplotype × Covariate Interaction
+        title: Haplotype × Covariate Interaction (cross-classification)
         type: Table
         visible: (haploInteraction)
         columns:
-          - {name: term,   title: Term,     type: text}
-          - {name: effect, title: OR / β,   type: number}
-          - {name: ciLow,  title: Lower CI, type: number}
-          - {name: ciHigh, title: Upper CI, type: number}
-          - {name: pval,   title: P-value,  type: number, format: zto}
+          - {name: term, title: Haplotype, type: text}
+          - {name: freq, title: Frequency, type: number, format: zto}
+
+      # Table 2 – haplotype ORs within each covariate level
+      # (conditional on covariate; columns added dynamically)
+      - name: haploCondCovarTable
+        title: Haplotype Effect within Covariate Levels
+        type: Table
+        visible: (haploInteraction)
+        columns:
+          - {name: term, title: Haplotype, type: text}
+          - {name: freq, title: Frequency, type: number, format: zto}
+
+      # Table 3 – covariate ORs within each haplotype
+      # (conditional on haplotype; columns added dynamically)
+      - name: haploCondHaploTable
+        title: Covariate Effect within Haplotypes
+        type: Table
+        visible: (haploInteraction)
+        columns:
+          - {name: term, title: Haplotype, type: text}
+          - {name: freq, title: Frequency, type: number, format: zto}
