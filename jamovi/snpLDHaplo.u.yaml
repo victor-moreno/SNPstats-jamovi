@@ -78,14 +78,14 @@ children:
                 name: haploFreq
                 enable: (snps)
                 children:
-                  - type: TextBox
-                    name: haploFreqMin
-                    format: number
-                    enable: (haploFreq)
                   - type: CheckBox
                     name: subpop
                     enable: (response)
 
+                  - type: TextBox
+                    name: haploFreqMin
+                    format: number
+                    enable: (haploFreq || haploAssoc || haploInteraction)
               - type: CheckBox
                 name: haploAssoc
                 enable: (response && snps)
@@ -93,10 +93,10 @@ children:
                   - type: TextBox
                     name: ciWidth
                     format: number
-                    enable: (haploAssoc)
+                    enable: (haploAssoc || haploInteraction)
               - type: CheckBox
                 name: haploInteraction
-                enable: (haploAssoc && covariates)
+                enable: (response && snps && covariates)
                 children:
                   - type: ComboBox
                     name: haploInteractionType
