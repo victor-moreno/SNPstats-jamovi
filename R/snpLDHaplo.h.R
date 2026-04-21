@@ -19,7 +19,8 @@ snpLDHaploOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             subpop = FALSE,
             haploAssoc = FALSE,
             ciWidth = 95,
-            haploInteraction = FALSE, ...) {
+            haploInteraction = FALSE,
+            haploInteractionType = "multiplicative", ...) {
 
             super$initialize(
                 package="SNPstats",
@@ -111,6 +112,14 @@ snpLDHaploOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "haploInteraction",
                 haploInteraction,
                 default=FALSE)
+            private$..haploInteractionType <- jmvcore::OptionList$new(
+                "haploInteractionType",
+                haploInteractionType,
+                options=list(
+                    "multiplicative",
+                    "conditional_on_haplo",
+                    "conditional_on_covar"),
+                default="multiplicative")
 
             self$.addOption(private$..response)
             self$.addOption(private$..snps)
@@ -126,6 +135,7 @@ snpLDHaploOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..haploAssoc)
             self$.addOption(private$..ciWidth)
             self$.addOption(private$..haploInteraction)
+            self$.addOption(private$..haploInteractionType)
         }),
     active = list(
         response = function() private$..response$value,
@@ -141,7 +151,8 @@ snpLDHaploOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         subpop = function() private$..subpop$value,
         haploAssoc = function() private$..haploAssoc$value,
         ciWidth = function() private$..ciWidth$value,
-        haploInteraction = function() private$..haploInteraction$value),
+        haploInteraction = function() private$..haploInteraction$value,
+        haploInteractionType = function() private$..haploInteractionType$value),
     private = list(
         ..response = NA,
         ..snps = NA,
@@ -156,7 +167,8 @@ snpLDHaploOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..subpop = NA,
         ..haploAssoc = NA,
         ..ciWidth = NA,
-        ..haploInteraction = NA)
+        ..haploInteraction = NA,
+        ..haploInteractionType = NA)
 )
 
 snpLDHaploResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
@@ -385,6 +397,7 @@ snpLDHaploBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param haploAssoc .
 #' @param ciWidth .
 #' @param haploInteraction .
+#' @param haploInteractionType .
 #' @return A results object containing:
 #' \tabular{llllll}{
 #'   \code{results$validationMsg} \tab \tab \tab \tab \tab a html \cr
@@ -412,7 +425,8 @@ snpLDHaplo <- function(
     subpop = FALSE,
     haploAssoc = FALSE,
     ciWidth = 95,
-    haploInteraction = FALSE) {
+    haploInteraction = FALSE,
+    haploInteractionType = "multiplicative") {
 
     if ( ! requireNamespace("jmvcore", quietly=TRUE))
         stop("snpLDHaplo requires jmvcore to be installed (restart may be required)")
@@ -442,7 +456,8 @@ snpLDHaplo <- function(
         subpop = subpop,
         haploAssoc = haploAssoc,
         ciWidth = ciWidth,
-        haploInteraction = haploInteraction)
+        haploInteraction = haploInteraction,
+        haploInteractionType = haploInteractionType)
 
     analysis <- snpLDHaploClass$new(
         options = options,

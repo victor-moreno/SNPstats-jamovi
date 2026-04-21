@@ -64,11 +64,11 @@ children:
                 name: ldPlot
                 enable: (snps)
 
-      # ── Column 1: Haplotype analysis ──────────────────────────
+      # ── Next Row: Haplotype analysis ──────────────────────────
       - type: LayoutBox
         cell:
-          column: 1
-          row: 0
+          column: 0
+          row: 1
         stretchFactor: 1
         children:
           - type: Label
@@ -97,3 +97,7 @@ children:
               - type: CheckBox
                 name: haploInteraction
                 enable: (haploAssoc && covariates)
+                children:
+                  - type: ComboBox
+                    name: haploInteractionType
+                    enable: (haploInteraction)
