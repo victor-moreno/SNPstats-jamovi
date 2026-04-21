@@ -1245,6 +1245,10 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         }
         tbl_cond_covar$addRow(rowKey = paste0("cc_", entry_nm), values = row_vals)
       }
+      if (!is.na(p_inter))
+        tbl_cond_covar$setNote(
+          note = paste0("Interaction p-value (LRT): ", format.pval(p_inter, digits = 3)),
+          key  = "lrt_inter2")
 
       # ══════════════════════════════════════════════════════════════
       # TABLE 3: Covariate effect conditional on haplotype
@@ -1257,8 +1261,12 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       tbl_cond_haplo$setTitle(paste0("<b>", int_var, " effect within haplotypes</b>"))
       build_notes(tbl_cond_haplo)
 
-      # Columns: one per non-reference covariate level
+      # Columns: reference level first (always 1/0 Ref), then one per non-reference level
       non_ref_covar_levels <- covar_levels[-1]
+      ref_col_nm <- paste0("condhaplo_", make.names(ref_covar_lvl))
+      tbl_cond_haplo$addColumn(name  = ref_col_nm,
+                               title = paste0(ref_covar_lvl, if (is_binary) " OR (95%CI)" else " \u03B2 (95%CI)"),
+                               type  = "text")
       for (lvl in non_ref_covar_levels) {
         col_nm <- paste0("condhaplo_", make.names(lvl))
         tbl_cond_haplo$addColumn(name  = col_nm,
@@ -1275,6 +1283,7 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         is_ref_haplo <- is.na(cp)
 
         row_vals <- list(term = h_label, freq = round(h_freq, 4))
+        row_vals[[ref_col_nm]] <- if (is_binary) "1.00 (Ref)" else "0 (Ref)"
 
         for (lvl in non_ref_covar_levels) {
           col_nm      <- paste0("condhaplo_", make.names(lvl))
@@ -1302,6 +1311,10 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         }
         tbl_cond_haplo$addRow(rowKey = paste0("ch_", entry_nm), values = row_vals)
       }
+      if (!is.na(p_inter))
+        tbl_cond_haplo$setNote(
+          note = paste0("Interaction p-value (LRT): ", format.pval(p_inter, digits = 3)),
+          key  = "lrt_inter2")
     }
   )
 )
