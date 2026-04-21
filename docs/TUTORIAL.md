@@ -218,6 +218,7 @@ In the five-SNP example, eight distinct haplotypes exceed the 0.01 threshold plu
 Enable **Haplotype-response association** to test each haplotype for association with the outcome using `haplo.glm` from the `haplo.stats` package (Figure 15). This method fits a regression model weighted by the posterior probability of each haplotype assignment for every individual, correctly propagating phase uncertainty into the parameter estimates.
 
 The most frequent haplotype is automatically selected as the reference category. The table reports OR (binary outcome) or β (continuous outcome) with confidence interval and p-value for each common haplotype, plus the pooled *Rare* term. When covariates are included, the model adjusts for them.
+regarding sample size used, haplotypes estimated with the EM algorithm allow for missing values in some SNPs. Only cases with all SNPs missing are excluded.
 
 ![Figure 15 – Haplotype Association](images/f14_haplotype_assoc.jpg)
 *Figure 15. Haplotype association with STATUS, adjusted for SEX, AGE, and BMI. Haplotype C-C-A-G-G shows a significant association (OR = 2.487, 95% CI: 1.069–5.78, p = 0.035) relative to the reference C-T-C-C-G. No other haplotype reaches significance.*
@@ -229,6 +230,7 @@ Enable **Haplotype × covariate interaction** to test whether haplotype effects 
 $$\text{logit}(p) = \beta_0 + \sum_h \beta_h H_h + \beta_Z Z + \sum_h \beta_{h \times Z}(H_h \times Z)$$
 
 The table lists main haplotype effects, the covariate main effect, and each haplotype × covariate product term with OR, 95% CI, and p-value. An overall likelihood ratio test for interaction is reported in a table note, computed as the deviance difference between the full interaction model and the main-effects-only model.
+Conditional models can be also ajdusted, which reparameterize the model. However, caution is required to interpret the model conditional on haplotype, because the terms haplotype:covariate for the reference haplotype are not estimable.
 
 ![Figure 16 – Haplotype × Covariate Interaction](images/f15_haplotype_interaction.jpg)
 *Figure 16. Haplotype × SEX interaction. No haplotype × SEX interaction term is individually significant, and the overall LRT for interaction is p = 0.852, indicating that the haplotype effects do not differ by sex.*
