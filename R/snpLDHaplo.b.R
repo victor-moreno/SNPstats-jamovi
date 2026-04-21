@@ -302,6 +302,7 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                                     n_miss, opts, run_subpop, snp_names, u_alleles) {
       
       tbl <- self$results$haploGroup$haploFreqTable
+      tbl$setTitle("<b>Haplotype Frequencies</b>")
       do_strat_haplo <- isTRUE(run_subpop) && !is.null(response_raw) &&
                         identical(response_type, "binary")
       grp_levels_haplo <- levels(response_raw[keep])
@@ -421,6 +422,8 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
         if (!is.null(haplo_fit)) {
           tbl <- self$results$haploGroup$haploAssocTable
+          tbl$setTitle("<b>Haplotype Association</b>")
+
 
           # Set effect column title to match response type
           tbl$getColumn("effect")$setTitle(
@@ -442,23 +445,20 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
               lm(as.formula(null_formula_str), data = m_model),
             error = function(e) NULL
           )
+          # debug
 
           p_lrt_assoc <- NA_real_
           if (!is.null(haplo_null_fit)) {
             dev_diff <- deviance(haplo_null_fit) - haplo_fit$deviance
-            df_diff  <- (haplo_null_fit$df.null - haplo_null_fit$df.residual) - (haplo_fit$df.null - haplo_fit$df.residual)
+            df_diff  <- (haplo_fit$df.null - haplo_fit$df.residual) - (haplo_null_fit$df.null - haplo_null_fit$df.residual)
             p_lrt_assoc <- if (!is.na(dev_diff) && !is.na(df_diff) && df_diff > 0)
               pchisq(dev_diff, df = df_diff, lower.tail = FALSE)
             else NA_real_
           }
-
-          if (!is.na(p_lrt_assoc))
-            tbl$setNote(
-              note = paste0("Likelihood ratio test for overall haplotype association: P = ",
-                            format.pval(p_lrt_assoc, digits = 3)),
-              key  = "lrt_assoc")
-          else
-            tbl$setNote(note = NULL, key = "lrt_assoc")
+          tbl$setNote(
+            note = paste0("Likelihood ratio test for overall haplotype association: P = ",
+                          format.pval(p_lrt_assoc, digits = 3)),
+            key  = "lrt_assoc")
 
           # ── Decode haplotype label from haplo.unique row ────────────
           # haplo.unique stores allele characters directly (e.g. "C", "T", "A"),
@@ -617,13 +617,12 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         multiplicative        = paste0("Haplotype \u00D7 ", int_var),
         conditional_on_covar  = paste0(int_var, " | Haplotype"),
         conditional_on_haplo  = paste0("Haplotype | ", int_var))
-      tbl_int$setTitle(paste0("<b>", formula_token, "</b>"))
+      tbl_int$setTitle(paste0("<b>Interaction: ", formula_token, "</b>"))
 
-      note_parts <- paste0("Interaction covariate: ", int_var)
-      if (length(adj_vars) > 0)
-        note_parts <- paste0(note_parts, ". Adjusted for: ",
-                             paste(adj_vars, collapse = ", "))
-      tbl_int$setNote(note = note_parts, key = "intcov")
+      if (length(adj_vars) > 0){
+        note_parts <- paste0(". Adjusted for: ", paste(adj_vars, collapse = ", "))
+        tbl_int$setNote(note = note_parts, key = "intcov")
+      }
 
       # ── Missing note ──────────────────────────────────────────────
       if (n_miss > 0)
