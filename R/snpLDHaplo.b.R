@@ -714,6 +714,9 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           # haplo.glm names geno main-effect terms as "geno.N" or "geno.rare";
           # nested terms take the form "geno.N:int_varLevel" (multiplicative /
           # conditional_on_haplo) or "int_varLevel:geno.N" (conditional_on_covar).
+          base_idx   <- haplo_fit_int$haplo.base
+          base_label <- decode_haplo_label(haplo_fit_int$haplo.unique[base_idx, ])
+
           geno_main_rows <- grep("^geno[^:]+$", all_rows_int, value = TRUE)
           raw_to_label   <- character(0)
 
@@ -739,11 +742,21 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                 sub(paste0("^", rn, ":"), "", irn))
           }
 
-          # For conditional_on_covar (int_var / geno), nested terms appear as
-          # "int_varLevel:geno.N" — build labels for those too.
+          # For conditional_on_covar (y ~ int_var / geno), the model parameterises
+          # as: intercept = base haplotype (reference covariate level),
+          #     int_varLevel rows = int_varLevel WITHIN base haplotype,
+          #     int_varLevel:geno.N rows = haplotype N effect within int_varLevel.
           if (int_type == "conditional_on_covar") {
+
+            # Covariate main-effect rows (e.g. "SEXMale") — these are the effect
+            # of that covariate level WITHIN the base haplotype, so label them
+            # "SEXMale:<base_haplotype>"
             covar_main_rows <- grep(paste0("^", int_var, "[^:]*$"), all_rows_int, value = TRUE)
             for (crn in covar_main_rows) {
+              covar_level <- sub(paste0("^", int_var), "", crn)
+              raw_to_label[crn] <- paste0(int_var, covar_level, ":", base_label)
+
+              # Nested "int_varLevel:geno.N" rows — haplotype N within that level
               nested_rns <- grep(paste0("^", crn, ":geno"), all_rows_int, value = TRUE)
               for (nrn in nested_rns) {
                 geno_part <- sub(paste0("^", crn, ":"), "", nrn)
@@ -756,8 +769,7 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                 } else if (grepl("rare", g_suffix, ignore.case = TRUE)) {
                   rare_label
                 } else g_suffix
-                covar_level <- sub(paste0("^", int_var), "", crn)
-                raw_to_label[nrn] <- paste0(g_label, " | ", int_var, covar_level)
+                raw_to_label[nrn] <- paste0(int_var, covar_level, ":", g_label)
               }
             }
           }
@@ -817,8 +829,7 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           # For conditional_on_haplo (geno / covar): the base haplotype row itself
           # is the "intercept within base haplotype" and is not in coef_sum_int;
           # we still emit a Ref row for orientation.
-          base_idx   <- haplo_fit_int$haplo.base
-          base_label <- decode_haplo_label(haplo_fit_int$haplo.unique[base_idx, ])
+          # (base_idx / base_label already computed above for label map)
 
           tbl_int$addRow(
             rowKey = "base",
