@@ -11,6 +11,8 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             responseCol = NULL,
             weightsPath = "",
             weightsSep = "auto",
+            weightMode = "catalog",
+            snpGrid = list(),
             missingStrategy = "mean",
             normalize = FALSE,
             showCoverage = TRUE,
@@ -66,6 +68,49 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "comma",
                     "tab"),
                 default="auto")
+            private$..weightMode <- jmvcore::OptionList$new(
+                "weightMode",
+                weightMode,
+                options=list(
+                    "catalog",
+                    "equal"),
+                default="catalog")
+            private$..snpGrid <- jmvcore::OptionArray$new(
+                "snpGrid",
+                snpGrid,
+                default=list(),
+                template=jmvcore::OptionGroup$new(
+                    "snpGrid",
+                    NULL,
+                    elements=list(
+                        jmvcore::OptionString$new(
+                            "rsid",
+                            NULL,
+                            default=""),
+                        jmvcore::OptionString$new(
+                            "effect_allele",
+                            NULL,
+                            default=""),
+                        jmvcore::OptionString$new(
+                            "other_allele",
+                            NULL,
+                            default=""),
+                        jmvcore::OptionNumber$new(
+                            "effect_weight",
+                            NULL,
+                            default=1),
+                        jmvcore::OptionString$new(
+                            "chr",
+                            NULL,
+                            default=""),
+                        jmvcore::OptionString$new(
+                            "pos",
+                            NULL,
+                            default=""),
+                        jmvcore::OptionBool$new(
+                            "matched",
+                            NULL,
+                            default=FALSE))))
             private$..missingStrategy <- jmvcore::OptionList$new(
                 "missingStrategy",
                 missingStrategy,
@@ -108,6 +153,8 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..responseCol)
             self$.addOption(private$..weightsPath)
             self$.addOption(private$..weightsSep)
+            self$.addOption(private$..weightMode)
+            self$.addOption(private$..snpGrid)
             self$.addOption(private$..missingStrategy)
             self$.addOption(private$..normalize)
             self$.addOption(private$..showCoverage)
@@ -123,6 +170,8 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         responseCol = function() private$..responseCol$value,
         weightsPath = function() private$..weightsPath$value,
         weightsSep = function() private$..weightsSep$value,
+        weightMode = function() private$..weightMode$value,
+        snpGrid = function() private$..snpGrid$value,
         missingStrategy = function() private$..missingStrategy$value,
         normalize = function() private$..normalize$value,
         showCoverage = function() private$..showCoverage$value,
@@ -137,6 +186,8 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..responseCol = NA,
         ..weightsPath = NA,
         ..weightsSep = NA,
+        ..weightMode = NA,
+        ..snpGrid = NA,
         ..missingStrategy = NA,
         ..normalize = NA,
         ..showCoverage = NA,
@@ -151,6 +202,8 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
     "snpPGSResults",
     inherit = jmvcore::Group,
     active = list(
+        validationMsg = function() private$.items[["validationMsg"]],
+        snpGridTable = function() private$.items[["snpGridTable"]],
         coverageTable = function() private$.items[["coverageTable"]],
         summaryTable = function() private$.items[["summaryTable"]],
         scoreTable = function() private$.items[["scoreTable"]],
@@ -165,13 +218,83 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 name="",
                 title="Polygenic Score (PGS)",
                 refs="SNPstats")
+            self$add(jmvcore::Html$new(
+                options=options,
+                name="validationMsg",
+                title="",
+                visible=FALSE))
+            self$add(jmvcore::Table$new(
+                options=options,
+                name="snpGridTable",
+                title="SNP Weights Used for Scoring",
+                visible="(showCoverage)",
+                clearWith=list(
+                    "snpCols",
+                    "snpGrid",
+                    "weightMode",
+                    "weightsPath"),
+                columns=list(
+                    list(
+                        `name`="rsid", 
+                        `title`="SNP (rsID / column)", 
+                        `type`="text"),
+                    list(
+                        `name`="chr", 
+                        `title`="Chr", 
+                        `type`="text"),
+                    list(
+                        `name`="pos", 
+                        `title`="Position", 
+                        `type`="text"),
+                    list(
+                        `name`="effect_allele", 
+                        `title`="Effect allele", 
+                        `type`="text"),
+                    list(
+                        `name`="other_allele", 
+                        `title`="Other allele", 
+                        `type`="text"),
+                    list(
+                        `name`="effect_weight", 
+                        `title`="Weight used", 
+                        `type`="number", 
+                        `format`="zto"),
+                    list(
+                        `name`="matched", 
+                        `title`="In dataset", 
+                        `type`="text"))))
             self$add(jmvcore::Table$new(
                 options=options,
                 name="coverageTable",
                 title="SNP Coverage Summary",
                 visible="(showCoverage)",
                 rows=1,
+                clearWith=list(
+                    "snpCols",
+                    "snpGrid",
+                    "weightMode",
+                    "weightsPath"),
                 columns=list(
+                    list(
+                        `name`="pgs_id", 
+                        `title`="PGS ID", 
+                        `type`="text"),
+                    list(
+                        `name`="pgs_name", 
+                        `title`="Score name", 
+                        `type`="text"),
+                    list(
+                        `name`="trait_reported", 
+                        `title`="Trait", 
+                        `type`="text"),
+                    list(
+                        `name`="weight_type", 
+                        `title`="Weight type", 
+                        `type`="text"),
+                    list(
+                        `name`="genome_build", 
+                        `title`="Build", 
+                        `type`="text"),
                     list(
                         `name`="snpsInWeights", 
                         `title`="SNPs in weights file", 
@@ -196,12 +319,22 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     list(
                         `name`="missingStrategy", 
                         `title`="Missing strategy", 
+                        `type`="text"),
+                    list(
+                        `name`="weightMode", 
+                        `title`="Weight mode", 
                         `type`="text"))))
             self$add(jmvcore::Table$new(
                 options=options,
                 name="summaryTable",
                 title="PGS Summary Statistics",
                 rows=1,
+                clearWith=list(
+                    "snpCols",
+                    "snpGrid",
+                    "weightMode",
+                    "missingStrategy",
+                    "normalize"),
                 columns=list(
                     list(
                         `name`="n", 
@@ -237,6 +370,12 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 name="scoreTable",
                 title="Per-Individual Scores",
                 visible="(showScoreTable)",
+                clearWith=list(
+                    "snpCols",
+                    "snpGrid",
+                    "weightMode",
+                    "missingStrategy",
+                    "normalize"),
                 columns=list(
                     list(
                         `name`="individual", 
@@ -263,6 +402,13 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 name="percentileTable",
                 title="Percentile Thresholds",
                 visible="(showPercentiles)",
+                clearWith=list(
+                    "snpCols",
+                    "snpGrid",
+                    "weightMode",
+                    "missingStrategy",
+                    "normalize",
+                    "percentileBreaks"),
                 columns=list(
                     list(
                         `name`="threshold", 
@@ -279,6 +425,13 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 title="PGS\u2013Response Association",
                 visible="(showAssoc)",
                 rows=1,
+                clearWith=list(
+                    "snpCols",
+                    "snpGrid",
+                    "weightMode",
+                    "missingStrategy",
+                    "normalize",
+                    "responseCol"),
                 columns=list(
                     list(
                         `name`="responseVar", 
@@ -325,7 +478,7 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             super$initialize(
                 package = "SNPstats",
                 name = "snpPGS",
-                version = c(0,3,0),
+                version = c(0,4,0),
                 options = options,
                 results = snpPGSResults$new(options=options),
                 data = data,
@@ -350,9 +503,14 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'   test between PGS and response is reported (logistic for binary, linear for
 #'   continuous).
 #' @param weightsPath Path to a PGS Catalog-format file with columns: rsID,
-#'   effect_allele, effect_weight. Lines starting with '#' are skipped
-#'   automatically.
+#'   effect_allele, other_allele, effect_weight, chr_name, chr_position. Lines
+#'   starting with '#' are skipped automatically.
 #' @param weightsSep Column delimiter of the weights file.
+#' @param weightMode Whether to use the effect_weight from the catalog file
+#'   (or as edited in the SNP grid) or to treat all matched SNPs as weight = 1.
+#' @param snpGrid Per-SNP properties imported from the PGS Catalog file and
+#'   editable by the user (effect_allele, other_allele, effect_weight). The rsid
+#'   field links each row to a column in the dataset.
 #' @param missingStrategy Strategy for handling missing genotype values.
 #' @param normalize If TRUE, divides each PGS by the number of matched SNPs.
 #' @param showCoverage Show the SNP coverage summary table.
@@ -366,6 +524,8 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'   response variable to be selected).
 #' @return A results object containing:
 #' \tabular{llllll}{
+#'   \code{results$validationMsg} \tab \tab \tab \tab \tab a html \cr
+#'   \code{results$snpGridTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$coverageTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$summaryTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$scoreTable} \tab \tab \tab \tab \tab a table \cr
@@ -376,9 +536,9 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'
 #' Tables can be converted to data frames with \code{asDF} or \code{\link{as.data.frame}}. For example:
 #'
-#' \code{results$coverageTable$asDF}
+#' \code{results$snpGridTable$asDF}
 #'
-#' \code{as.data.frame(results$coverageTable)}
+#' \code{as.data.frame(results$snpGridTable)}
 #'
 #' @export
 snpPGS <- function(
@@ -388,6 +548,8 @@ snpPGS <- function(
     responseCol,
     weightsPath = "",
     weightsSep = "auto",
+    weightMode = "catalog",
+    snpGrid = list(),
     missingStrategy = "mean",
     normalize = FALSE,
     showCoverage = TRUE,
@@ -417,6 +579,8 @@ snpPGS <- function(
         responseCol = responseCol,
         weightsPath = weightsPath,
         weightsSep = weightsSep,
+        weightMode = weightMode,
+        snpGrid = snpGrid,
         missingStrategy = missingStrategy,
         normalize = normalize,
         showCoverage = showCoverage,

@@ -6,12 +6,73 @@ refs: SNPstats
 jrs: '1.1'
 
 items:
+  # ── Validation / info messages ─────────────────────────────────────────────
+  - name: validationMsg
+    title: ''
+    type: Html
+    visible: false
+
+  # ── SNP grid as actually used for scoring (reflects user edits) ────────────
+  - name: snpGridTable
+    title: SNP Weights Used for Scoring
+    type: Table
+    visible: (showCoverage)
+    clearWith:
+        - snpCols
+        - snpGrid
+        - weightMode
+        - weightsPath
+    columns:
+        - name: rsid
+          title: SNP (rsID / column)
+          type: text
+        - name: chr
+          title: Chr
+          type: text
+        - name: pos
+          title: Position
+          type: text
+        - name: effect_allele
+          title: Effect allele
+          type: text
+        - name: other_allele
+          title: Other allele
+          type: text
+        - name: effect_weight
+          title: Weight used
+          type: number
+          format: zto
+        - name: matched
+          title: In dataset
+          type: text
+
+  # ── Coverage summary ────────────────────────────────────────────────────────
   - name: coverageTable
     title: SNP Coverage Summary
     type: Table
     visible: (showCoverage)
     rows: 1
+    clearWith:
+        - snpCols
+        - snpGrid
+        - weightMode
+        - weightsPath
     columns:
+        - name: pgs_id
+          title: PGS ID
+          type: text
+        - name: pgs_name
+          title: Score name
+          type: text
+        - name: trait_reported
+          title: Trait
+          type: text
+        - name: weight_type
+          title: Weight type
+          type: text
+        - name: genome_build
+          title: Build
+          type: text
         - name: snpsInWeights
           title: SNPs in weights file
           type: integer
@@ -31,11 +92,21 @@ items:
         - name: missingStrategy
           title: Missing strategy
           type: text
+        - name: weightMode
+          title: Weight mode
+          type: text
 
+  # ── PGS summary statistics ──────────────────────────────────────────────────
   - name: summaryTable
     title: PGS Summary Statistics
     type: Table
     rows: 1
+    clearWith:
+        - snpCols
+        - snpGrid
+        - weightMode
+        - missingStrategy
+        - normalize
     columns:
         - name: n
           title: N
@@ -61,10 +132,17 @@ items:
           type: number
           format: zto
 
+  # ── Per-individual scores ───────────────────────────────────────────────────
   - name: scoreTable
     title: Per-Individual Scores
     type: Table
     visible: (showScoreTable)
+    clearWith:
+        - snpCols
+        - snpGrid
+        - weightMode
+        - missingStrategy
+        - normalize
     columns:
         - name: individual
           title: Individual
@@ -83,10 +161,18 @@ items:
           format: zto
           visible: (showPercentiles)
 
+  # ── Percentile thresholds ───────────────────────────────────────────────────
   - name: percentileTable
     title: Percentile Thresholds
     type: Table
     visible: (showPercentiles)
+    clearWith:
+        - snpCols
+        - snpGrid
+        - weightMode
+        - missingStrategy
+        - normalize
+        - percentileBreaks
     columns:
         - name: threshold
           title: Percentile
@@ -96,11 +182,19 @@ items:
           type: number
           format: zto
 
+  # ── PGS–response association ────────────────────────────────────────────────
   - name: assocTable
     title: PGS–Response Association
     type: Table
     visible: (showAssoc)
     rows: 1
+    clearWith:
+        - snpCols
+        - snpGrid
+        - weightMode
+        - missingStrategy
+        - normalize
+        - responseCol
     columns:
         - name: responseVar
           title: Response
@@ -125,6 +219,7 @@ items:
           type: number
           format: zto,pvalue
 
+  # ── Distribution plot ───────────────────────────────────────────────────────
   - name: distPlot
     title: Score Distribution
     type: Image

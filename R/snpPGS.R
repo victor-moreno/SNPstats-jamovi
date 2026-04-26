@@ -6,34 +6,43 @@
 #'
 #' Part of the SNPstats jamovi module.
 #'
-#' @param data            Data frame. Rows = individuals, SNP columns in
-#'                        dosage (0/1/2) or allele-string format.
-#' @param snpCols         Character vector of SNP column names.
-#' @param idCol           Name of the individual ID column (optional).
-#' @param responseCol     Name of a binary or quantitative outcome column
-#'                        for PGS association test (optional).
-#' @param weightsPath     Path to PGS Catalog-format CSV/TSV weights file.
-#' @param weightsSep      \code{"auto"}, \code{"comma"}, or \code{"tab"}.
-#' @param missingStrategy \code{"mean"} (default), \code{"zero"}, or
-#'                        \code{"exclude"}.
-#' @param normalize       Logical. Divide score by matched SNP count.
-#' @param showCoverage    Logical. Show SNP coverage summary table.
-#' @param showScoreTable  Logical. Show per-individual score table.
-#' @param showDistPlot    Logical. Show score distribution plot.
-#' @param showPercentiles Logical. Show percentile ranks.
+#' @param data             Data frame. Rows = individuals, SNP columns in
+#'                         dosage (0/1/2) or allele-string format.
+#' @param snpCols          Character vector of SNP column names.
+#' @param idCol            Name of the individual ID column (optional).
+#' @param responseCol      Name of a binary or quantitative outcome column
+#'                         for PGS association test (optional).
+#' @param weightsPath      Path to PGS Catalog-format CSV/TSV weights file.
+#' @param weightsSep       \code{"auto"}, \code{"comma"}, or \code{"tab"}.
+#' @param weightMode       \code{"catalog"} (use effect_weight from file/grid)
+#'                         or \code{"equal"} (all matched SNPs weighted 1).
+#' @param snpGrid          List of per-SNP property lists as managed by the
+#'                         jamovi UI grid. Each element should have fields:
+#'                         rsid, effect_allele, other_allele, effect_weight,
+#'                         chr, pos, matched. Populated automatically by the
+#'                         UI; pass \code{list()} to use file/defaults.
+#' @param missingStrategy  \code{"mean"} (default), \code{"zero"}, or
+#'                         \code{"exclude"}.
+#' @param normalize        Logical. Divide score by matched SNP count.
+#' @param showCoverage     Logical. Show SNP coverage summary table.
+#' @param showScoreTable   Logical. Show per-individual score table.
+#' @param showDistPlot     Logical. Show score distribution plot.
+#' @param showPercentiles  Logical. Show percentile ranks.
 #' @param percentileBreaks Comma-separated percentile thresholds string.
-#' @param showAssoc       Logical. Show PGS-response association table.
+#' @param showAssoc        Logical. Show PGS-response association table.
 #'
 #' @return A \code{snpPGSResults} object.
 #'
 #' @export
-snpPGSBase <- function(
+snpPGS <- function(
     data,
     snpCols,
     idCol             = NULL,
     responseCol       = NULL,
     weightsPath       = "",
     weightsSep        = "auto",
+    weightMode        = "catalog",
+    snpGrid           = list(),
     missingStrategy   = "mean",
     normalize         = FALSE,
     showCoverage      = TRUE,
@@ -56,8 +65,8 @@ snpPGSBase <- function(
     if (missing(data))
         data <- jmvcore::marshalData(
             parent.frame(),
-            `if`(!missing(idCol),      idCol,      NULL),
-            `if`(!missing(snpCols),    snpCols,    NULL),
+            `if`(!missing(idCol),       idCol,       NULL),
+            `if`(!missing(snpCols),     snpCols,     NULL),
             `if`(!missing(responseCol), responseCol, NULL))
 
     options <- snpPGSOptions$new(
@@ -66,6 +75,8 @@ snpPGSBase <- function(
         responseCol      = responseCol,
         weightsPath      = weightsPath,
         weightsSep       = weightsSep,
+        weightMode       = weightMode,
+        snpGrid          = snpGrid,
         missingStrategy  = missingStrategy,
         normalize        = normalize,
         showCoverage     = showCoverage,

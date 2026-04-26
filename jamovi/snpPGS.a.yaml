@@ -2,7 +2,7 @@
 ---
 name: snpPGS
 title: Polygenic Score (PGS)
-version: '0.3.0'
+version: '0.4.0'
 jas: '1.2'
 menuGroup: SNPstats
 menuTitle: Polygenic Score (PGS)
@@ -71,7 +71,7 @@ options:
       description:
           R: >
               Path to a PGS Catalog-format file with columns:
-              rsID, effect_allele, effect_weight.
+              rsID, effect_allele, other_allele, effect_weight, chr_name, chr_position.
               Lines starting with '#' are skipped automatically.
 
     - name: weightsSep
@@ -87,6 +87,58 @@ options:
       default: auto
       description:
           R: Column delimiter of the weights file.
+
+    # ── NEW: weight mode selector ─────────────────────────────────────────────
+    - name: weightMode
+      title: Scoring weights
+      type: List
+      options:
+          - name: catalog
+            title: Use PGS Catalog weights
+          - name: equal
+            title: Equal weights (unweighted count)
+      default: catalog
+      description:
+          R: >
+              Whether to use the effect_weight from the catalog file (or
+              as edited in the SNP grid) or to treat all matched SNPs as
+              weight = 1.
+
+    # ── NEW: per-SNP editable grid ────────────────────────────────────────────
+    - name: snpGrid
+      title: SNP Weights Grid
+      type: Array
+      default: []
+      template:
+          type: Group
+          elements:
+              - name: rsid
+                type: String
+                default: ""
+              - name: effect_allele
+                type: String
+                default: ""
+              - name: other_allele
+                type: String
+                default: ""
+              - name: effect_weight
+                type: Number
+                default: 1
+              - name: chr
+                type: String
+                default: ""
+              - name: pos
+                type: String
+                default: ""
+              - name: matched
+                type: Bool
+                default: false
+      description:
+          R: >
+              Per-SNP properties imported from the PGS Catalog file and
+              editable by the user (effect_allele, other_allele,
+              effect_weight). The rsid field links each row to a column
+              in the dataset.
 
     - name: missingStrategy
       title: Missing genotype handling
