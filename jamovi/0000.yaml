@@ -1,18 +1,18 @@
 ---
 title: Basic Genetic Epidemiology Analyses of SNP data
 name: SNPstats
-version: 0.2.0
+version: 0.3.0
 jms: '1.0'
 authors:
   - Victor Moreno
 maintainer: Victor Moreno <v.moreno@iconcologa.net>
-date: '2026-04-10'
+date: '2026-04-21'
 type: R
 description: >
   Performs SNP analysis for genetic epidemiology studies. Computes allele and
   genotype frequencies, Hardy-Weinberg equilibrium tests, SNP-response
-  association, linkage disequilibrium, and haplotype analysis. Based on the
-  SNPstats web tool (https://www.snpstats.net).
+  association, linkage disequilibrium, haplotype analysis, and polygenic score
+  (PGS) calculation. Based on the SNPstats web tool (https://www.snpstats.net).
 analyses:
   - title: SNP Descriptive
     name: snpDesc
@@ -44,6 +44,20 @@ analyses:
     description: >
       Linkage disequilibrium (pairwise table, matrix, heatmap) and haplotype
       frequency estimation and association analysis via haplo.stats.
+    category: analyses
+  - title: Polygenic Score (PGS)
+    name: snpPGS
+    ns: SNPstats
+    menuGroup: SNPstats
+    menuTitle: Polygenic Score (PGS)
+    menuSubgroup: Genetic epidemiology
+    description: >
+      Calculates a Polygenic Risk Score (PGS) for each individual using genotype
+      columns (dosage 0/1/2 or allele strings, auto-detected) and a PGS
+      Catalog-format weights file (rsID, effect_allele, effect_weight). Outputs
+      per-individual scores, Z-scores, percentile ranks, a score distribution
+      plot, SNP coverage summary, and optional association with a binary or
+      quantitative response variable.
     category: analyses
 usesNative: true
 minApp: 1.0.8

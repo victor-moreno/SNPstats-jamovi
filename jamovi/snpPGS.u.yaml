@@ -1,0 +1,98 @@
+# snpPGS.u.yaml  — UI layout for SNPstats PGS module
+---
+name: snpPGS
+title: Polygenic Score (PGS)
+jus: "3.0"
+compilerMode: tame
+
+children:
+    - type: VariableSupplier
+      persistentItems: false
+      stretchFactor: 1
+      children:
+          - type: TargetLayoutBox
+            label: SNP columns (genotype data)
+            children:
+                - type: VariablesListBox
+                  name: snpCols
+                  isTarget: true
+
+          - type: TargetLayoutBox
+            label: Individual ID (optional)
+            children:
+                - type: VariablesListBox
+                  name: idCol
+                  isTarget: true
+                  maxItemCount: 1
+
+          - type: TargetLayoutBox
+            label: Response variable (optional)
+            children:
+                - type: VariablesListBox
+                  name: responseCol
+                  isTarget: true
+                  maxItemCount: 1
+
+    - type: LayoutBox
+      margin: large
+      children:
+          - type: Label
+            label: Weights File
+            children:
+                - type: TextBox
+                  name: weightsPath
+                  label: "PGS Catalog weights file (.csv / .txt / .tsv):"
+                  format: string
+                  width: largest
+
+                - type: ComboBox
+                  name: weightsSep
+                  label: Delimiter
+
+    - type: LayoutBox
+      margin: large
+      children:
+          - type: Label
+            label: Scoring Options
+            children:
+                - type: ComboBox
+                  name: missingStrategy
+                  label: Missing genotype handling
+
+                - type: CheckBox
+                  name: normalize
+                  label: Normalize score by number of matched SNPs
+
+    - type: LayoutBox
+      margin: large
+      stretchFactor: 1
+      children:
+          - type: Label
+            label: Output
+            children:
+                - type: CheckBox
+                  name: showCoverage
+                  label: SNP coverage summary
+
+                - type: CheckBox
+                  name: showScoreTable
+                  label: Per-individual score table
+
+                - type: CheckBox
+                  name: showDistPlot
+                  label: Score distribution plot
+
+                - type: CheckBox
+                  name: showPercentiles
+                  label: Percentile ranks
+                  children:
+                      - type: TextBox
+                        name: percentileBreaks
+                        label: "Percentile thresholds (comma-separated):"
+                        format: string
+                        enable: (showPercentiles)
+
+                - type: CheckBox
+                  name: showAssoc
+                  label: PGS-response association test
+                  enable: (responseCol)

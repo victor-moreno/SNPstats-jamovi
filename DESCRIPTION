@@ -1,7 +1,7 @@
 Package: SNPstats
 Type: Package
 Title: SNP Statistics for Genetic Epidemiology
-Version: 0.1.0
+Version: 0.3.0
 Date: 2026-04-10
 Authors@R: person("Victor", "Moreno", role = c("aut", "cre"), email = "v.moreno@iconcologia.net")
 Description: Performs SNP analysis for genetic epidemiology studies. Computes allele and genotype 

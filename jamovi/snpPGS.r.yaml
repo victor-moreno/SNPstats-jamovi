@@ -1,0 +1,134 @@
+# snpPGS.r.yaml  — Results definition for SNPstats PGS module
+---
+name: snpPGS
+title: Polygenic Score (PGS)
+refs: SNPstats
+jrs: '1.1'
+
+items:
+  - name: coverageTable
+    title: SNP Coverage Summary
+    type: Table
+    visible: (showCoverage)
+    rows: 1
+    columns:
+        - name: snpsInWeights
+          title: SNPs in weights file
+          type: integer
+        - name: snpsInData
+          title: SNPs in dataset
+          type: integer
+        - name: snpsMatched
+          title: Matched
+          type: integer
+        - name: pctMatched
+          title: "% matched"
+          type: number
+          format: pc
+        - name: snpsAmbiguous
+          title: Ambiguous (AT/CG)
+          type: integer
+        - name: missingStrategy
+          title: Missing strategy
+          type: text
+
+  - name: summaryTable
+    title: PGS Summary Statistics
+    type: Table
+    rows: 1
+    columns:
+        - name: n
+          title: N
+          type: integer
+        - name: mean
+          title: Mean
+          type: number
+          format: zto
+        - name: sd
+          title: SD
+          type: number
+          format: zto
+        - name: min
+          title: Min
+          type: number
+          format: zto
+        - name: max
+          title: Max
+          type: number
+          format: zto
+        - name: skew
+          title: Skewness
+          type: number
+          format: zto
+
+  - name: scoreTable
+    title: Per-Individual Scores
+    type: Table
+    visible: (showScoreTable)
+    columns:
+        - name: individual
+          title: Individual
+          type: text
+        - name: pgs
+          title: PGS Score
+          type: number
+          format: zto
+        - name: pgs_z
+          title: Z-score
+          type: number
+          format: zto
+        - name: percentile
+          title: Percentile
+          type: number
+          format: zto
+          visible: (showPercentiles)
+
+  - name: percentileTable
+    title: Percentile Thresholds
+    type: Table
+    visible: (showPercentiles)
+    columns:
+        - name: threshold
+          title: Percentile
+          type: text
+        - name: score
+          title: PGS Score
+          type: number
+          format: zto
+
+  - name: assocTable
+    title: PGS–Response Association
+    type: Table
+    visible: (showAssoc)
+    rows: 1
+    columns:
+        - name: responseVar
+          title: Response
+          type: text
+        - name: model
+          title: Model
+          type: text
+        - name: beta
+          title: β (or log-OR)
+          type: number
+          format: zto
+        - name: se
+          title: SE
+          type: number
+          format: zto
+        - name: stat
+          title: Statistic
+          type: number
+          format: zto
+        - name: p
+          title: p-value
+          type: number
+          format: zto,pvalue
+
+  - name: distPlot
+    title: Score Distribution
+    type: Image
+    visible: (showDistPlot)
+    width: 560
+    height: 390
+    renderFun: .plotDist

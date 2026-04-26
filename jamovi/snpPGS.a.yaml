@@ -1,0 +1,154 @@
+# snpPGS.a.yaml  — Analysis definition for SNPstats PGS module
+---
+name: snpPGS
+title: Polygenic Score (PGS)
+version: '0.3.0'
+jas: '1.2'
+menuGroup: SNPstats
+menuTitle: Polygenic Score (PGS)
+menuSubgroup: Genetic epidemiology
+
+options:
+    - name: data
+      type: Data
+      description:
+          main: >
+              Calculates a Polygenic Risk Score (PGS) for each individual
+              using genotype columns and a PGS Catalog-format weights file.
+          R:
+              dontrun: true
+              usage: |
+                  snpPGS(data = myData,
+                         snpCols = vars(rs123, rs456),
+                         weightsPath = "pgs_catalog.csv")
+
+    - name: idCol
+      title: Individual ID column (optional)
+      type: Variable
+      suggested:
+          - nominal
+          - id
+      permitted:
+          - factor
+          - numeric
+          - id
+      description:
+          R: Column identifying each individual. Row numbers used if omitted.
+
+    - name: snpCols
+      title: SNP columns
+      type: Variables
+      suggested:
+          - continuous
+          - nominal
+      permitted:
+          - numeric
+          - factor
+      description:
+          R: >
+              One column per SNP. Dosage (0/1/2) or allele strings
+              auto-detected per column.
+
+    - name: responseCol
+      title: Response variable (optional)
+      type: Variable
+      suggested:
+          - nominal
+          - continuous
+      permitted:
+          - factor
+          - numeric
+      description:
+          R: >
+              Optional outcome variable. If provided, an association test
+              between PGS and response is reported (logistic for binary,
+              linear for continuous).
+
+    - name: weightsPath
+      title: "Weights file path (PGS Catalog CSV/TSV)"
+      type: String
+      default: ""
+      description:
+          R: >
+              Path to a PGS Catalog-format file with columns:
+              rsID, effect_allele, effect_weight.
+              Lines starting with '#' are skipped automatically.
+
+    - name: weightsSep
+      title: Weights file delimiter
+      type: List
+      options:
+          - name: auto
+            title: Auto-detect
+          - name: comma
+            title: Comma (CSV)
+          - name: tab
+            title: Tab (TSV)
+      default: auto
+      description:
+          R: Column delimiter of the weights file.
+
+    - name: missingStrategy
+      title: Missing genotype handling
+      type: List
+      options:
+          - name: mean
+            title: Impute with column mean dosage
+          - name: zero
+            title: Treat as 0 (reference homozygous)
+          - name: exclude
+            title: Exclude individuals with any missing SNP
+      default: mean
+      description:
+          R: Strategy for handling missing genotype values.
+
+    - name: normalize
+      title: Normalize score by number of matched SNPs
+      type: Bool
+      default: false
+      description:
+          R: If TRUE, divides each PGS by the number of matched SNPs.
+
+    - name: showCoverage
+      title: Show SNP coverage summary
+      type: Bool
+      default: true
+      description:
+          R: Show the SNP coverage summary table.
+
+    - name: showScoreTable
+      title: Show per-individual score table
+      type: Bool
+      default: true
+      description:
+          R: Show the per-individual PGS score table.
+
+    - name: showDistPlot
+      title: Show score distribution plot
+      type: Bool
+      default: true
+      description:
+          R: Show the score distribution histogram and density plot.
+
+    - name: showPercentiles
+      title: Show percentile ranks
+      type: Bool
+      default: true
+      description:
+          R: Show percentile ranks for each individual and threshold table.
+
+    - name: percentileBreaks
+      title: "Percentile thresholds (comma-separated)"
+      type: String
+      default: "20,40,60,80,90,95"
+      description:
+          R: Comma-separated list of percentile thresholds for the threshold table.
+
+    - name: showAssoc
+      title: Show PGS-response association
+      type: Bool
+      default: true
+      description:
+          R: >
+              Show the PGS-response association table (requires a response
+              variable to be selected).
