@@ -1,0 +1,10 @@
+remove snpGrid and js
+default to weight 1
+if PGS table provided:
+	show read PGS table in results (option to hide)
+	check consistency: 
+		SNP names
+		Aleles
+		Reverse weight if allele order mismatch
+
+	
