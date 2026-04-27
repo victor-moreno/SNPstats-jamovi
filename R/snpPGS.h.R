@@ -14,13 +14,13 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             weightMode = "catalog",
             snpGrid = list(),
             missingStrategy = "mean",
-            normalize = FALSE,
+            normalize = TRUE,
             showCoverage = TRUE,
-            showScoreTable = TRUE,
-            showDistPlot = TRUE,
-            showPercentiles = TRUE,
+            showScoreTable = FALSE,
+            showDistPlot = FALSE,
+            showPercentiles = FALSE,
             percentileBreaks = "20,40,60,80,90,95",
-            showAssoc = TRUE, ...) {
+            showAssoc = FALSE, ...) {
 
             super$initialize(
                 package="SNPstats",
@@ -122,7 +122,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             private$..normalize <- jmvcore::OptionBool$new(
                 "normalize",
                 normalize,
-                default=FALSE)
+                default=TRUE)
             private$..showCoverage <- jmvcore::OptionBool$new(
                 "showCoverage",
                 showCoverage,
@@ -130,15 +130,15 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             private$..showScoreTable <- jmvcore::OptionBool$new(
                 "showScoreTable",
                 showScoreTable,
-                default=TRUE)
+                default=FALSE)
             private$..showDistPlot <- jmvcore::OptionBool$new(
                 "showDistPlot",
                 showDistPlot,
-                default=TRUE)
+                default=FALSE)
             private$..showPercentiles <- jmvcore::OptionBool$new(
                 "showPercentiles",
                 showPercentiles,
-                default=TRUE)
+                default=FALSE)
             private$..percentileBreaks <- jmvcore::OptionString$new(
                 "percentileBreaks",
                 percentileBreaks,
@@ -146,7 +146,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             private$..showAssoc <- jmvcore::OptionBool$new(
                 "showAssoc",
                 showAssoc,
-                default=TRUE)
+                default=FALSE)
 
             self$.addOption(private$..idCol)
             self$.addOption(private$..snpCols)
@@ -551,13 +551,13 @@ snpPGS <- function(
     weightMode = "catalog",
     snpGrid = list(),
     missingStrategy = "mean",
-    normalize = FALSE,
+    normalize = TRUE,
     showCoverage = TRUE,
-    showScoreTable = TRUE,
-    showDistPlot = TRUE,
-    showPercentiles = TRUE,
+    showScoreTable = FALSE,
+    showDistPlot = FALSE,
+    showPercentiles = FALSE,
     percentileBreaks = "20,40,60,80,90,95",
-    showAssoc = TRUE) {
+    showAssoc = FALSE) {
 
     if ( ! requireNamespace("jmvcore", quietly=TRUE))
         stop("snpPGS requires jmvcore to be installed (restart may be required)")

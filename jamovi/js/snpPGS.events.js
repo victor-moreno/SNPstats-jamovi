@@ -41,7 +41,7 @@
  */
 function blankRow(colName) {
     return {
-        rsid:          colName,
+        rsid:          String(colName || ""),
         effect_allele: "",
         other_allele:  "",
         effect_weight: null,   // null = "not yet set from catalog"
@@ -168,9 +168,20 @@ function parseCatalogText(text, sep) {
 }
 
 /**
- * Read a local file using jamovi's fs API.
- * Returns Promise<string>.
+ * Safely extract a plain string from an rsid cell value.
+ * jamovi VariableLabel cells return objects like { name: "rs123", ... }.
+ * Plain Label / String cells return the string directly.
+ * This helper handles both so the rest of the code always works with strings.
  */
+function rsidString(val) {
+    if (val == null) return "";
+    if (typeof val === "string") return val;
+    // VariableLabel object: try .name, .label, .value in order
+    if (typeof val === "object") {
+        return String(val.name || val.label || val.value || "");
+    }
+    return String(val);
+}
 function readFileAsync(path) {
     if (window.jamovi && window.jamovi.fs && typeof window.jamovi.fs.readFile === "function") {
         return window.jamovi.fs.readFile(path);
@@ -202,22 +213,23 @@ const events = {
         const grid = ui.snpGrid.value()  || [];
 
         // Preserve existing rows (keeps user edits), drop deselected SNPs
-        let newGrid = grid.filter(row => vars.includes(row.rsid));
+        let newGrid = grid.filter(row => vars.includes(rsidString(row.rsid)));
 
         // Add skeleton rows for newly added columns
         vars.forEach(v => {
-            if (!newGrid.some(row => row.rsid === v)) {
+            if (!newGrid.some(row => rsidString(row.rsid) === v)) {
                 newGrid.push(blankRow(v));
             }
         });
 
         // Follow the variable-list order
-        newGrid.sort((a, b) => vars.indexOf(a.rsid) - vars.indexOf(b.rsid));
+        newGrid.sort((a, b) => vars.indexOf(rsidString(a.rsid)) - vars.indexOf(rsidString(b.rsid)));
 
         ui.snpGrid.setValue(newGrid);
 
         // Fill catalog data for any new rows using the cached catalog
-        events._mergeFromCache(ui);
+        // events._mergeFromCache(ui);
+        events._applyCatalogToGrid(ui);  
     },
 
     // ── 3. (Re)load catalog file when path or delimiter changes ─────────────
@@ -283,20 +295,22 @@ const events = {
         if (grid.length === 0) return;
 
         const updatedGrid = grid.map(row => {
-            const entry = catalogMap.get(row.rsid) ||
-                          catalogMap.get((row.rsid || "").toLowerCase());
+            // rsidString() handles VariableLabel objects, plain strings, and nulls
+            const rsidKey = rsidString(row.rsid).toLowerCase();
+            const entry = catalogMap.get(rsidKey);
 
-            if (!entry) return row;   // no catalog match — keep as-is
+            if (!entry) return row;
+
+            // Sentinel: weight is "unset" if null, undefined, or NaN
+            const wCurrent = row.effect_weight;
+            const weightUnset = (wCurrent == null) ||
+                                (typeof wCurrent === "number" && isNaN(wCurrent));
 
             return {
-                rsid:          row.rsid,
+                rsid:          rsidString(row.rsid),   // always write back plain string
                 effect_allele: row.effect_allele || entry.effect_allele,
                 other_allele:  row.other_allele  || entry.other_allele,
-                // null sentinel = weight was never loaded; replace with catalog value.
-                // Any other value (including 0, negative) = user has set it; keep it.
-                effect_weight: (row.effect_weight === null)
-                                   ? entry.effect_weight
-                                   : row.effect_weight,
+                effect_weight: weightUnset ? entry.effect_weight : wCurrent,
                 chr:           entry.chr || row.chr,
                 pos:           entry.pos || row.pos,
                 matched:       true

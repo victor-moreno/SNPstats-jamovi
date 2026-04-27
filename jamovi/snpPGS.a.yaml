@@ -157,7 +157,7 @@ options:
     - name: normalize
       title: Normalize score by number of matched SNPs
       type: Bool
-      default: false
+      default: true
       description:
           R: If TRUE, divides each PGS by the number of matched SNPs.
 
@@ -171,21 +171,21 @@ options:
     - name: showScoreTable
       title: Show per-individual score table
       type: Bool
-      default: true
+      default: false
       description:
           R: Show the per-individual PGS score table.
 
     - name: showDistPlot
       title: Show score distribution plot
       type: Bool
-      default: true
+      default: false
       description:
           R: Show the score distribution histogram and density plot.
 
     - name: showPercentiles
       title: Show percentile ranks
       type: Bool
-      default: true
+      default: false
       description:
           R: Show percentile ranks for each individual and threshold table.
 
@@ -199,7 +199,7 @@ options:
     - name: showAssoc
       title: Show PGS-response association
       type: Bool
-      default: true
+      default: false
       description:
           R: >
               Show the PGS-response association table (requires a response

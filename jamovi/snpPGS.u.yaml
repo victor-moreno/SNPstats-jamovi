@@ -79,8 +79,7 @@ children:
 
                 - type: Label
                   label: >
-                      Edit effect allele, other allele, or weight directly in
-                      the table. Changes are reflected immediately in the results.
+                      Edit table if needed.
 
                 - type: ListBox
                   name: snpGrid
@@ -89,40 +88,41 @@ children:
                   stretchFactor: 1
                   columns:
                       - name: rsid
-                        label: SNP / rsID
+                        label: SNP
                         selectable: false
-                        stretchFactor: 1.2
+                        stretchFactor: 0.3
+                        maxWidth: 55
                         template:
-                            type: VariableLabel
+                            type: Label
 
                       - name: chr
                         label: Chr
                         selectable: false
-                        stretchFactor: 0.4
-                        maxWidth: 50
+                        stretchFactor: 0.1
+#                        maxWidth: 3
                         template:
                             type: Label
 
                       - name: pos
                         label: Position
                         selectable: false
-                        stretchFactor: 0.7
-                        maxWidth: 80
+                        stretchFactor: 0.3
+#                        maxWidth: 30
                         template:
                             type: Label
 
                       - name: effect_allele
                         label: Effect
-                        stretchFactor: 0.4
-                        maxWidth: 55
+                        stretchFactor: 0.2
+                        maxWidth: 40
                         template:
                             type: TextBox
                             format: string
 
                       - name: other_allele
                         label: Other
-                        stretchFactor: 0.4
-                        maxWidth: 55
+                        stretchFactor: 0.2
+                        maxWidth: 40
                         template:
                             type: TextBox
                             format: string
@@ -130,7 +130,7 @@ children:
                       - name: effect_weight
                         label: Weight
                         stretchFactor: 0.5
-                        maxWidth: 70
+                        maxWidth: 50
                         template:
                             type: TextBox
                             format: number
