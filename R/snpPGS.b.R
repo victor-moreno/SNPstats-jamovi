@@ -36,12 +36,12 @@ snpPGSClass <- R6::R6Class(
       wtable <- private$.buildWeightTable(snpCols)
       if (is.null(wtable)) return()
 
-      # ── Show SNP grid table in results ───────────────────────────────────
-      private$.fillSnpGridTable(wtable)
-
-      # ── Dosage matrix ────────────────────────────────────────────────────
+      # ── Dosage matrix + allele QC (annotates wtable in-place) ───────────
       dosage <- private$.buildDosageMatrix(snpCols, wtable, missing_st)
       if (is.null(dosage)) return()
+
+      # ── Show SNP weights table (after QC so allele_status is complete) ──
+      private$.fillSnpGridTable(wtable)
 
       # ── Weights vector aligned to dosage columns ─────────────────────────
       matched_rows <- wtable[wtable$rsid %in% colnames(dosage), , drop = FALSE]
@@ -142,14 +142,24 @@ snpPGSClass <- R6::R6Class(
         }
       )
 
+      parse_err <- NULL
       df <- tryCatch(
         read.table(text = paste(dataLines, collapse = "\n"),
                    header = TRUE, sep = sep,
                    stringsAsFactors = FALSE, quote = "\"",
                    fill = TRUE, comment.char = "", check.names = FALSE),
-        error = function(e) NULL
+        error = function(e) { parse_err <<- conditionMessage(e); NULL }
       )
-      if (is.null(df) || nrow(df) == 0) return(private$.unitWeightTable(snpCols))
+      if (is.null(df) || nrow(df) == 0) {
+        msg <- if (!is.null(parse_err))
+          paste0("<p style='color:#c0392b;'>Failed to parse weights file (sep='",
+                 sep, "'): ", parse_err, "</p>")
+        else
+          "<p style='color:#c0392b;'>Weights file parsed to an empty table.</p>"
+        self$results$validationMsg$setContent(msg)
+        self$results$validationMsg$setVisible(TRUE)
+        return(private$.unitWeightTable(snpCols))
+      }
 
       orig_names  <- names(df)
       lower_names <- tolower(orig_names)
@@ -169,8 +179,10 @@ snpPGSClass <- R6::R6Class(
       c_pos    <- find_col("chr_position", "position", "pos", "bp")
 
       if (is.null(c_rsid)) {
-        self$results$validationMsg$setContent(
-          "<p style='color:#c0392b;'>Weights file has no recognisable rsID column.</p>")
+        self$results$validationMsg$setContent(paste0(
+          "<p style='color:#c0392b;'>Weights file has no recognisable rsID column.</p>",
+          "<p>Columns found: <code>", paste(orig_names, collapse = ", "), "</code></p>",
+          "<p>Expected one of: rsID, variant_id, snp, snp_id, marker_name</p>"))
         self$results$validationMsg$setVisible(TRUE)
         return(private$.unitWeightTable(snpCols))
       }
@@ -187,27 +199,36 @@ snpPGSClass <- R6::R6Class(
         })
       } else rep("", nrow(df))
 
+      ea_vec <- if (!is.null(c_ea)) toupper(trimws(as.character(df[[c_ea]]))) else rep("", nrow(df))
+      oa_vec <- if (!is.null(c_oa)) toupper(trimws(as.character(df[[c_oa]]))) else rep("", nrow(df))
+
+      # Pre-flag ambiguous SNPs from catalog alleles alone
+      ambig_flag <- private$.isAmbiguous(ea_vec, oa_vec)
+
       catalog <- data.frame(
         rsid          = as.character(df[[c_rsid]]),
-        effect_allele = if (!is.null(c_ea))     as.character(df[[c_ea]])     else "",
-        other_allele  = if (!is.null(c_oa))     as.character(df[[c_oa]])     else "",
+        effect_allele = ea_vec,
+        other_allele  = oa_vec,
         effect_weight = if (!is.null(c_weight)) suppressWarnings(as.numeric(df[[c_weight]]))
                         else                    rep(NA_real_, nrow(df)),
         chr           = if (!is.null(c_chr))    as.character(df[[c_chr]])    else "",
         pos           = if (!is.null(c_pos))    as.character(df[[c_pos]])    else "",
         matched       = TRUE,
+        allele_status = ifelse(ambig_flag, "ambiguous", ""),   # filled in by QC step
+        strand_flipped = FALSE,
         extra_cols    = extra_str,
         stringsAsFactors = FALSE
       )
 
-      # Scope to selected SNPs; unmatched SNPs get NA weight rows
+      # Scope to selected SNPs; unmatched SNPs get placeholder rows
       result       <- catalog[catalog$rsid %in% snpCols, , drop = FALSE]
       missing_snps <- setdiff(snpCols, result$rsid)
       if (length(missing_snps) > 0) {
         extra_rows <- data.frame(
           rsid = missing_snps, effect_allele = "", other_allele = "",
           effect_weight = NA_real_, chr = "", pos = "",
-          matched = FALSE, extra_cols = "",
+          matched = FALSE, allele_status = "not in weights file",
+          strand_flipped = FALSE, extra_cols = "",
           stringsAsFactors = FALSE
         )
         result <- rbind(result, extra_rows)
@@ -236,21 +257,45 @@ snpPGSClass <- R6::R6Class(
 
     .unitWeightTable = function(snpCols) {
       data.frame(
-        rsid          = snpCols,
-        effect_allele = "",
-        other_allele  = "",
-        effect_weight = 1,
-        chr           = "",
-        pos           = "",
-        matched       = FALSE,
-        extra_cols    = "",
+        rsid           = snpCols,
+        effect_allele  = "",
+        other_allele   = "",
+        effect_weight  = 1,
+        chr            = "",
+        pos            = "",
+        matched        = FALSE,
+        allele_status  = "no weights file",
+        strand_flipped = FALSE,
+        extra_cols     = "",
         stringsAsFactors = FALSE
       )
     },
 
 
     # ════════════════════════════════════════════════════════════════════════
+    # .complement  —  single-base DNA complement
+    # ════════════════════════════════════════════════════════════════════════
+    .complement = function(alleles) {
+      chartr("ACGT", "TGCA", toupper(alleles))
+    },
+
+    # ════════════════════════════════════════════════════════════════════════
     # .buildDosageMatrix
+    #
+    # For each SNP column:
+    #   • Numeric columns  — trusted as dosage (0/1/2); flag as "dosage (unverified)"
+    #     when allele info is available (we cannot check orientation).
+    #   • Character columns — observed alleles are extracted from the data,
+    #     compared against the catalog, and one of these statuses is assigned:
+    #       "ok"                  alleles match catalog, dosage counts EA
+    #       "strand flip"         complement alleles match; dosage corrected
+    #       "allele mismatch"     alleles do not match catalog; SNP excluded
+    #       "ambiguous"           AT/CG SNP — no strand resolution possible;
+    #                             dosage still attempted (counts EA as given)
+    #       "no allele info"      catalog has no EA — dosage set to NA
+    #
+    # wtable is annotated in-place (allele_status, strand_flipped columns).
+    # SNPs with "allele mismatch" status are dropped from the returned matrix.
     # ════════════════════════════════════════════════════════════════════════
     .buildDosageMatrix = function(snpCols, wtable, missing_st) {
 
@@ -263,43 +308,106 @@ snpPGSClass <- R6::R6Class(
         return(NULL)
       }
 
-      mat <- matrix(NA_real_, nrow = nrow(self$data), ncol = length(useCols),
-                    dimnames = list(NULL, useCols))
+      mat      <- matrix(NA_real_, nrow = nrow(self$data), ncol = length(useCols),
+                         dimnames = list(NULL, useCols))
+      exclude  <- character(0)   # SNPs to drop due to allele mismatch
 
       for (snp in useCols) {
         col_raw <- self$data[[snp]]
+        idx     <- which(wtable$rsid == snp)[1]   # row index in wtable
+        ea_cat  <- wtable$effect_allele[idx]       # already uppercase from parse
+        oa_cat  <- wtable$other_allele[idx]
 
+        has_allele_info <- !is.na(ea_cat) && nchar(ea_cat) > 0
+        is_ambiguous    <- private$.isAmbiguous(ea_cat, oa_cat)[1]
+
+        # ── Numeric column (dosage already encoded) ──────────────────────
         if (is.numeric(col_raw)) {
-          dosage_col <- as.numeric(col_raw)
-        } else {
-          col_char <- as.character(col_raw)
-          ea_row   <- wtable[wtable$rsid == snp, , drop = FALSE]
-          ea <- if (nrow(ea_row) > 0 && nchar(ea_row$effect_allele[1]) > 0)
-                    ea_row$effect_allele[1]
-                else NA_character_
+          mat[, snp] <- as.numeric(col_raw)
+          if (has_allele_info && wtable$allele_status[idx] == "") {
+            wtable$allele_status[idx] <<- "dosage (orientation unverified)"
+          } else if (!has_allele_info && wtable$allele_status[idx] == "") {
+            wtable$allele_status[idx] <<- "ok (numeric dosage)"
+          }
+          next
+        }
 
-          dosage_col <- if (is.na(ea)) {
-            rep(NA_real_, length(col_char))
+        # ── Character/factor column — allele strings ─────────────────────
+        col_char <- toupper(trimws(as.character(col_raw)))
+        col_char[col_char == "" | col_char == "NA"] <- NA_character_
+
+        # Extract unique observed alleles (ignoring NA)
+        obs_alleles <- unique(unlist(strsplit(
+          col_char[!is.na(col_char)], "")))
+        obs_alleles <- obs_alleles[nchar(obs_alleles) == 1]
+
+        if (!has_allele_info) {
+          # No catalog allele info — cannot count, mark NA
+          mat[, snp] <- NA_real_
+          wtable$allele_status[idx] <<- "no allele info in weights file"
+          exclude <- c(exclude, snp)
+          next
+        }
+
+        # Determine which allele to count as effect allele dosage,
+        # and whether a strand flip is needed.
+        ea_use    <- ea_cat
+        flipped   <- FALSE
+        status    <- ""
+
+        if (is_ambiguous) {
+          # AT/CG: cannot resolve strand — count EA as given, warn
+          status <- "ambiguous (AT/CG) \u26a0"
+        } else if (length(obs_alleles) == 0) {
+          status <- "no valid genotypes observed"
+        } else {
+          ea_comp <- private$.complement(ea_cat)
+          oa_comp <- private$.complement(oa_cat)
+
+          alleles_match_direct     <- all(obs_alleles %in% c(ea_cat, oa_cat))
+          alleles_match_complement <- all(obs_alleles %in% c(ea_comp, oa_comp))
+
+          if (alleles_match_direct) {
+            status  <- "ok"
+          } else if (alleles_match_complement) {
+            ea_use  <- ea_comp   # count complement of EA
+            flipped <- TRUE
+            status  <- "strand flip \u2194 (corrected)"
+            wtable$strand_flipped[idx] <<- TRUE
           } else {
-            vapply(col_char, function(g) {
-              if (is.na(g) || g == "") return(NA_real_)
-              sum(strsplit(g, "")[[1]] == ea)
-            }, numeric(1))
+            status  <- "allele mismatch \u274c"
+            wtable$allele_status[idx] <<- status
+            exclude <- c(exclude, snp)
+            next
           }
         }
 
-        # Handle missing values
-        na_mask <- is.na(dosage_col)
+        # Count copies of ea_use per genotype string
+        dosage_col <- vapply(col_char, function(g) {
+          if (is.na(g)) return(NA_real_)
+          sum(strsplit(g, "")[[1]] == ea_use)
+        }, numeric(1))
+
+        mat[, snp] <- dosage_col
+        wtable$allele_status[idx] <<- status
+      }
+
+      # Drop mismatched SNPs
+      keep_cols <- setdiff(colnames(mat), exclude)
+      mat       <- mat[, keep_cols, drop = FALSE]
+
+      # Handle within-column missingness
+      for (snp in colnames(mat)) {
+        na_mask <- is.na(mat[, snp])
         if (any(na_mask)) {
-          dosage_col <- switch(missing_st,
-            mean    = { m <- mean(dosage_col, na.rm = TRUE)
-                        dosage_col[na_mask] <- if (is.nan(m)) 0 else m
-                        dosage_col },
-            zero    = { dosage_col[na_mask] <- 0; dosage_col },
-            exclude = dosage_col
+          mat[, snp] <- switch(missing_st,
+            mean    = { m <- mean(mat[, snp], na.rm = TRUE)
+                        mat[na_mask, snp] <- if (is.nan(m)) 0 else m
+                        mat[, snp] },
+            zero    = { mat[na_mask, snp] <- 0; mat[, snp] },
+            exclude = mat[, snp]
           )
         }
-        mat[, snp] <- dosage_col
       }
 
       if (missing_st == "exclude") {
@@ -324,11 +432,11 @@ snpPGSClass <- R6::R6Class(
       inData <- names(self$data)
 
       # Hide columns that are entirely empty (field not present in file)
-      has_chr    <- any(nchar(wtable$chr)           > 0, na.rm = TRUE)
-      has_pos    <- any(nchar(wtable$pos)           > 0, na.rm = TRUE)
-      has_ea     <- any(nchar(wtable$effect_allele) > 0, na.rm = TRUE)
-      has_oa     <- any(nchar(wtable$other_allele)  > 0, na.rm = TRUE)
-      has_extra  <- any(nchar(wtable$extra_cols)    > 0, na.rm = TRUE)
+      has_chr   <- any(nchar(wtable$chr)           > 0, na.rm = TRUE)
+      has_pos   <- any(nchar(wtable$pos)           > 0, na.rm = TRUE)
+      has_ea    <- any(nchar(wtable$effect_allele) > 0, na.rm = TRUE)
+      has_oa    <- any(nchar(wtable$other_allele)  > 0, na.rm = TRUE)
+      has_extra <- any(nchar(wtable$extra_cols)    > 0, na.rm = TRUE)
 
       tbl$getColumn("chr")$setVisible(has_chr)
       tbl$getColumn("pos")$setVisible(has_pos)
@@ -337,7 +445,10 @@ snpPGSClass <- R6::R6Class(
       tbl$getColumn("extra_cols")$setVisible(has_extra)
 
       for (i in seq_len(nrow(wtable))) {
-        r <- wtable[i, ]
+        r      <- wtable[i, ]
+        status <- as.character(r$allele_status)
+        in_ds  <- r$rsid %in% inData
+
         tbl$addRow(rowKey = i, values = list(
           rsid          = as.character(r$rsid),
           chr           = as.character(r$chr),
@@ -345,7 +456,8 @@ snpPGSClass <- R6::R6Class(
           effect_allele = as.character(r$effect_allele),
           other_allele  = as.character(r$other_allele),
           effect_weight = if (is.na(r$effect_weight)) NA_real_ else r$effect_weight,
-          matched       = if (r$rsid %in% inData) "\u2713" else "\u2717",
+          matched       = if (in_ds) "\u2713" else "\u2717",
+          allele_status = status,
           extra_cols    = as.character(r$extra_cols)
         ))
       }
@@ -355,6 +467,8 @@ snpPGSClass <- R6::R6Class(
       inData    <- names(self$data)
       matched   <- intersect(wtable$rsid[wtable$matched], inData)
       ambiguous <- sum(private$.isAmbiguous(wtable$effect_allele, wtable$other_allele))
+      flipped   <- sum(wtable$strand_flipped == TRUE, na.rm = TRUE)
+      mismatch  <- sum(grepl("mismatch", wtable$allele_status, ignore.case = TRUE))
 
       meta <- attr(wtable, "pgs_meta") %||%
               list(pgs_id = "", pgs_name = "", trait_reported = "",
@@ -373,6 +487,8 @@ snpPGSClass <- R6::R6Class(
                            length(matched) / sum(wtable$matched)
                          else 0,
         snpsAmbiguous  = ambiguous,
+        snpsFlipped    = flipped,
+        snpsMismatch   = mismatch,
         missingStrategy = missing_st
       ))
     },
