@@ -1,4 +1,4 @@
-# snpPGS.r.yaml  — Results definition for SNPstats PGS module
+# snpPGS_r.yaml  — Results definition for SNPstats PGS module
 ---
 name: snpPGS
 title: Polygenic Score (PGS)
@@ -12,16 +12,16 @@ items:
     type: Html
     visible: false
 
-  # ── SNP grid as actually used for scoring (reflects user edits) ────────────
+  # ── SNP weights as loaded from file ───────────────────────────────────────
   - name: snpGridTable
     title: SNP Weights Used for Scoring
     type: Table
     visible: (showCoverage)
     clearWith:
         - snpCols
-        - snpGrid
-        - weightMode
         - weightsPath
+        - weightsSep
+        - reloadWeights
     columns:
         - name: rsid
           title: SNP (rsID / column)
@@ -39,11 +39,17 @@ items:
           title: Other allele
           type: text
         - name: effect_weight
-          title: Weight used
+          title: Weight
           type: number
           format: zto
         - name: matched
           title: In dataset
+          type: text
+        - name: allele_status
+          title: Allele QC
+          type: text
+        - name: extra_cols
+          title: Extra fields
           type: text
 
   # ── Coverage summary ────────────────────────────────────────────────────────
@@ -54,9 +60,9 @@ items:
     rows: 1
     clearWith:
         - snpCols
-        - snpGrid
-        - weightMode
         - weightsPath
+        - weightsSep
+        - reloadWeights
     columns:
         - name: pgs_id
           title: PGS ID
@@ -89,11 +95,14 @@ items:
         - name: snpsAmbiguous
           title: Ambiguous (AT/CG)
           type: integer
+        - name: snpsFlipped
+          title: Strand flipped (corrected)
+          type: integer
+        - name: snpsMismatch
+          title: Allele mismatch (excluded)
+          type: integer
         - name: missingStrategy
           title: Missing strategy
-          type: text
-        - name: weightMode
-          title: Weight mode
           type: text
 
   # ── PGS summary statistics ──────────────────────────────────────────────────
@@ -103,8 +112,9 @@ items:
     rows: 1
     clearWith:
         - snpCols
-        - snpGrid
-        - weightMode
+        - weightsPath
+        - weightsSep
+        - reloadWeights
         - missingStrategy
         - normalize
     columns:
@@ -139,8 +149,9 @@ items:
     visible: (showScoreTable)
     clearWith:
         - snpCols
-        - snpGrid
-        - weightMode
+        - weightsPath
+        - weightsSep
+        - reloadWeights
         - missingStrategy
         - normalize
     columns:
@@ -168,8 +179,9 @@ items:
     visible: (showPercentiles)
     clearWith:
         - snpCols
-        - snpGrid
-        - weightMode
+        - weightsPath
+        - weightsSep
+        - reloadWeights
         - missingStrategy
         - normalize
         - percentileBreaks
@@ -190,8 +202,9 @@ items:
     rows: 1
     clearWith:
         - snpCols
-        - snpGrid
-        - weightMode
+        - weightsPath
+        - weightsSep
+        - reloadWeights
         - missingStrategy
         - normalize
         - responseCol

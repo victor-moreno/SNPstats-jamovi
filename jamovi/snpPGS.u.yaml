@@ -1,11 +1,9 @@
-# snpPGS.u.yaml  — UI layout for SNPstats PGS module
+# snpPGS_u.yaml  — UI layout for SNPstats PGS module
 ---
 name: snpPGS
 title: Polygenic Score (PGS)
 jus: "3.0"
 compilerMode: tame
-events:
-  update: ./snpPGS.events::update
 
 children:
     # ── Variable targets ────────────────────────────────────────────────────
@@ -19,8 +17,6 @@ children:
                 - type: VariablesListBox
                   name: snpCols
                   isTarget: true
-                  events:
-                      change: ./snpPGS.events::onChange_snpCols
 
           - type: TargetLayoutBox
             label: Individual ID (optional)
@@ -50,90 +46,14 @@ children:
                   label: "PGS Catalog weights file (.csv / .txt / .tsv):"
                   format: string
                   width: largest
-                  events:
-                      change: ./snpPGS.events::onChange_weightsPath
 
                 - type: ComboBox
                   name: weightsSep
                   label: Delimiter
-                  events:
-                      change: ./snpPGS.events::onChange_weightsSep
 
-    # ── SNP Weights Grid ─────────────────────────────────────────────────────
-    # The grid shows one row per SNP (matched from file or added from snpCols).
-    # Columns: rsid (read-only label), chr / pos (read-only), effect_allele,
-    # other_allele, effect_weight — the last three are user-editable.
-    # ─────────────────────────────────────────────────────────────────────────
-    - type: LayoutBox
-      margin: large
-      children:
-          - type: Label
-            label: SNP Weights Grid
-            children:
-                - type: LayoutBox
-                  margin: small
-                  children:
-                      - type: ComboBox
-                        name: weightMode
-                        label: "Scoring weights:"
-
-                - type: Label
-                  label: >
-                      Edit table if needed.
-
-                - type: ListBox
-                  name: snpGrid
-                  showColumnHeaders: true
-                  height: large
-                  stretchFactor: 1
-                  columns:
-                      - name: rsid
-                        label: SNP
-                        selectable: false
-                        stretchFactor: 0.3
-                        maxWidth: 55
-                        template:
-                            type: Label
-
-                      - name: chr
-                        label: Chr
-                        selectable: false
-                        stretchFactor: 0.1
-#                        maxWidth: 3
-                        template:
-                            type: Label
-
-                      - name: pos
-                        label: Position
-                        selectable: false
-                        stretchFactor: 0.3
-#                        maxWidth: 30
-                        template:
-                            type: Label
-
-                      - name: effect_allele
-                        label: Effect
-                        stretchFactor: 0.2
-                        maxWidth: 40
-                        template:
-                            type: TextBox
-                            format: string
-
-                      - name: other_allele
-                        label: Other
-                        stretchFactor: 0.2
-                        maxWidth: 40
-                        template:
-                            type: TextBox
-                            format: string
-
-                      - name: effect_weight
-                        label: Weight
-                        stretchFactor: 0.5
-                        maxWidth: 50
-                        template:
-                            type: TextBox
-                            format: number
+                - type: CheckBox
+                  name: reloadWeights
+                  label: Reload weights file (toggle to refresh)
 
     # ── Scoring options ──────────────────────────────────────────────────────
     - type: LayoutBox
