@@ -52,57 +52,22 @@ items:
           title: Extra fields
           type: text
 
-  # ── Coverage summary ────────────────────────────────────────────────────────
+  # ── Coverage summary (key-value rows) ─────────────────────────────────────
   - name: coverageTable
     title: SNP Coverage Summary
     type: Table
     visible: (showCoverage)
-    rows: 1
     clearWith:
         - snpCols
         - weightsPath
         - weightsSep
         - reloadWeights
     columns:
-        - name: pgs_id
-          title: PGS ID
+        - name: field
+          title: ''
           type: text
-        - name: pgs_name
-          title: Score name
-          type: text
-        - name: trait_reported
-          title: Trait
-          type: text
-        - name: weight_type
-          title: Weight type
-          type: text
-        - name: genome_build
-          title: Build
-          type: text
-        - name: snpsInWeights
-          title: SNPs in weights file
-          type: integer
-        - name: snpsInData
-          title: SNPs in dataset
-          type: integer
-        - name: snpsMatched
-          title: Matched
-          type: integer
-        - name: pctMatched
-          title: "% matched"
-          type: number
-          format: pc
-        - name: snpsAmbiguous
-          title: Ambiguous (AT/CG)
-          type: integer
-        - name: snpsFlipped
-          title: Strand flipped (corrected)
-          type: integer
-        - name: snpsMismatch
-          title: Allele mismatch (excluded)
-          type: integer
-        - name: missingStrategy
-          title: Missing strategy
+        - name: value
+          title: ''
           type: text
 
   # ── PGS summary statistics ──────────────────────────────────────────────────

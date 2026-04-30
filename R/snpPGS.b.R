@@ -32,13 +32,20 @@ snpPGSClass <- R6::R6Class(
 
       if (is.null(snpCols) || length(snpCols) == 0) return()
 
+      # Version tag — visible in output helps confirm the correct file is loaded
+      self$results$validationMsg$setContent(
+        "<span style='color:#888;font-size:0.85em;'>snpPGS v0.5 — allele QC active</span>")
+      self$results$validationMsg$setVisible(TRUE)
+
       # ── Build weight table from file (or unit weights) ───────────────────
       wtable <- private$.buildWeightTable(snpCols)
       if (is.null(wtable)) return()
 
       # ── Dosage matrix + allele QC (annotates wtable in-place) ───────────
-      dosage <- private$.buildDosageMatrix(snpCols, wtable, missing_st)
-      if (is.null(dosage)) return()
+      qc     <- private$.buildDosageMatrix(snpCols, wtable, missing_st)
+      if (is.null(qc)) return()
+      dosage <- qc$mat
+      wtable <- qc$wtable
 
       # ── Show SNP weights table (after QC so allele_status is complete) ──
       private$.fillSnpGridTable(wtable)
@@ -202,9 +209,6 @@ snpPGSClass <- R6::R6Class(
       ea_vec <- if (!is.null(c_ea)) toupper(trimws(as.character(df[[c_ea]]))) else rep("", nrow(df))
       oa_vec <- if (!is.null(c_oa)) toupper(trimws(as.character(df[[c_oa]]))) else rep("", nrow(df))
 
-      # Pre-flag ambiguous SNPs from catalog alleles alone
-      ambig_flag <- private$.isAmbiguous(ea_vec, oa_vec)
-
       catalog <- data.frame(
         rsid          = as.character(df[[c_rsid]]),
         effect_allele = ea_vec,
@@ -214,7 +218,7 @@ snpPGSClass <- R6::R6Class(
         chr           = if (!is.null(c_chr))    as.character(df[[c_chr]])    else "",
         pos           = if (!is.null(c_pos))    as.character(df[[c_pos]])    else "",
         matched       = TRUE,
-        allele_status = ifelse(ambig_flag, "ambiguous", ""),   # filled in by QC step
+        allele_status = "",   # filled in by .buildDosageMatrix QC step
         strand_flipped = FALSE,
         extra_cols    = extra_str,
         stringsAsFactors = FALSE
@@ -324,10 +328,9 @@ snpPGSClass <- R6::R6Class(
         # ── Numeric column (dosage already encoded) ──────────────────────
         if (is.numeric(col_raw)) {
           mat[, snp] <- as.numeric(col_raw)
-          if (has_allele_info && wtable$allele_status[idx] == "") {
-            wtable$allele_status[idx] <<- "dosage (orientation unverified)"
-          } else if (!has_allele_info && wtable$allele_status[idx] == "") {
-            wtable$allele_status[idx] <<- "ok (numeric dosage)"
+          if (wtable$allele_status[idx] == "") {
+            wtable$allele_status[idx] <- if (has_allele_info)
+              "dosage (orientation unverified)" else "ok (numeric dosage)"
           }
           next
         }
@@ -336,65 +339,66 @@ snpPGSClass <- R6::R6Class(
         col_char <- toupper(trimws(as.character(col_raw)))
         col_char[col_char == "" | col_char == "NA"] <- NA_character_
 
-        # Extract unique observed alleles (ignoring NA)
-        obs_alleles <- unique(unlist(strsplit(
-          col_char[!is.na(col_char)], "")))
-        obs_alleles <- obs_alleles[nchar(obs_alleles) == 1]
+        # Extract unique observed alleles: split each genotype string and keep
+        # only single ACGT characters — this handles separators like "/" or "|"
+        # (e.g. "G/T", "G|T", "GT") as well as plain concatenated strings.
+        obs_alleles <- unique(unlist(strsplit(col_char[!is.na(col_char)], "")))
+        obs_alleles <- obs_alleles[obs_alleles %in% c("A","C","G","T")]
 
         if (!has_allele_info) {
-          # No catalog allele info — cannot count, mark NA
           mat[, snp] <- NA_real_
-          wtable$allele_status[idx] <<- "no allele info in weights file"
+          wtable$allele_status[idx] <- "no allele info in weights file"
           exclude <- c(exclude, snp)
           next
         }
 
-        # Determine which allele to count as effect allele dosage,
-        # and whether a strand flip is needed.
-        ea_use    <- ea_cat
-        flipped   <- FALSE
-        status    <- ""
-
-        if (is_ambiguous) {
-          # AT/CG: cannot resolve strand — count EA as given, warn
-          status <- "ambiguous (AT/CG) \u26a0"
-        } else if (length(obs_alleles) == 0) {
-          status <- "no valid genotypes observed"
-        } else {
-          ea_comp <- private$.complement(ea_cat)
-          oa_comp <- private$.complement(oa_cat)
-
-          alleles_match_direct     <- all(obs_alleles %in% c(ea_cat, oa_cat))
-          alleles_match_complement <- all(obs_alleles %in% c(ea_comp, oa_comp))
-
-          if (alleles_match_direct) {
-            status  <- "ok"
-          } else if (alleles_match_complement) {
-            ea_use  <- ea_comp   # count complement of EA
-            flipped <- TRUE
-            status  <- "strand flip \u2194 (corrected)"
-            wtable$strand_flipped[idx] <<- TRUE
-          } else {
-            status  <- "allele mismatch \u274c"
-            wtable$allele_status[idx] <<- status
-            exclude <- c(exclude, snp)
-            next
-          }
+        if (length(obs_alleles) == 0) {
+          wtable$allele_status[idx] <- "no valid genotypes observed"
+          exclude <- c(exclude, snp)
+          next
         }
 
-        # Count copies of ea_use per genotype string
-        dosage_col <- vapply(col_char, function(g) {
+        ea_comp <- private$.complement(ea_cat)
+        oa_comp <- private$.complement(oa_cat)
+
+        matches_direct     <- all(obs_alleles %in% c(ea_cat, oa_cat))
+        matches_complement <- all(obs_alleles %in% c(ea_comp, oa_comp))
+
+        # Determine effect allele to count and whether strand flip needed.
+        # Ambiguous (AT/CG) catalog pairs are checked the same way — if the
+        # data alleles don't match either orientation they are a mismatch, not
+        # merely ambiguous. We only apply the ambiguous warning when the data
+        # alleles DO match, because in that case strand resolution is uncertain.
+        ea_use <- ea_cat
+        status <- ""
+
+        if (matches_direct) {
+          status <- if (is_ambiguous) "ambiguous (AT/CG) \u26a0" else "ok"
+        } else if (matches_complement) {
+          ea_use <- ea_comp
+          wtable$strand_flipped[idx] <- TRUE
+          status <- if (is_ambiguous)
+            "ambiguous (AT/CG) \u26a0"          # can't trust flip for ambiguous
+          else
+            "strand flip \u2194 (corrected)"
+        } else {
+          wtable$allele_status[idx] <- "allele mismatch \u274c"
+          exclude <- c(exclude, snp)
+          next
+        }
+
+        mat[, snp] <- vapply(col_char, function(g) {
           if (is.na(g)) return(NA_real_)
-          sum(strsplit(g, "")[[1]] == ea_use)
+          bases <- strsplit(g, "")[[1]]
+          bases <- bases[bases %in% c("A","C","G","T")]
+          sum(bases == ea_use)
         }, numeric(1))
 
-        mat[, snp] <- dosage_col
-        wtable$allele_status[idx] <<- status
+        wtable$allele_status[idx] <- status
       }
 
       # Drop mismatched SNPs
-      keep_cols <- setdiff(colnames(mat), exclude)
-      mat       <- mat[, keep_cols, drop = FALSE]
+      mat <- mat[, setdiff(colnames(mat), exclude), drop = FALSE]
 
       # Handle within-column missingness
       for (snp in colnames(mat)) {
@@ -418,7 +422,7 @@ snpPGSClass <- R6::R6Class(
         private$.keepMask <- rep(TRUE, nrow(self$data))
       }
 
-      mat
+      list(mat = mat, wtable = wtable)
     },
 
 
@@ -466,31 +470,43 @@ snpPGSClass <- R6::R6Class(
     .fillCoverageTable = function(snpCols, wtable, missing_st) {
       inData    <- names(self$data)
       matched   <- intersect(wtable$rsid[wtable$matched], inData)
+      n_weights <- sum(wtable$matched)
+      n_indata  <- length(intersect(snpCols, inData))
+      n_matched <- length(matched)
+      pct       <- if (n_weights > 0) round(n_matched / n_weights * 100, 1) else 0
       ambiguous <- sum(private$.isAmbiguous(wtable$effect_allele, wtable$other_allele))
       flipped   <- sum(wtable$strand_flipped == TRUE, na.rm = TRUE)
       mismatch  <- sum(grepl("mismatch", wtable$allele_status, ignore.case = TRUE))
 
       meta <- attr(wtable, "pgs_meta") %||%
               list(pgs_id = "", pgs_name = "", trait_reported = "",
-                   weight_type = "", genome_build = "", variants_number = "")
+                   weight_type = "", genome_build = "")
 
-      self$results$coverageTable$setRow(rowNo = 1, values = list(
-        pgs_id         = meta$pgs_id         %||% "",
-        pgs_name       = meta$pgs_name       %||% "",
-        trait_reported = meta$trait_reported %||% "",
-        weight_type    = meta$weight_type    %||% "",
-        genome_build   = meta$genome_build   %||% "",
-        snpsInWeights  = sum(wtable$matched),
-        snpsInData     = length(intersect(snpCols, inData)),
-        snpsMatched    = length(matched),
-        pctMatched     = if (sum(wtable$matched) > 0)
-                           length(matched) / sum(wtable$matched)
-                         else 0,
-        snpsAmbiguous  = ambiguous,
-        snpsFlipped    = flipped,
-        snpsMismatch   = mismatch,
-        missingStrategy = missing_st
-      ))
+      tbl <- self$results$coverageTable
+      tbl$deleteRows()
+
+      # Helper: only add row if value is non-empty
+      add <- function(field, value) {
+        v <- as.character(value)
+        if (nchar(trimws(v)) > 0)
+          tbl$addRow(rowKey = field, values = list(field = field, value = v))
+      }
+
+      # Score metadata (from file header)
+      add("PGS ID",          meta$pgs_id         %||% "")
+      add("Score name",      meta$pgs_name       %||% "")
+      add("Trait",           meta$trait_reported %||% "")
+      add("Weight type",     meta$weight_type    %||% "")
+      add("Genome build",    meta$genome_build   %||% "")
+
+      # SNP counts
+      add("SNPs in weights file",       n_weights)
+      add("SNPs in dataset",            n_indata)
+      add("SNPs matched",               paste0(n_matched, " (", pct, "%)"))
+      add("Ambiguous SNPs (AT/CG)",     ambiguous)
+      add("Strand flipped (corrected)", flipped)
+      add("Allele mismatch (excluded)", mismatch)
+      add("Missing genotype strategy",  missing_st)
     },
 
     .isAmbiguous = function(ea, oa) {

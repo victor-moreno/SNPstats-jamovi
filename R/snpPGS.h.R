@@ -233,7 +233,6 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 name="coverageTable",
                 title="SNP Coverage Summary",
                 visible="(showCoverage)",
-                rows=1,
                 clearWith=list(
                     "snpCols",
                     "weightsPath",
@@ -241,57 +240,12 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "reloadWeights"),
                 columns=list(
                     list(
-                        `name`="pgs_id", 
-                        `title`="PGS ID", 
+                        `name`="field", 
+                        `title`="", 
                         `type`="text"),
                     list(
-                        `name`="pgs_name", 
-                        `title`="Score name", 
-                        `type`="text"),
-                    list(
-                        `name`="trait_reported", 
-                        `title`="Trait", 
-                        `type`="text"),
-                    list(
-                        `name`="weight_type", 
-                        `title`="Weight type", 
-                        `type`="text"),
-                    list(
-                        `name`="genome_build", 
-                        `title`="Build", 
-                        `type`="text"),
-                    list(
-                        `name`="snpsInWeights", 
-                        `title`="SNPs in weights file", 
-                        `type`="integer"),
-                    list(
-                        `name`="snpsInData", 
-                        `title`="SNPs in dataset", 
-                        `type`="integer"),
-                    list(
-                        `name`="snpsMatched", 
-                        `title`="Matched", 
-                        `type`="integer"),
-                    list(
-                        `name`="pctMatched", 
-                        `title`="% matched", 
-                        `type`="number", 
-                        `format`="pc"),
-                    list(
-                        `name`="snpsAmbiguous", 
-                        `title`="Ambiguous (AT/CG)", 
-                        `type`="integer"),
-                    list(
-                        `name`="snpsFlipped", 
-                        `title`="Strand flipped (corrected)", 
-                        `type`="integer"),
-                    list(
-                        `name`="snpsMismatch", 
-                        `title`="Allele mismatch (excluded)", 
-                        `type`="integer"),
-                    list(
-                        `name`="missingStrategy", 
-                        `title`="Missing strategy", 
+                        `name`="value", 
+                        `title`="", 
                         `type`="text"))))
             self$add(jmvcore::Table$new(
                 options=options,
