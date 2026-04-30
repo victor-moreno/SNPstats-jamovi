@@ -231,7 +231,7 @@ items:
   - name: stratPlot
     title: PGS by Group
     type: Image
-    visible: (showDistPlot && responseCol)
+    visible: false
     width: 560
     height: 420
     renderFun: .plotStrat

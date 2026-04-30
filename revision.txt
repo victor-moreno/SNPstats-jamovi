@@ -1,10 +1,20 @@
-remove snpGrid and js
 default to weight 1
-if PGS table provided:
-	show read PGS table in results (option to hide)
-	check consistency: 
-		SNP names
-		Aleles
-		Reverse weight if allele order mismatch
+check consistency: 
+		SNP names: show observed alleles if mismath / ambiguous / complemented/ ...
 
-	
+Verify that effect allele if correctly selected no matter how in data
+
+Revise Percentile ranks
+
+Revise missing values adjustment 
+	exclusion
+	score normalization
+
+Allow variable / no header in metadata
+
+if no PGS file, show unweighted stats and association. Generate effect and reference alleles from data order
+
+Hide empty tables if not selected or empty because no data
+
+Test in criprev
+

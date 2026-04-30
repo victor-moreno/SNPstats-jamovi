@@ -18,6 +18,7 @@ snpPGSClass <- R6::R6Class(
     .pgsScores = NULL,
     .idLabels  = NULL,
     .keepMask  = NULL,
+    .cache     = new.env(parent = emptyenv()),
 
     # ════════════════════════════════════════════════════════════════════════
     # .run
@@ -101,7 +102,11 @@ snpPGSClass <- R6::R6Class(
             all(resp[!is.na(resp)] %in% c(0, 1)))
           resp <- factor(resp)
       }
-      self$results$stratPlot$setState(resp)
+      # stratPlot visibility: show only when both plot option and response are set
+      show_strat <- self$options$showDistPlot && !is.null(resp)
+      self$results$stratPlot$setVisible(show_strat)
+      if (show_strat)
+        private$.cache$resp <- resp
 
       private$.fillSummaryTable(scores, resp)
 
@@ -755,7 +760,7 @@ snpPGSClass <- R6::R6Class(
 
     .plotStrat = function(image, ...) {
       scores <- private$.pgsScores
-      resp   <- image$getState()
+      resp   <- private$.cache$resp
       if (is.null(scores) || length(scores) < 2 || is.null(resp)) return(FALSE)
 
       opar <- par(no.readonly = TRUE)
