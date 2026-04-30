@@ -86,16 +86,33 @@ snpPGSClass <- R6::R6Class(
       }
 
       private$.fillCoverageTable(snpCols, wtable, missing_st)
-      private$.fillSummaryTable(scores)
+
+      # ── Resolve response vector (aligned to scores after keepMask) ────────
+      resp <- NULL
+      if (!is.null(respCol) && nchar(respCol) > 0 &&
+          respCol %in% names(self$data)) {
+        resp_full <- self$data[[respCol]]
+        resp <- if (!is.null(private$.keepMask) &&
+                    length(private$.keepMask) == length(resp_full))
+                  resp_full[private$.keepMask]
+                else resp_full
+        # Coerce numeric 0/1 to factor so binary detection is consistent
+        if (is.numeric(resp) && length(unique(resp[!is.na(resp)])) == 2 &&
+            all(resp[!is.na(resp)] %in% c(0, 1)))
+          resp <- factor(resp)
+      }
+      self$results$stratPlot$setState(resp)
+
+      private$.fillSummaryTable(scores, resp)
 
       if (self$options$showScoreTable || self$options$showPercentiles)
-        private$.fillScoreTable(scores, private$.idLabels)
+        private$.fillScoreTable(scores, private$.idLabels, resp)
 
       if (self$options$showPercentiles)
         private$.fillPercentileTable(scores)
 
-      if (self$options$showAssoc && !is.null(respCol) && nchar(respCol) > 0)
-        private$.fillAssocTable(scores, respCol)
+      if (self$options$showAssoc && !is.null(resp))
+        private$.fillAssocTable(scores, resp, respCol)
     },
 
 
@@ -514,28 +531,61 @@ snpPGSClass <- R6::R6Class(
       pairs %in% c("AT", "TA", "CG", "GC")
     },
 
-    .fillSummaryTable = function(scores) {
-      e1071_skew <- tryCatch(
-        e1071::skewness(scores, na.rm = TRUE),
-        error = function(e) {
-          n  <- sum(!is.na(scores))
-          mu <- mean(scores, na.rm = TRUE)
-          s  <- sd(scores, na.rm = TRUE)
-          if (s == 0 || n < 3) return(NA_real_)
-          sum(((scores[!is.na(scores)] - mu) / s)^3) * n / ((n - 1) * (n - 2))
-        }
-      )
-      self$results$summaryTable$setRow(rowNo = 1, values = list(
-        n    = sum(!is.na(scores)),
-        mean = mean(scores, na.rm = TRUE),
-        sd   = sd(scores,   na.rm = TRUE),
-        min  = min(scores,  na.rm = TRUE),
-        max  = max(scores,  na.rm = TRUE),
-        skew = e1071_skew
-      ))
+    .fillSummaryTable = function(scores, resp = NULL) {
+      tbl <- self$results$summaryTable
+      tbl$deleteRows()
+
+      skewness <- function(x) {
+        x <- x[!is.na(x)]; n <- length(x)
+        if (n < 3) return(NA_real_)
+        mu <- mean(x); s <- sd(x)
+        if (s == 0) return(NA_real_)
+        tryCatch(e1071::skewness(x),
+          error = function(e)
+            sum(((x - mu) / s)^3) * n / ((n - 1) * (n - 2)))
+      }
+
+      add_row <- function(grp_label, sc) {
+        sc <- sc[!is.na(sc)]
+        n  <- length(sc)
+        if (n == 0) return()
+        mu  <- mean(sc)
+        s   <- sd(sc)
+        # 95% CI of the mean via t-interval
+        ci  <- if (n >= 2) {
+          err <- qt(0.975, df = n - 1) * s / sqrt(n)
+          c(mu - err, mu + err)
+        } else c(NA_real_, NA_real_)
+        tbl$addRow(rowKey = grp_label, values = list(
+          group    = grp_label,
+          n        = n,
+          mean     = mu,
+          sd       = s,
+          ci_low   = ci[1],
+          ci_high  = ci[2],
+          min      = min(sc),
+          max      = max(sc),
+          skew     = skewness(sc)
+        ))
+      }
+
+      is_binary <- !is.null(resp) && (is.factor(resp) ||
+                    length(unique(resp[!is.na(resp)])) == 2)
+
+      if (is_binary) {
+        # Stratified rows for each group, then overall
+        lvls <- levels(factor(resp[!is.na(resp)]))
+        for (lv in lvls)
+          add_row(as.character(lv),
+                  scores[!is.na(resp) & as.character(resp) == lv])
+        add_row("Overall", scores)
+      } else {
+        # Continuous response or no response: overall summary only
+        add_row("Overall", scores)
+      }
     },
 
-    .fillScoreTable = function(scores, ids) {
+    .fillScoreTable = function(scores, ids, resp = NULL) {
       tbl <- self$results$scoreTable
       tbl$deleteRows()
       mu  <- mean(scores, na.rm = TRUE)
@@ -570,39 +620,111 @@ snpPGSClass <- R6::R6Class(
       }
     },
 
-    .fillAssocTable = function(scores, respCol) {
-      if (!(respCol %in% names(self$data))) return()
+    .fillAssocTable = function(scores, resp, respCol) {
+      tbl <- self$results$assocTable
+      tbl$deleteRows()
 
-      resp <- self$data[[respCol]]
-      if (!is.null(private$.keepMask) &&
-          length(private$.keepMask) == length(resp))
-        resp <- resp[private$.keepMask]
+      df <- data.frame(pgs = scores, resp = resp)
+      df <- df[complete.cases(df), ]
+      if (nrow(df) < 3) return()
 
-      df_assoc <- data.frame(pgs = scores, resp = resp)
-      df_assoc <- df_assoc[complete.cases(df_assoc), ]
-      if (nrow(df_assoc) < 3) return()
+      is_binary <- is.factor(df$resp) || length(unique(df$resp)) == 2
 
-      is_binary <- is.factor(df_assoc$resp) ||
-                   (length(unique(df_assoc$resp)) == 2 &&
-                    all(df_assoc$resp %in% c(0, 1, NA)))
+      add_row <- function(test, stat_label, estimate, se, ci_low, ci_high,
+                          stat, df_val, p) {
+        tbl$addRow(rowKey = test, values = list(
+          test       = test,
+          stat_label = stat_label,
+          estimate   = estimate,
+          se         = se,
+          ci_low     = ci_low,
+          ci_high    = ci_high,
+          stat       = stat,
+          df         = as.character(df_val),
+          p          = p
+        ))
+      }
 
-      fit <- tryCatch({
-        if (is_binary) glm(resp ~ pgs, data = df_assoc, family = binomial())
-        else            lm(resp ~ pgs, data = df_assoc)
-      }, error = function(e) NULL)
+      if (is_binary) {
+        lvls <- levels(factor(df$resp))
+        g1   <- df$pgs[as.character(df$resp) == lvls[1]]
+        g2   <- df$pgs[as.character(df$resp) == lvls[2]]
+        lbl  <- paste0(lvls[2], " vs ", lvls[1])
 
-      if (is.null(fit)) return()
-      coefs <- coef(summary(fit))
-      if (nrow(coefs) < 2) return()
+        # ── Logistic regression (Wald 95% CI on log-OR scale) ────────────
+        fit <- tryCatch(
+          glm(resp ~ pgs, data = df, family = binomial()),
+          error = function(e) NULL)
+        if (!is.null(fit)) {
+          cf  <- coef(summary(fit))
+          ci  <- tryCatch(confint.default(fit)["pgs", ],
+                          error = function(e) c(NA_real_, NA_real_))
+          if (nrow(cf) >= 2)
+            add_row(paste0("Logistic regression (", respCol, ")"),
+                    "log-OR", cf[2,1], cf[2,2], ci[1], ci[2],
+                    cf[2,3], "", cf[2,4])
+        }
 
-      self$results$assocTable$setRow(rowNo = 1, values = list(
-        responseVar = respCol,
-        model       = if (is_binary) "Logistic" else "Linear",
-        beta        = coefs[2, 1],
-        se          = coefs[2, 2],
-        stat        = coefs[2, 3],
-        p           = coefs[2, 4]
-      ))
+        # ── Welch t-test (95% CI of mean difference) ─────────────────────
+        tt <- tryCatch(t.test(g2, g1), error = function(e) NULL)
+        if (!is.null(tt))
+          add_row(paste0("Welch t-test (", lbl, ")"),
+                  "t", diff(tt$estimate), NA_real_,
+                  tt$conf.int[1], tt$conf.int[2],
+                  tt$statistic, round(tt$parameter, 1), tt$p.value)
+
+        # ── Mann-Whitney U (Hodges-Lehmann 95% CI) ────────────────────────
+        mw <- tryCatch(wilcox.test(g2, g1, exact = FALSE, conf.int = TRUE),
+                       error = function(e) NULL)
+        if (!is.null(mw))
+          add_row(paste0("Mann-Whitney U (", lbl, ")"),
+                  "W", mw$estimate, NA_real_,
+                  mw$conf.int[1], mw$conf.int[2],
+                  mw$statistic, "", mw$p.value)
+
+      } else {
+        resp_num <- as.numeric(df$resp)
+
+        # ── Linear regression (95% CI of slope) ──────────────────────────
+        fit <- tryCatch(lm(resp_num ~ pgs, data = df), error = function(e) NULL)
+        if (!is.null(fit)) {
+          cf  <- coef(summary(fit))
+          ci  <- tryCatch(confint(fit)["pgs", ],
+                          error = function(e) c(NA_real_, NA_real_))
+          dff <- df.residual(fit)
+          if (nrow(cf) >= 2)
+            add_row(paste0("Linear regression (", respCol, ")"),
+                    "\u03b2", cf[2,1], cf[2,2], ci[1], ci[2],
+                    cf[2,3], dff, cf[2,4])
+        }
+
+        # ── Pearson correlation (Fisher-z 95% CI via cor.test) ────────────
+        pc <- tryCatch(
+          cor.test(df$pgs, resp_num, method = "pearson"),
+          error = function(e) NULL)
+        if (!is.null(pc))
+          add_row("Pearson correlation",
+                  "r", pc$estimate, NA_real_,
+                  pc$conf.int[1], pc$conf.int[2],
+                  pc$statistic, round(pc$parameter, 0), pc$p.value)
+
+        # ── Spearman correlation (Fisher-z approximation for CI) ──────────
+        sp <- tryCatch(
+          cor.test(df$pgs, resp_num, method = "spearman", exact = FALSE),
+          error = function(e) NULL)
+        if (!is.null(sp)) {
+          r  <- as.numeric(sp$estimate)
+          n  <- nrow(df)
+          # Fisher-z transform CI
+          z  <- 0.5 * log((1 + r) / (1 - r))
+          se <- 1 / sqrt(n - 3)
+          ci <- tanh(c(z - 1.96 * se, z + 1.96 * se))
+          add_row("Spearman correlation",
+                  "\u03c1", r, NA_real_,
+                  ci[1], ci[2],
+                  sp$statistic, "", sp$p.value)
+        }
+      }
     },
 
     .plotDist = function(image, ...) {
@@ -619,16 +741,91 @@ snpPGSClass <- R6::R6Class(
 
       hist(scores, freq = FALSE, breaks = "Sturges",
            col = "#AED6F1", border = "#2980B9",
-           main = "PGS Distribution",
+           main = "PGS Distribution (Overall)",
            xlab = "PGS Score", ylab = "Density",
            ylim = c(0, y_max), las = 1)
-
       lines(dens, col = "#C0392B", lwd = 2.5)
       abline(v = mean(scores, na.rm = TRUE), col = "#27AE60", lwd = 2, lty = 2)
       legend("topright",
              legend = c("Density", "Mean"),
              col    = c("#C0392B", "#27AE60"),
              lty = c(1, 2), lwd = 2, bty = "n", cex = 0.85)
+      TRUE
+    },
+
+    .plotStrat = function(image, ...) {
+      scores <- private$.pgsScores
+      resp   <- image$getState()
+      if (is.null(scores) || length(scores) < 2 || is.null(resp)) return(FALSE)
+
+      opar <- par(no.readonly = TRUE)
+      on.exit(par(opar))
+
+      is_binary <- is.factor(resp) || length(unique(resp[!is.na(resp)])) == 2
+
+      df <- data.frame(pgs = scores, resp = resp)
+      df <- df[complete.cases(df), ]
+      if (nrow(df) < 3) return(FALSE)
+
+      if (is_binary) {
+        # ── Overlapping density curves + boxplot per group ─────────────────
+        lvls   <- levels(factor(df$resp))
+        grp_colours <- c("#2980B9", "#C0392B", "#27AE60", "#8E44AD")
+        grp_colours <- grp_colours[seq_along(lvls)]
+
+        # Compute densities per group
+        dens_list <- lapply(lvls, function(lv)
+          density(df$pgs[as.character(df$resp) == lv], na.rm = TRUE))
+
+        y_max <- max(sapply(dens_list, function(d) max(d$y))) * 1.2
+
+        par(mar = c(5, 4.5, 4, 1.5), bg = "white")
+        plot(NULL, xlim = range(df$pgs), ylim = c(0, y_max),
+             xlab = "PGS Score", ylab = "Density",
+             main = "PGS Distribution by Group", las = 1)
+
+        for (i in seq_along(lvls)) {
+          polygon(c(dens_list[[i]]$x, rev(dens_list[[i]]$x)),
+                  c(dens_list[[i]]$y, rep(0, length(dens_list[[i]]$y))),
+                  col = adjustcolor(grp_colours[i], alpha.f = 0.25), border = NA)
+          lines(dens_list[[i]], col = grp_colours[i], lwd = 2.5)
+          abline(v = mean(df$pgs[as.character(df$resp) == lvls[i]], na.rm = TRUE),
+                 col = grp_colours[i], lwd = 1.5, lty = 2)
+        }
+
+        legend("topright", legend = lvls,
+               col = grp_colours, lwd = 2, bty = "n", cex = 0.9)
+
+        # Add p-value annotation (Mann-Whitney)
+        g1  <- df$pgs[as.character(df$resp) == lvls[1]]
+        g2  <- df$pgs[as.character(df$resp) == lvls[2]]
+        mw  <- tryCatch(wilcox.test(g2, g1, exact = FALSE), error = function(e) NULL)
+        if (!is.null(mw)) {
+          p_fmt <- if (mw$p.value < 0.001) "p < 0.001"
+                   else paste0("p = ", round(mw$p.value, 3))
+          mtext(paste0("Mann-Whitney ", p_fmt), side = 3, line = 0.3,
+                cex = 0.85, col = "#555555")
+        }
+
+      } else {
+        # ── Scatter plot with regression line ──────────────────────────────
+        par(mar = c(5, 4.5, 4, 1.5), bg = "white")
+        resp_num <- as.numeric(df$resp)
+        plot(df$pgs, resp_num,
+             pch = 19, col = adjustcolor("#2980B9", alpha.f = 0.4), cex = 0.7,
+             xlab = "PGS Score", ylab = "Response",
+             main = "PGS vs Response", las = 1)
+
+        fit <- tryCatch(lm(resp_num ~ pgs, data = df), error = function(e) NULL)
+        if (!is.null(fit)) {
+          abline(fit, col = "#C0392B", lwd = 2)
+          r2    <- summary(fit)$r.squared
+          p_val <- coef(summary(fit))[2, 4]
+          p_fmt <- if (p_val < 0.001) "p < 0.001" else paste0("p = ", round(p_val, 3))
+          mtext(paste0("R² = ", round(r2, 3), "  |  ", p_fmt),
+                side = 3, line = 0.3, cex = 0.85, col = "#555555")
+        }
+      }
       TRUE
     }
 

@@ -74,7 +74,6 @@ items:
   - name: summaryTable
     title: PGS Summary Statistics
     type: Table
-    rows: 1
     clearWith:
         - snpCols
         - weightsPath
@@ -82,7 +81,11 @@ items:
         - reloadWeights
         - missingStrategy
         - normalize
+        - responseCol
     columns:
+        - name: group
+          title: Group
+          type: text
         - name: n
           title: N
           type: integer
@@ -92,6 +95,14 @@ items:
           format: zto
         - name: sd
           title: SD
+          type: number
+          format: zto
+        - name: ci_low
+          title: 95% CI low
+          type: number
+          format: zto
+        - name: ci_high
+          title: 95% CI high
           type: number
           format: zto
         - name: min
@@ -164,7 +175,6 @@ items:
     title: PGS–Response Association
     type: Table
     visible: (showAssoc)
-    rows: 1
     clearWith:
         - snpCols
         - weightsPath
@@ -174,24 +184,35 @@ items:
         - normalize
         - responseCol
     columns:
-        - name: responseVar
-          title: Response
+        - name: test
+          title: Test
           type: text
-        - name: model
-          title: Model
+        - name: stat_label
+          title: Statistic
           type: text
-        - name: beta
-          title: β (or log-OR)
+        - name: estimate
+          title: Estimate
           type: number
           format: zto
         - name: se
           title: SE
           type: number
           format: zto
-        - name: stat
-          title: Statistic
+        - name: ci_low
+          title: 95% CI low
           type: number
           format: zto
+        - name: ci_high
+          title: 95% CI high
+          type: number
+          format: zto
+        - name: stat
+          title: Value
+          type: number
+          format: zto
+        - name: df
+          title: df
+          type: text
         - name: p
           title: p-value
           type: number
@@ -205,3 +226,12 @@ items:
     width: 560
     height: 390
     renderFun: .plotDist
+
+  # ── Stratified plot (visible when response variable is set) ───────────────
+  - name: stratPlot
+    title: PGS by Group
+    type: Image
+    visible: (showDistPlot && responseCol)
+    width: 560
+    height: 420
+    renderFun: .plotStrat

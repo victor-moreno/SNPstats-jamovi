@@ -166,7 +166,8 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         scoreTable = function() private$.items[["scoreTable"]],
         percentileTable = function() private$.items[["percentileTable"]],
         assocTable = function() private$.items[["assocTable"]],
-        distPlot = function() private$.items[["distPlot"]]),
+        distPlot = function() private$.items[["distPlot"]],
+        stratPlot = function() private$.items[["stratPlot"]]),
     private = list(),
     public=list(
         initialize=function(options) {
@@ -251,15 +252,19 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 options=options,
                 name="summaryTable",
                 title="PGS Summary Statistics",
-                rows=1,
                 clearWith=list(
                     "snpCols",
                     "weightsPath",
                     "weightsSep",
                     "reloadWeights",
                     "missingStrategy",
-                    "normalize"),
+                    "normalize",
+                    "responseCol"),
                 columns=list(
+                    list(
+                        `name`="group", 
+                        `title`="Group", 
+                        `type`="text"),
                     list(
                         `name`="n", 
                         `title`="N", 
@@ -272,6 +277,16 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     list(
                         `name`="sd", 
                         `title`="SD", 
+                        `type`="number", 
+                        `format`="zto"),
+                    list(
+                        `name`="ci_low", 
+                        `title`="95% CI low", 
+                        `type`="number", 
+                        `format`="zto"),
+                    list(
+                        `name`="ci_high", 
+                        `title`="95% CI high", 
                         `type`="number", 
                         `format`="zto"),
                     list(
@@ -350,7 +365,6 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 name="assocTable",
                 title="PGS\u2013Response Association",
                 visible="(showAssoc)",
-                rows=1,
                 clearWith=list(
                     "snpCols",
                     "weightsPath",
@@ -361,16 +375,16 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "responseCol"),
                 columns=list(
                     list(
-                        `name`="responseVar", 
-                        `title`="Response", 
+                        `name`="test", 
+                        `title`="Test", 
                         `type`="text"),
                     list(
-                        `name`="model", 
-                        `title`="Model", 
+                        `name`="stat_label", 
+                        `title`="Statistic", 
                         `type`="text"),
                     list(
-                        `name`="beta", 
-                        `title`="\u03B2 (or log-OR)", 
+                        `name`="estimate", 
+                        `title`="Estimate", 
                         `type`="number", 
                         `format`="zto"),
                     list(
@@ -379,10 +393,24 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                         `type`="number", 
                         `format`="zto"),
                     list(
-                        `name`="stat", 
-                        `title`="Statistic", 
+                        `name`="ci_low", 
+                        `title`="95% CI low", 
                         `type`="number", 
                         `format`="zto"),
+                    list(
+                        `name`="ci_high", 
+                        `title`="95% CI high", 
+                        `type`="number", 
+                        `format`="zto"),
+                    list(
+                        `name`="stat", 
+                        `title`="Value", 
+                        `type`="number", 
+                        `format`="zto"),
+                    list(
+                        `name`="df", 
+                        `title`="df", 
+                        `type`="text"),
                     list(
                         `name`="p", 
                         `title`="p-value", 
@@ -395,7 +423,15 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 visible="(showDistPlot)",
                 width=560,
                 height=390,
-                renderFun=".plotDist"))}))
+                renderFun=".plotDist"))
+            self$add(jmvcore::Image$new(
+                options=options,
+                name="stratPlot",
+                title="PGS by Group",
+                visible="(showDistPlot && responseCol)",
+                width=560,
+                height=420,
+                renderFun=".plotStrat"))}))
 
 snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
     "snpPGSBase",
@@ -459,6 +495,7 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'   \code{results$percentileTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$assocTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$distPlot} \tab \tab \tab \tab \tab an image \cr
+#'   \code{results$stratPlot} \tab \tab \tab \tab \tab an image \cr
 #' }
 #'
 #' Tables can be converted to data frames with \code{asDF} or \code{\link{as.data.frame}}. For example:
