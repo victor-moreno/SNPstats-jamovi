@@ -1,5 +1,6 @@
 default to weight 1
-	if no PGS file, show unweighted stats and association. Generate effect and reference alleles from data order
+if no PGS file, show unweighted stats and association. Generate effect and reference alleles from data order
+define defaults in a.yaml
 
 check consistency: 
 		SNP names: show observed alleles if mismath / ambiguous / complemented/ ...

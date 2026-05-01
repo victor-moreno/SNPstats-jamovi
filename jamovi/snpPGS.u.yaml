@@ -41,19 +41,26 @@ children:
           - type: Label
             label: Weights File
             children:
+                - type: ComboBox
+                  name: weightingMode
+                  label: SNP weighting mode
+
                 - type: TextBox
                   name: weightsPath
                   label: "PGS Catalog weights file (.csv / .txt / .tsv):"
                   format: string
                   width: largest
+                  enable: (weightingMode != 'unweighted')
 
                 - type: ComboBox
                   name: weightsSep
                   label: Delimiter
+                  enable: (weightingMode != 'unweighted')
 
                 - type: CheckBox
                   name: reloadWeights
                   label: Reload weights file (toggle to refresh)
+                  enable: (weightingMode != 'unweighted')
 
     # ── Scoring options ──────────────────────────────────────────────────────
     - type: LayoutBox

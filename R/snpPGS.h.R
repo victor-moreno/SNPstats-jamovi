@@ -12,6 +12,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             weightsPath = "",
             weightsSep = "auto",
             reloadWeights = FALSE,
+            weightingMode = "weighted",
             missingStrategy = "mean",
             normalize = TRUE,
             standardize = FALSE,
@@ -72,6 +73,14 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "reloadWeights",
                 reloadWeights,
                 default=FALSE)
+            private$..weightingMode <- jmvcore::OptionList$new(
+                "weightingMode",
+                weightingMode,
+                options=list(
+                    "weighted",
+                    "unweighted",
+                    "both"),
+                default="weighted")
             private$..missingStrategy <- jmvcore::OptionList$new(
                 "missingStrategy",
                 missingStrategy,
@@ -120,6 +129,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..weightsPath)
             self$.addOption(private$..weightsSep)
             self$.addOption(private$..reloadWeights)
+            self$.addOption(private$..weightingMode)
             self$.addOption(private$..missingStrategy)
             self$.addOption(private$..normalize)
             self$.addOption(private$..standardize)
@@ -137,6 +147,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         weightsPath = function() private$..weightsPath$value,
         weightsSep = function() private$..weightsSep$value,
         reloadWeights = function() private$..reloadWeights$value,
+        weightingMode = function() private$..weightingMode$value,
         missingStrategy = function() private$..missingStrategy$value,
         normalize = function() private$..normalize$value,
         standardize = function() private$..standardize$value,
@@ -153,6 +164,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..weightsPath = NA,
         ..weightsSep = NA,
         ..reloadWeights = NA,
+        ..weightingMode = NA,
         ..missingStrategy = NA,
         ..normalize = NA,
         ..standardize = NA,
@@ -496,6 +508,11 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param reloadWeights Toggle this to force re-reading the weights file (e.g.
 #'   after the file has been updated on disk). The value itself is ignored; any
 #'   change triggers a re-run.
+#' @param weightingMode Controls how SNP weights are applied. 'weighted' uses
+#'   effect_weight values from the loaded PGS Catalog file. 'unweighted' assigns
+#'   weight 1 to every SNP regardless of the file. 'both' computes and reports
+#'   both scores side by side in the summary and association tables. If no
+#'   weights file is loaded, unweighted scoring is used automatically.
 #' @param missingStrategy Strategy for handling missing genotype values.
 #'   'snp_wise' scores each individual using only their observed SNPs and
 #'   divides by that individual's observed SNP count, keeping all individuals
@@ -544,6 +561,7 @@ snpPGS <- function(
     weightsPath = "",
     weightsSep = "auto",
     reloadWeights = FALSE,
+    weightingMode = "weighted",
     missingStrategy = "mean",
     normalize = TRUE,
     standardize = FALSE,
@@ -575,6 +593,7 @@ snpPGS <- function(
         weightsPath = weightsPath,
         weightsSep = weightsSep,
         reloadWeights = reloadWeights,
+        weightingMode = weightingMode,
         missingStrategy = missingStrategy,
         normalize = normalize,
         standardize = standardize,

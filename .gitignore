@@ -2,3 +2,4 @@ build
 *.jmo
 example*.*
 mejoras.R
+*.pdf

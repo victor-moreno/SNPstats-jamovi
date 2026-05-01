@@ -100,6 +100,26 @@ options:
               the file has been updated on disk). The value itself is ignored;
               any change triggers a re-run.
 
+    - name: weightingMode
+      title: SNP weighting mode
+      type: List
+      options:
+          - name: weighted
+            title: Weighted (from PGS weights file)
+          - name: unweighted
+            title: Unweighted (constant weight = 1 for all SNPs)
+          - name: both
+            title: Both (show weighted and unweighted results)
+      default: weighted
+      description:
+          R: >
+              Controls how SNP weights are applied. 'weighted' uses
+              effect_weight values from the loaded PGS Catalog file.
+              'unweighted' assigns weight 1 to every SNP regardless of
+              the file. 'both' computes and reports both scores side by
+              side in the summary and association tables. If no weights
+              file is loaded, unweighted scoring is used automatically.
+
     - name: missingStrategy
       title: Missing genotype handling
       type: List
