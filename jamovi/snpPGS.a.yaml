@@ -110,16 +110,37 @@ options:
             title: Treat as 0 (reference homozygous)
           - name: exclude
             title: Exclude individuals with any missing SNP
+          - name: snp_wise
+            title: Exclude missing SNPs individual-wise (use observed SNPs only)
       default: mean
       description:
-          R: Strategy for handling missing genotype values.
+          R: >
+              Strategy for handling missing genotype values. 'snp_wise'
+              scores each individual using only their observed SNPs and
+              divides by that individual's observed SNP count, keeping
+              all individuals regardless of missingness.
 
     - name: normalize
-      title: Normalize score by number of matched SNPs
+      title: Normalize score by number of valid SNPs per individual
       type: Bool
       default: true
       description:
-          R: If TRUE, divides each PGS by the number of matched SNPs.
+          R: >
+              If TRUE, divides each individual's PGS by the number of SNPs
+              that were actually observed (non-missing) for that individual.
+              This corrects for differential missingness: individuals with
+              fewer observed SNPs are not systematically penalised.
+
+    - name: standardize
+      title: Standardize score (divide by SD)
+      type: Bool
+      default: false
+      description:
+          R: >
+              If TRUE, divides the (optionally normalized) PGS by its
+              standard deviation across all individuals. The resulting score
+              has SD = 1, so regression coefficients represent the effect
+              per 1-SD change in PGS.
 
     - name: showCoverage
       title: Show SNP coverage summary

@@ -1,4 +1,6 @@
 default to weight 1
+	if no PGS file, show unweighted stats and association. Generate effect and reference alleles from data order
+
 check consistency: 
 		SNP names: show observed alleles if mismath / ambiguous / complemented/ ...
 
@@ -6,15 +8,20 @@ Verify that effect allele if correctly selected no matter how in data
 
 Revise Percentile ranks
 
-Revise missing values adjustment 
-	exclusion
-	score normalization
-
 Allow variable / no header in metadata
 
-if no PGS file, show unweighted stats and association. Generate effect and reference alleles from data order
 
 Hide empty tables if not selected or empty because no data
 
 Test in criprev
 
+Replace individual ID by adjustment covariates for the regression models
+Revise association table
+	log-OR -> OR
+	SE for t-test
+	Value ?
+	 
+          add_row(paste0("Welch t-test (", lbl, ")"),
+                  "t", diff(tt$estimate), tt$stderr,
+                  tt$conf.int[1], tt$conf.int[2],
+                  tt$statistic, round(tt$parameter, 1), tt$p.value)

@@ -30,6 +30,7 @@ snpPGSClass <- R6::R6Class(
       respCol    <- self$options$responseCol
       missing_st <- self$options$missingStrategy
       normalize  <- self$options$normalize
+      standardize <- self$options$standardize
 
       if (is.null(snpCols) || length(snpCols) == 0) return()
 
@@ -90,8 +91,23 @@ snpPGSClass <- R6::R6Class(
         return()
       }
 
-      scores <- as.numeric(dosage %*% weights_vec)
-      if (normalize) scores <- scores / length(weights_vec)
+      scores_raw <- as.numeric(dosage %*% weights_vec)
+
+      # snp_wise forces per-individual normalization regardless of normalize checkbox
+      if (normalize || missing_st == "snp_wise") {
+        vc <- qc$valid_counts[, names(weights_vec), drop = FALSE]
+        n_valid <- rowSums(vc)
+        n_valid[n_valid == 0] <- NA_real_
+        scores <- scores_raw / n_valid
+      } else {
+        scores <- scores_raw
+      }
+
+      if (standardize) {
+        s <- sd(scores, na.rm = TRUE)
+        if (!is.na(s) && s > 0) scores <- scores / s
+      }
+
       private$.pgsScores <- scores
 
       # ── Individual IDs ───────────────────────────────────────────────────
@@ -261,6 +277,8 @@ snpPGSClass <- R6::R6Class(
         allele_status = "",   # filled in by .buildDosageMatrix QC step
         strand_flipped = FALSE,
         extra_cols    = extra_str,
+        n_missing     = NA_integer_,
+        pct_missing   = NA_real_,
         stringsAsFactors = FALSE
       )
 
@@ -273,6 +291,7 @@ snpPGSClass <- R6::R6Class(
           effect_weight = NA_real_, chr = "", pos = "",
           matched = FALSE, allele_status = "not in weights file",
           strand_flipped = FALSE, extra_cols = "",
+          n_missing = NA_integer_, pct_missing = NA_real_,
           stringsAsFactors = FALSE
         )
         result <- rbind(result, extra_rows)
@@ -311,6 +330,8 @@ snpPGSClass <- R6::R6Class(
         allele_status  = "no weights file",
         strand_flipped = FALSE,
         extra_cols     = "",
+        n_missing      = NA_integer_,
+        pct_missing    = NA_real_,
         stringsAsFactors = FALSE
       )
     },
@@ -440,6 +461,17 @@ snpPGSClass <- R6::R6Class(
       # Drop mismatched SNPs
       mat <- mat[, setdiff(colnames(mat), exclude), drop = FALSE]
 
+      # Per-SNP missingness (before imputation)
+      for (snp in colnames(mat)) {
+        idx <- which(wtable$rsid == snp)[1]
+        n_na <- sum(is.na(mat[, snp]))
+        wtable$n_missing[idx]   <- n_na
+        wtable$pct_missing[idx] <- if (nrow(mat) > 0) round(n_na / nrow(mat) * 100, 1) else NA_real_
+      }
+
+      # Snapshot valid cells before any imputation/exclusion
+      valid_before_impute <- !is.na(mat)
+
       # Handle within-column missingness
       for (snp in colnames(mat)) {
         na_mask <- is.na(mat[, snp])
@@ -449,20 +481,23 @@ snpPGSClass <- R6::R6Class(
                         mat[na_mask, snp] <- if (is.nan(m)) 0 else m
                         mat[, snp] },
             zero    = { mat[na_mask, snp] <- 0; mat[, snp] },
-            exclude = mat[, snp]
+            exclude  = mat[, snp],
+            snp_wise = { mat[na_mask, snp] <- 0; mat[, snp] }
           )
         }
       }
 
       if (missing_st == "exclude") {
         keep <- complete.cases(mat)
+        # Apply keep mask to both mat and the valid_counts snapshot so they stay aligned
+        valid_before_impute <- valid_before_impute[keep, , drop = FALSE]
         mat  <- mat[keep, , drop = FALSE]
         private$.keepMask <- keep
       } else {
         private$.keepMask <- rep(TRUE, nrow(self$data))
       }
 
-      list(mat = mat, wtable = wtable)
+      list(mat = mat, wtable = wtable, valid_counts = valid_before_impute)
     },
 
 
@@ -481,12 +516,15 @@ snpPGSClass <- R6::R6Class(
       has_ea    <- any(nchar(wtable$effect_allele) > 0, na.rm = TRUE)
       has_oa    <- any(nchar(wtable$other_allele)  > 0, na.rm = TRUE)
       has_extra <- any(nchar(wtable$extra_cols)    > 0, na.rm = TRUE)
+      has_miss  <- any(!is.na(wtable$n_missing))
 
       tbl$getColumn("chr")$setVisible(has_chr)
       tbl$getColumn("pos")$setVisible(has_pos)
       tbl$getColumn("effect_allele")$setVisible(has_ea)
       tbl$getColumn("other_allele")$setVisible(has_oa)
       tbl$getColumn("extra_cols")$setVisible(has_extra)
+      tbl$getColumn("n_missing")$setVisible(has_miss)
+      tbl$getColumn("pct_missing")$setVisible(has_miss)
 
       for (i in seq_len(nrow(wtable))) {
         r      <- wtable[i, ]
@@ -502,7 +540,9 @@ snpPGSClass <- R6::R6Class(
           effect_weight = if (is.na(r$effect_weight)) NA_real_ else r$effect_weight,
           matched       = if (in_ds) "\u2713" else "\u2717",
           allele_status = status,
-          extra_cols    = as.character(r$extra_cols)
+          extra_cols    = as.character(r$extra_cols),
+          n_missing     = if (is.na(r$n_missing))   NA_integer_ else as.integer(r$n_missing),
+          pct_missing   = if (is.na(r$pct_missing)) NA_real_    else r$pct_missing
         ))
       }
     },
@@ -692,7 +732,7 @@ snpPGSClass <- R6::R6Class(
         tt <- tryCatch(t.test(g2, g1), error = function(e) NULL)
         if (!is.null(tt))
           add_row(paste0("Welch t-test (", lbl, ")"),
-                  "t", diff(tt$estimate), NA_real_,
+                  "t", diff(tt$estimate), tt$stderr,
                   tt$conf.int[1], tt$conf.int[2],
                   tt$statistic, round(tt$parameter, 1), tt$p.value)
 
@@ -701,7 +741,7 @@ snpPGSClass <- R6::R6Class(
                        error = function(e) NULL)
         if (!is.null(mw))
           add_row(paste0("Mann-Whitney U (", lbl, ")"),
-                  "W", mw$estimate, NA_real_,
+                  "W", mw$estimate, '',
                   mw$conf.int[1], mw$conf.int[2],
                   mw$statistic, "", mw$p.value)
 

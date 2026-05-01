@@ -48,6 +48,13 @@ items:
         - name: allele_status
           title: Allele QC
           type: text
+        - name: n_missing
+          title: "N missing"
+          type: integer
+        - name: pct_missing
+          title: "% missing"
+          type: number
+          format: zto
         - name: extra_cols
           title: Extra fields
           type: text
@@ -81,6 +88,7 @@ items:
         - reloadWeights
         - missingStrategy
         - normalize
+        - standardize
         - responseCol
     columns:
         - name: group
@@ -130,6 +138,7 @@ items:
         - reloadWeights
         - missingStrategy
         - normalize
+        - standardize
     columns:
         - name: individual
           title: Individual
@@ -160,6 +169,7 @@ items:
         - reloadWeights
         - missingStrategy
         - normalize
+        - standardize
         - percentileBreaks
     columns:
         - name: threshold
@@ -182,6 +192,7 @@ items:
         - reloadWeights
         - missingStrategy
         - normalize
+        - standardize
         - responseCol
     columns:
         - name: test

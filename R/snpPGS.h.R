@@ -14,6 +14,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             reloadWeights = FALSE,
             missingStrategy = "mean",
             normalize = TRUE,
+            standardize = FALSE,
             showCoverage = TRUE,
             showScoreTable = FALSE,
             showDistPlot = FALSE,
@@ -77,12 +78,17 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 options=list(
                     "mean",
                     "zero",
-                    "exclude"),
+                    "exclude",
+                    "snp_wise"),
                 default="mean")
             private$..normalize <- jmvcore::OptionBool$new(
                 "normalize",
                 normalize,
                 default=TRUE)
+            private$..standardize <- jmvcore::OptionBool$new(
+                "standardize",
+                standardize,
+                default=FALSE)
             private$..showCoverage <- jmvcore::OptionBool$new(
                 "showCoverage",
                 showCoverage,
@@ -116,6 +122,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..reloadWeights)
             self$.addOption(private$..missingStrategy)
             self$.addOption(private$..normalize)
+            self$.addOption(private$..standardize)
             self$.addOption(private$..showCoverage)
             self$.addOption(private$..showScoreTable)
             self$.addOption(private$..showDistPlot)
@@ -132,6 +139,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         reloadWeights = function() private$..reloadWeights$value,
         missingStrategy = function() private$..missingStrategy$value,
         normalize = function() private$..normalize$value,
+        standardize = function() private$..standardize$value,
         showCoverage = function() private$..showCoverage$value,
         showScoreTable = function() private$..showScoreTable$value,
         showDistPlot = function() private$..showDistPlot$value,
@@ -147,6 +155,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..reloadWeights = NA,
         ..missingStrategy = NA,
         ..normalize = NA,
+        ..standardize = NA,
         ..showCoverage = NA,
         ..showScoreTable = NA,
         ..showDistPlot = NA,
@@ -226,6 +235,15 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                         `title`="Allele QC", 
                         `type`="text"),
                     list(
+                        `name`="n_missing", 
+                        `title`="N missing", 
+                        `type`="integer"),
+                    list(
+                        `name`="pct_missing", 
+                        `title`="% missing", 
+                        `type`="number", 
+                        `format`="zto"),
+                    list(
                         `name`="extra_cols", 
                         `title`="Extra fields", 
                         `type`="text"))))
@@ -259,6 +277,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "reloadWeights",
                     "missingStrategy",
                     "normalize",
+                    "standardize",
                     "responseCol"),
                 columns=list(
                     list(
@@ -315,7 +334,8 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "weightsSep",
                     "reloadWeights",
                     "missingStrategy",
-                    "normalize"),
+                    "normalize",
+                    "standardize"),
                 columns=list(
                     list(
                         `name`="individual", 
@@ -349,6 +369,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "reloadWeights",
                     "missingStrategy",
                     "normalize",
+                    "standardize",
                     "percentileBreaks"),
                 columns=list(
                     list(
@@ -372,6 +393,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "reloadWeights",
                     "missingStrategy",
                     "normalize",
+                    "standardize",
                     "responseCol"),
                 columns=list(
                     list(
@@ -475,7 +497,16 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'   after the file has been updated on disk). The value itself is ignored; any
 #'   change triggers a re-run.
 #' @param missingStrategy Strategy for handling missing genotype values.
-#' @param normalize If TRUE, divides each PGS by the number of matched SNPs.
+#'   'snp_wise' scores each individual using only their observed SNPs and
+#'   divides by that individual's observed SNP count, keeping all individuals
+#'   regardless of missingness.
+#' @param normalize If TRUE, divides each individual's PGS by the number of
+#'   SNPs that were actually observed (non-missing) for that individual. This
+#'   corrects for differential missingness: individuals with fewer observed SNPs
+#'   are not systematically penalised.
+#' @param standardize If TRUE, divides the (optionally normalized) PGS by its
+#'   standard deviation across all individuals. The resulting score has SD = 1,
+#'   so regression coefficients represent the effect per 1-SD change in PGS.
 #' @param showCoverage Show the SNP coverage summary table.
 #' @param showScoreTable Show the per-individual PGS score table.
 #' @param showDistPlot Show the score distribution histogram and density plot.
@@ -515,6 +546,7 @@ snpPGS <- function(
     reloadWeights = FALSE,
     missingStrategy = "mean",
     normalize = TRUE,
+    standardize = FALSE,
     showCoverage = TRUE,
     showScoreTable = FALSE,
     showDistPlot = FALSE,
@@ -545,6 +577,7 @@ snpPGS <- function(
         reloadWeights = reloadWeights,
         missingStrategy = missingStrategy,
         normalize = normalize,
+        standardize = standardize,
         showCoverage = showCoverage,
         showScoreTable = showScoreTable,
         showDistPlot = showDistPlot,

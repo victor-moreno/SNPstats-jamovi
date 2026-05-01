@@ -68,7 +68,11 @@ children:
 
                 - type: CheckBox
                   name: normalize
-                  label: Normalize score by number of matched SNPs
+                  label: Normalize by valid SNPs per individual
+
+                - type: CheckBox
+                  name: standardize
+                  label: Standardize score (divide by SD, for 1-SD model estimates)
 
     # ── Output options ───────────────────────────────────────────────────────
     - type: LayoutBox
