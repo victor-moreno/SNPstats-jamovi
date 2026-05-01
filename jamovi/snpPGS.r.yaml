@@ -20,8 +20,7 @@ items:
     clearWith:
         - snpCols
         - weightsPath
-        - weightsSep
-        - reloadWeights
+        - weightingMode
     columns:
         - name: rsid
           title: SNP (rsID / column)
@@ -67,8 +66,7 @@ items:
     clearWith:
         - snpCols
         - weightsPath
-        - weightsSep
-        - reloadWeights
+        - weightingMode
     columns:
         - name: field
           title: ''
@@ -84,13 +82,15 @@ items:
     clearWith:
         - snpCols
         - weightsPath
-        - weightsSep
-        - reloadWeights
+        - weightingMode
         - missingStrategy
         - normalize
         - standardize
         - responseCol
     columns:
+        - name: score_type
+          title: Score type
+          type: text
         - name: group
           title: Group
           type: text
@@ -134,8 +134,7 @@ items:
     clearWith:
         - snpCols
         - weightsPath
-        - weightsSep
-        - reloadWeights
+        - weightingMode
         - missingStrategy
         - normalize
         - standardize
@@ -165,8 +164,7 @@ items:
     clearWith:
         - snpCols
         - weightsPath
-        - weightsSep
-        - reloadWeights
+        - weightingMode
         - missingStrategy
         - normalize
         - standardize
@@ -188,13 +186,15 @@ items:
     clearWith:
         - snpCols
         - weightsPath
-        - weightsSep
-        - reloadWeights
+        - weightingMode
         - missingStrategy
         - normalize
         - standardize
         - responseCol
     columns:
+        - name: score_type
+          title: Score type
+          type: text
         - name: test
           title: Test
           type: text

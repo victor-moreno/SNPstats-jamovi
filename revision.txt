@@ -1,9 +1,11 @@
 default to weight 1
 if no PGS file, show unweighted stats and association. Generate effect and reference alleles from data order
+and do minimal QC (bialelic SNPs, no monomorphics)
 define defaults in a.yaml
 
 check consistency: 
-		SNP names: show observed alleles if mismath / ambiguous / complemented/ ...
+- SNP names: show observed alleles if mismath / complemented/ ...
+- remove ambiguous
 
 Verify that effect allele if correctly selected no matter how in data
 
@@ -11,6 +13,9 @@ Revise Percentile ranks
 
 Allow variable / no header in metadata
 
+save PGS to data
+
+clean:
 
 Hide empty tables if not selected or empty because no data
 
@@ -26,3 +31,11 @@ Revise association table
                   "t", diff(tt$estimate), tt$stderr,
                   tt$conf.int[1], tt$conf.int[2],
                   tt$statistic, round(tt$parameter, 1), tt$p.value)
+                  
+                  
+                  
+                  
+SNPs 
+assoc/haplotypes
+if value > 1000 : Inf
+NA : ''

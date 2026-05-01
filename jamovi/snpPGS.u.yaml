@@ -47,19 +47,9 @@ children:
 
                 - type: TextBox
                   name: weightsPath
-                  label: "PGS Catalog weights file (.csv / .txt / .tsv):"
+                  label: "PGS Catalog weights file (.csv / .txt / .tsv / .txt.gz):"
                   format: string
                   width: largest
-                  enable: (weightingMode != 'unweighted')
-
-                - type: ComboBox
-                  name: weightsSep
-                  label: Delimiter
-                  enable: (weightingMode != 'unweighted')
-
-                - type: CheckBox
-                  name: reloadWeights
-                  label: Reload weights file (toggle to refresh)
                   enable: (weightingMode != 'unweighted')
 
     # ── Scoring options ──────────────────────────────────────────────────────

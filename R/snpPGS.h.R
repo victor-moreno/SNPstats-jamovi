@@ -10,8 +10,6 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             snpCols = NULL,
             responseCol = NULL,
             weightsPath = "",
-            weightsSep = "auto",
-            reloadWeights = FALSE,
             weightingMode = "weighted",
             missingStrategy = "mean",
             normalize = TRUE,
@@ -61,18 +59,6 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "weightsPath",
                 weightsPath,
                 default="")
-            private$..weightsSep <- jmvcore::OptionList$new(
-                "weightsSep",
-                weightsSep,
-                options=list(
-                    "auto",
-                    "comma",
-                    "tab"),
-                default="auto")
-            private$..reloadWeights <- jmvcore::OptionBool$new(
-                "reloadWeights",
-                reloadWeights,
-                default=FALSE)
             private$..weightingMode <- jmvcore::OptionList$new(
                 "weightingMode",
                 weightingMode,
@@ -127,8 +113,6 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..snpCols)
             self$.addOption(private$..responseCol)
             self$.addOption(private$..weightsPath)
-            self$.addOption(private$..weightsSep)
-            self$.addOption(private$..reloadWeights)
             self$.addOption(private$..weightingMode)
             self$.addOption(private$..missingStrategy)
             self$.addOption(private$..normalize)
@@ -145,8 +129,6 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         snpCols = function() private$..snpCols$value,
         responseCol = function() private$..responseCol$value,
         weightsPath = function() private$..weightsPath$value,
-        weightsSep = function() private$..weightsSep$value,
-        reloadWeights = function() private$..reloadWeights$value,
         weightingMode = function() private$..weightingMode$value,
         missingStrategy = function() private$..missingStrategy$value,
         normalize = function() private$..normalize$value,
@@ -162,8 +144,6 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..snpCols = NA,
         ..responseCol = NA,
         ..weightsPath = NA,
-        ..weightsSep = NA,
-        ..reloadWeights = NA,
         ..weightingMode = NA,
         ..missingStrategy = NA,
         ..normalize = NA,
@@ -210,8 +190,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 clearWith=list(
                     "snpCols",
                     "weightsPath",
-                    "weightsSep",
-                    "reloadWeights"),
+                    "weightingMode"),
                 columns=list(
                     list(
                         `name`="rsid", 
@@ -267,8 +246,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 clearWith=list(
                     "snpCols",
                     "weightsPath",
-                    "weightsSep",
-                    "reloadWeights"),
+                    "weightingMode"),
                 columns=list(
                     list(
                         `name`="field", 
@@ -285,13 +263,16 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 clearWith=list(
                     "snpCols",
                     "weightsPath",
-                    "weightsSep",
-                    "reloadWeights",
+                    "weightingMode",
                     "missingStrategy",
                     "normalize",
                     "standardize",
                     "responseCol"),
                 columns=list(
+                    list(
+                        `name`="score_type", 
+                        `title`="Score type", 
+                        `type`="text"),
                     list(
                         `name`="group", 
                         `title`="Group", 
@@ -343,8 +324,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 clearWith=list(
                     "snpCols",
                     "weightsPath",
-                    "weightsSep",
-                    "reloadWeights",
+                    "weightingMode",
                     "missingStrategy",
                     "normalize",
                     "standardize"),
@@ -377,8 +357,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 clearWith=list(
                     "snpCols",
                     "weightsPath",
-                    "weightsSep",
-                    "reloadWeights",
+                    "weightingMode",
                     "missingStrategy",
                     "normalize",
                     "standardize",
@@ -401,13 +380,16 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 clearWith=list(
                     "snpCols",
                     "weightsPath",
-                    "weightsSep",
-                    "reloadWeights",
+                    "weightingMode",
                     "missingStrategy",
                     "normalize",
                     "standardize",
                     "responseCol"),
                 columns=list(
+                    list(
+                        `name`="score_type", 
+                        `title`="Score type", 
+                        `type`="text"),
                     list(
                         `name`="test", 
                         `title`="Test", 
@@ -504,10 +486,6 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'   effect_allele, other_allele, effect_weight/beta, chr_name/chr,
 #'   chr_position/pos. Missing expected columns are hidden in output; extra
 #'   columns are shown concatenated in an 'Extra fields' column.
-#' @param weightsSep Column delimiter of the weights file.
-#' @param reloadWeights Toggle this to force re-reading the weights file (e.g.
-#'   after the file has been updated on disk). The value itself is ignored; any
-#'   change triggers a re-run.
 #' @param weightingMode Controls how SNP weights are applied. 'weighted' uses
 #'   effect_weight values from the loaded PGS Catalog file. 'unweighted' assigns
 #'   weight 1 to every SNP regardless of the file. 'both' computes and reports
@@ -559,8 +537,6 @@ snpPGS <- function(
     snpCols,
     responseCol,
     weightsPath = "",
-    weightsSep = "auto",
-    reloadWeights = FALSE,
     weightingMode = "weighted",
     missingStrategy = "mean",
     normalize = TRUE,
@@ -591,8 +567,6 @@ snpPGS <- function(
         snpCols = snpCols,
         responseCol = responseCol,
         weightsPath = weightsPath,
-        weightsSep = weightsSep,
-        reloadWeights = reloadWeights,
         weightingMode = weightingMode,
         missingStrategy = missingStrategy,
         normalize = normalize,

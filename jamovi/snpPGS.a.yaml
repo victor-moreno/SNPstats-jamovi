@@ -76,30 +76,6 @@ options:
               chr_position/pos. Missing expected columns are hidden in output;
               extra columns are shown concatenated in an 'Extra fields' column.
 
-    - name: weightsSep
-      title: Weights file delimiter
-      type: List
-      options:
-          - name: auto
-            title: Auto-detect
-          - name: comma
-            title: Comma (CSV)
-          - name: tab
-            title: Tab (TSV)
-      default: auto
-      description:
-          R: Column delimiter of the weights file.
-
-    - name: reloadWeights
-      title: Reload weights file
-      type: Bool
-      default: false
-      description:
-          R: >
-              Toggle this to force re-reading the weights file (e.g. after
-              the file has been updated on disk). The value itself is ignored;
-              any change triggers a re-run.
-
     - name: weightingMode
       title: SNP weighting mode
       type: List
