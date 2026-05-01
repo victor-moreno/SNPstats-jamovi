@@ -3,7 +3,7 @@
 name: snpPGS
 title: Polygenic Score (PGS)
 jus: "3.0"
-compilerMode: tame
+compilerMode: developer
 
 children:
     # ── Variable targets ────────────────────────────────────────────────────
