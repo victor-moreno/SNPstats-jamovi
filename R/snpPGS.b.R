@@ -42,6 +42,24 @@ snpPGSClass <- R6::R6Class(
       wtable <- private$.buildWeightTable(snpCols)
       if (is.null(wtable)) return()
 
+
+      # filePath <- self$options$filePath
+      # if (is.null(filePath) || nchar(trimws(filePath)) == 0) {
+      #     self$results$text$setContent("No file selected.")
+      #     return()
+      # }
+      # if (!file.exists(filePath)) {
+      #     self$results$text$setContent(paste("File not found:", filePath))
+      #     return()
+      # }
+      # test <- read.csv(filePath)
+      # if (length(test) == 0) {
+      #   self$results$validationMsg$setContent(
+      #     paste0("<p style='color:#c0392b;'>File ", filePath, " read but contains no data.</p>") )
+      #   self$results$validationMsg$setVisible(TRUE)
+      #   return()
+      # }      
+
       # ── Dosage matrix + allele QC (annotates wtable in-place) ───────────
       qc     <- private$.buildDosageMatrix(snpCols, wtable, missing_st)
       if (is.null(qc)) return()
