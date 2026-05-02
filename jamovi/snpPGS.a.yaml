@@ -2,7 +2,7 @@
 ---
 name: snpPGS
 title: Polygenic Score (PGS)
-version: '0.5.0'
+version: '0.1.0'
 jas: '1.2'
 menuGroup: SNPstats
 menuTitle: Polygenic Score (PGS)
@@ -21,21 +21,6 @@ options:
                   snpPGS(data = myData,
                          snpCols = vars(rs123, rs456),
                          weightsPath = "pgs_catalog.csv")
-
-    - name: covCols
-      title: Covariates (optional)
-      type: Variables
-      suggested:
-          - continuous
-          - nominal
-      permitted:
-          - numeric
-          - factor
-      description:
-          R: >
-              Optional covariate columns. If provided, regression models
-              (logistic and linear) are adjusted for these variables.
-              A note listing the covariates is added to the association table.
 
     - name: snpCols
       title: SNP columns
@@ -66,8 +51,43 @@ options:
               between PGS and response is reported (logistic for binary,
               linear for continuous).
 
+    - name: covCols
+      title: Covariates (optional)
+      type: Variables
+      suggested:
+          - continuous
+          - nominal
+      permitted:
+          - numeric
+          - factor
+      description:
+          R: >
+              Optional covariate columns. If provided, regression models
+              (logistic and linear) are adjusted for these variables.
+              A note listing the covariates is added to the association table.
+
+    - name: weightingMode
+      title: SNP weighting mode
+      type: List
+      options:
+          - name: weighted
+            title: Weighted (from PGS weights file)
+          - name: unweighted
+            title: Unweighted (weight = 1 for all SNPs)
+          - name: both
+            title: Both (weighted and unweighted)
+      default: both
+      description:
+          R: >
+              Controls how SNP weights are applied. 'weighted' uses
+              effect_weight values from the loaded PGS Catalog file.
+              'unweighted' assigns weight 1 to every SNP regardless of
+              the file. 'both' computes and reports both scores side by
+              side in the summary and association tables. If no weights
+              file is loaded, unweighted scoring is used automatically.
+
     - name: weightsPath
-      title: "Weights file path (PGS Catalog CSV/TSV)"
+      title: Weights file path (PGS Catalog format)
       type: String
       default: ""
       description:
@@ -78,48 +98,28 @@ options:
               chr_position/pos. Missing expected columns are hidden in output;
               extra columns are shown concatenated in an 'Extra fields' column.
 
-    - name: weightingMode
-      title: SNP weighting mode
-      type: List
-      options:
-          - name: weighted
-            title: Weighted (from PGS weights file)
-          - name: unweighted
-            title: Unweighted (constant weight = 1 for all SNPs)
-          - name: both
-            title: Both (show weighted and unweighted results)
-      default: weighted
-      description:
-          R: >
-              Controls how SNP weights are applied. 'weighted' uses
-              effect_weight values from the loaded PGS Catalog file.
-              'unweighted' assigns weight 1 to every SNP regardless of
-              the file. 'both' computes and reports both scores side by
-              side in the summary and association tables. If no weights
-              file is loaded, unweighted scoring is used automatically.
-
     - name: missingStrategy
       title: Missing genotype handling
       type: List
       options:
-          - name: mean
-            title: Impute with column mean dosage
+          - name: 'SNP-wise'
+            title: Use observed SNPs only individual-wise
           - name: zero
             title: Treat as 0 (reference homozygous)
+          - name: mean
+            title: Impute with column mean dosage
           - name: exclude
             title: Exclude individuals with any missing SNP
-          - name: snp_wise
-            title: Exclude missing SNPs individual-wise (use observed SNPs only)
-      default: mean
+      default: 'SNP-wise'
       description:
           R: >
-              Strategy for handling missing genotype values. 'snp_wise'
+              Strategy for handling missing genotype values. 'SNP-wise'
               scores each individual using only their observed SNPs and
               divides by that individual's observed SNP count, keeping
               all individuals regardless of missingness.
 
     - name: normalize
-      title: Normalize score (divide by maximum possible score)
+      title: Normalize score (max=1)
       type: Bool
       default: true
       description:
@@ -133,7 +133,7 @@ options:
               missingness. Result is in [0, 1].
 
     - name: standardize
-      title: Standardize score (divide by SD)
+      title: Standardize score (SD=1)
       type: Bool
       default: false
       description:
@@ -150,14 +150,6 @@ options:
       description:
           R: Show the SNP coverage summary table.
 
-    - name: saveScores
-      title: Save scores to data
-      type: Output
-      description:
-          R: >
-              Appends PGS score column(s) to the dataset. One column is
-              added per active weighting mode (Weighted, Unweighted, or both).
-
     - name: showDistPlot
       title: Show score distribution plot
       type: Bool
@@ -173,7 +165,7 @@ options:
           R: Show percentile ranks for each individual and threshold table.
 
     - name: percentileBreaks
-      title: "Percentile thresholds (comma-separated)"
+      title: Percentile thresholds
       type: String
       default: "20,40,60,80,90,95"
       description:
@@ -187,3 +179,12 @@ options:
           R: >
               Show the PGS-response association table (requires a response
               variable to be selected).
+
+    - name: saveScores
+      title: Save scores to data
+      type: Output
+      description:
+          R: >
+              Appends PGS score column(s) to the dataset. One column is
+              added per active weighting mode (Weighted, Unweighted, or both).
+

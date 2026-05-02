@@ -53,10 +53,6 @@ snpPGSClass <- R6::R6Class(
         return()
       }
 
-      self$results$validationMsg$setContent(
-        "<span style='color:#888;font-size:0.85em;'>snpPGS v0.5 — allele QC active</span>")
-      self$results$validationMsg$setVisible(TRUE)
-
       # ── Build weight table from file (or unit weights) ───────────────────
       wtable <- private$.buildWeightTable(snpCols)
       if (is.null(wtable)) return()
@@ -85,7 +81,6 @@ snpPGSClass <- R6::R6Class(
       modes <- list()
       if (run_weighted)   modes[["Weighted"]]   <- catalog_wvec
       if (run_unweighted) modes[["Unweighted"]] <- unit_wvec
-      show_type_col <- length(modes) > 1
 
       # ── Row indices after keepMask ───────────────────────────────────────
       keep <- private$.keepMask  # NULL or logical vector length nrow(data)
@@ -118,8 +113,6 @@ snpPGSClass <- R6::R6Class(
       # ── Clear tables before multi-mode fill ─────────────────────────────
       self$results$summaryTable$deleteRows()
       self$results$assocTable$deleteRows()
-      self$results$summaryTable$getColumn("score_type")$setVisible(show_type_col)
-      self$results$assocTable$getColumn("score_type")$setVisible(show_type_col)
 
       first_scores <- NULL
       all_scores   <- list()   # named by mode_label, for saveScores output
@@ -138,9 +131,9 @@ snpPGSClass <- R6::R6Class(
 
         if (length(wvec) == 0) next
 
-        # snp_wise strategy: zero-fill happened in buildDosageMatrix;
+        # SNP-wise strategy: zero-fill happened in buildDosageMatrix;
         # normalization by observed SNPs is mandatory for correct per-individual scoring.
-        normalize_eff <- normalize || (missing_st == "snp_wise")
+        normalize_eff <- normalize || (missing_st == "SNP-wise")
 
         scores <- private$.computeScores(dos_m, wvec, qc, normalize_eff, standardize,
                                           mode_label == "Unweighted")
@@ -152,10 +145,10 @@ snpPGSClass <- R6::R6Class(
           private$.idLabels  <- as.character(seq_len(nrow(dosage)))
         }
 
-        private$.fillSummaryTable(scores, resp, mode_label, show_type_col)
+        private$.fillSummaryTable(scores, resp, mode_label)
 
         if (self$options$showAssoc && !is.null(resp))
-          private$.fillAssocTable(scores, resp, respCol, covs, mode_label, show_type_col)
+          private$.fillAssocTable(scores, resp, respCol, covs, mode_label)
       }
 
       if (is.null(first_scores)) {
@@ -206,6 +199,19 @@ snpPGSClass <- R6::R6Class(
     #
     # is_unweighted: signals unit weights so we use SNP-count denominator.
     # ════════════════════════════════════════════════════════════════════════
+    .buildWeightTable = function(snpCols) {
+      path  <- self$options$weightsPath
+
+      has_file <- !is.null(path) && nchar(trimws(path)) > 0 && file.exists(path)
+
+      if (has_file)
+        return(private$.parseCatalogFile(path, snpCols))
+      
+      private$.unitWeightTableFromData(snpCols)
+    },
+
+
+
     .computeScores = function(dosage, wvec, qc, normalize, standardize,
                               is_unweighted = FALSE) {
 
@@ -247,20 +253,6 @@ snpPGSClass <- R6::R6Class(
 
       scores
     },
-
-    .buildWeightTable = function(snpCols) {
-      path  <- self$options$weightsPath
-      wmode <- self$options$weightingMode
-
-      has_file <- !is.null(path) && nchar(trimws(path)) > 0 && file.exists(path)
-
-      if (has_file && wmode != "unweighted")
-        return(private$.parseCatalogFile(path, snpCols))
-
-      # No file or unweighted mode: unit weights populated from actual data
-      private$.unitWeightTableFromData(snpCols)
-    },
-
 
     # ════════════════════════════════════════════════════════════════════════
     # .parseCatalogFile
@@ -317,9 +309,9 @@ snpPGSClass <- R6::R6Class(
         NULL
       }
 
-      c_rsid   <- find_col("rsid", "variant_id", "snp", "snp_id", "marker_name")
-      c_ea     <- find_col("effect_allele")
-      c_oa     <- find_col("other_allele", "ref_allele", "non_effect_allele", "reference_allele")
+      c_rsid   <- find_col("rsid", "snp", "snp_id","marker")
+      c_ea     <- find_col("effect_allele", "risk_allele", "effect","risk", "alt_allele")
+      c_oa     <- find_col("other_allele", "ref_allele", "non_effect_allele", "reference_allele", "common_allele","reference")
       c_weight <- find_col("effect_weight", "beta", "weight", "or")
       c_chr    <- find_col("chr_name", "chromosome", "chr", "chrom")
       c_pos    <- find_col("chr_position", "position", "pos", "bp")
@@ -372,7 +364,7 @@ snpPGSClass <- R6::R6Class(
         extra_rows <- data.frame(
           rsid = missing_snps, effect_allele = "", other_allele = "",
           effect_weight = NA_real_, chr = "", pos = "",
-          matched = FALSE, allele_status = "not in weights file",
+          matched = FALSE, allele_status = "not in weights file \u274c",
           strand_flipped = FALSE, extra_cols = "",
           n_missing = NA_integer_, pct_missing = NA_real_,
           stringsAsFactors = FALSE
@@ -436,6 +428,7 @@ snpPGSClass <- R6::R6Class(
         oa  <- ""
         qc  <- "unweighted"
 
+        # SNP data must be factor or dosage
         if (!is.numeric(col)) {
           # Normalise to uppercase character vector, respecting factor level order
           if (is.factor(col)) {
@@ -480,7 +473,7 @@ snpPGSClass <- R6::R6Class(
                 }
               }
             }
-
+            # revise if needed
             # Fallback: homozygous genotype with highest frequency
             if (is.na(ref_allele)) {
               homozyg <- sapply(all_alleles, function(a) {
@@ -495,10 +488,16 @@ snpPGSClass <- R6::R6Class(
 
             oa <- ref_allele
             ea <- setdiff(all_alleles, ref_allele)
-            qc <- "unweighted"
           }
+        } else { 
+          # numeric column — treated as dosage with no allele info
+          # 
+          offlimits <- col < 0 | col >2
+          if (any(offlimits, na.rm = TRUE)) {
+            col[offlimits] <- NA_real_
+            qc <- "invalid dosage set to NA"
+          } 
         }
-
         data.frame(
           rsid           = snp,
           effect_allele  = ea,
@@ -582,7 +581,7 @@ snpPGSClass <- R6::R6Class(
         # are numeric — allele_status already set by unitWeightTableFromData.
         if (wtable$allele_status[idx] %in%
             c("no valid genotypes \u274c", "monomorphic \u26a0",
-              "non-biallelic \u26a0")) {
+              "non-biallelic \u26a0", "not in weights file \u274c")) {
           mat[, snp] <- NA_real_
           exclude    <- c(exclude, snp)
           next
@@ -700,12 +699,12 @@ snpPGSClass <- R6::R6Class(
         na_mask <- is.na(mat[, snp])
         if (any(na_mask)) {
           mat[, snp] <- switch(missing_st,
-            mean    = { m <- mean(mat[, snp], na.rm = TRUE)
-                        mat[na_mask, snp] <- if (is.nan(m)) 0 else m
-                        mat[, snp] },
-            zero    = { mat[na_mask, snp] <- 0; mat[, snp] },
-            exclude  = mat[, snp],
-            snp_wise = { mat[na_mask, snp] <- 0; mat[, snp] }
+            'mean'     = { m <- mean(mat[, snp], na.rm = TRUE)
+                         mat[na_mask, snp] <- if (is.nan(m)) 0 else m
+                         mat[, snp] },
+            'zero'     = { mat[na_mask, snp] <- 0; mat[, snp] },
+            'exclude'  = mat[, snp],
+            'SNP-wise' = { mat[na_mask, snp] <- 0; mat[, snp] }
           )
         }
       }
@@ -760,12 +759,12 @@ snpPGSClass <- R6::R6Class(
           pos           = as.character(r$pos),
           effect_allele = as.character(r$effect_allele),
           other_allele  = as.character(r$other_allele),
-          effect_weight = if (is.na(r$effect_weight)) NA_real_ else r$effect_weight,
+          effect_weight = if (is.na(r$effect_weight)) '' else r$effect_weight,
           matched       = if (in_ds) "\u2713" else "\u2717",
           allele_status = status,
           extra_cols    = as.character(r$extra_cols),
-          n_missing     = if (is.na(r$n_missing))   NA_integer_ else as.integer(r$n_missing),
-          pct_missing   = if (is.na(r$pct_missing)) NA_real_    else r$pct_missing
+          n_missing     = if (is.na(r$n_missing))   '' else as.integer(r$n_missing),
+          pct_missing   = if (is.na(r$pct_missing)) '' else r$pct_missing
         ))
       }
     },
@@ -817,7 +816,7 @@ snpPGSClass <- R6::R6Class(
       pairs %in% c("AT", "TA", "CG", "GC")
     },
 
-    .fillSummaryTable = function(scores, resp = NULL, score_type = "", show_type_col = FALSE) {
+    .fillSummaryTable = function(scores, resp = NULL, score_type = "") {
       tbl <- self$results$summaryTable
 
       skewness <- function(x) {
@@ -840,9 +839,9 @@ snpPGSClass <- R6::R6Class(
           err <- qt(0.975, df = n - 1) * s / sqrt(n)
           c(mu - err, mu + err)
         } else c(NA_real_, NA_real_)
-        row_key <- if (show_type_col) paste0(score_type, "_", grp_label) else grp_label
+        row_key <- paste0(score_type, "_", grp_label)
         tbl$addRow(rowKey = row_key, values = list(
-          score_type = if (show_type_col) score_type else "",
+          score_type = score_type,
           group      = grp_label,
           n          = n,
           mean       = mu,
@@ -936,7 +935,7 @@ snpPGSClass <- R6::R6Class(
     },
 
     .fillAssocTable = function(scores, resp, respCol, covs = NULL,
-                              score_type = "", show_type_col = FALSE) {
+                              score_type = "") {
       tbl <- self$results$assocTable
 
       has_covs <- !is.null(covs) && ncol(covs) > 0
@@ -976,9 +975,9 @@ snpPGSClass <- R6::R6Class(
 
       add_row <- function(test, stat_label, estimate, se, ci_low, ci_high,
                           stat, df_val, p) {
-        row_key <- if (show_type_col) paste0(score_type, "_", test) else test
+        row_key <- paste0(score_type, "_", test)
         tbl$addRow(rowKey = row_key, values = list(
-          score_type = if (show_type_col) score_type else "",
+          score_type = score_type,
           test       = test,
           stat_label = stat_label,
           estimate   = estimate,

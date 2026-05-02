@@ -1,10 +1,16 @@
 Revise 
   - standardization of score
+  - SNP QC 
+        formats allowed: A/B A|B AB A>B 012
+        coding errors: non-biallelic, monomorphic 
+        dosage errors [0,2]
+        excluded SNPs:
+                N % missing ''
 
 SNP formats & agreement with other modules
 
+
 clean:
-- Hide empty tables if not selected or empty because no data
 - Revise association table
 
 Organize code cleanly
@@ -21,3 +27,9 @@ SNPs
 assoc/haplotypes
 if value > 1000 : Inf
 NA : ''
+
+
+---
+
+warn & adjust
+weightingMode both | weighted but no PGS files 

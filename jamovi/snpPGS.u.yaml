@@ -37,10 +37,9 @@ children:
             label: SNP weighting mode
           - type: TextBox
             name: weightsPath
-            label: 'PGS Catalog weights file (.csv / .txt / .tsv / .txt.gz):'
+            label: 'Weights file (PGS catalog format):'
             format: string
             width: largest
-            enable: (weightingMode != 'unweighted')
   - type: LayoutBox
     margin: large
     children:
@@ -52,10 +51,10 @@ children:
             label: Missing genotype handling
           - type: CheckBox
             name: normalize
-            label: Normalize score (divide by maximum possible)
+            label: Normalize score (max=1)
           - type: CheckBox
             name: standardize
-            label: Standardize score (divide by SD, for 1-SD model estimates)
+            label: Standardize score (SD=1)
   - type: LayoutBox
     margin: large
     stretchFactor: 1
@@ -75,7 +74,7 @@ children:
             children:
               - type: TextBox
                 name: percentileBreaks
-                label: 'Percentile thresholds (comma-separated):'
+                label: 'Percentile thresholds:'
                 format: string
                 enable: (showPercentiles)
           - type: CheckBox

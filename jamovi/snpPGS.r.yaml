@@ -23,20 +23,23 @@ items:
         - weightingMode
     columns:
         - name: rsid
-          title: SNP (rsID / column)
+          title: SNP
           type: text
         - name: chr
           title: Chr
           type: text
+          format: narrow
         - name: pos
           title: Position
           type: text
         - name: effect_allele
           title: Effect allele
           type: text
+          format: narrow
         - name: other_allele
           title: Other allele
           type: text
+          format: narrow
         - name: effect_weight
           title: Weight
           type: number

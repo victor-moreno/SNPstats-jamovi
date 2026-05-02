@@ -6,12 +6,12 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
     inherit = jmvcore::Options,
     public = list(
         initialize = function(
-            covCols = NULL,
             snpCols = NULL,
             responseCol = NULL,
+            covCols = NULL,
+            weightingMode = "both",
             weightsPath = "",
-            weightingMode = "weighted",
-            missingStrategy = "mean",
+            missingStrategy = "SNP-wise",
             normalize = TRUE,
             standardize = FALSE,
             showCoverage = TRUE,
@@ -26,15 +26,6 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 requiresData=TRUE,
                 ...)
 
-            private$..covCols <- jmvcore::OptionVariables$new(
-                "covCols",
-                covCols,
-                suggested=list(
-                    "continuous",
-                    "nominal"),
-                permitted=list(
-                    "numeric",
-                    "factor"))
             private$..snpCols <- jmvcore::OptionVariables$new(
                 "snpCols",
                 snpCols,
@@ -53,10 +44,15 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 permitted=list(
                     "factor",
                     "numeric"))
-            private$..weightsPath <- jmvcore::OptionString$new(
-                "weightsPath",
-                weightsPath,
-                default="")
+            private$..covCols <- jmvcore::OptionVariables$new(
+                "covCols",
+                covCols,
+                suggested=list(
+                    "continuous",
+                    "nominal"),
+                permitted=list(
+                    "numeric",
+                    "factor"))
             private$..weightingMode <- jmvcore::OptionList$new(
                 "weightingMode",
                 weightingMode,
@@ -64,16 +60,20 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "weighted",
                     "unweighted",
                     "both"),
-                default="weighted")
+                default="both")
+            private$..weightsPath <- jmvcore::OptionString$new(
+                "weightsPath",
+                weightsPath,
+                default="")
             private$..missingStrategy <- jmvcore::OptionList$new(
                 "missingStrategy",
                 missingStrategy,
                 options=list(
-                    "mean",
+                    "SNP-wise",
                     "zero",
-                    "exclude",
-                    "snp_wise"),
-                default="mean")
+                    "mean",
+                    "exclude"),
+                default="SNP-wise")
             private$..normalize <- jmvcore::OptionBool$new(
                 "normalize",
                 normalize,
@@ -86,8 +86,6 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "showCoverage",
                 showCoverage,
                 default=TRUE)
-            private$..saveScores <- jmvcore::OptionOutput$new(
-                "saveScores")
             private$..showDistPlot <- jmvcore::OptionBool$new(
                 "showDistPlot",
                 showDistPlot,
@@ -104,52 +102,54 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "showAssoc",
                 showAssoc,
                 default=FALSE)
+            private$..saveScores <- jmvcore::OptionOutput$new(
+                "saveScores")
 
-            self$.addOption(private$..covCols)
             self$.addOption(private$..snpCols)
             self$.addOption(private$..responseCol)
-            self$.addOption(private$..weightsPath)
+            self$.addOption(private$..covCols)
             self$.addOption(private$..weightingMode)
+            self$.addOption(private$..weightsPath)
             self$.addOption(private$..missingStrategy)
             self$.addOption(private$..normalize)
             self$.addOption(private$..standardize)
             self$.addOption(private$..showCoverage)
-            self$.addOption(private$..saveScores)
             self$.addOption(private$..showDistPlot)
             self$.addOption(private$..showPercentiles)
             self$.addOption(private$..percentileBreaks)
             self$.addOption(private$..showAssoc)
+            self$.addOption(private$..saveScores)
         }),
     active = list(
-        covCols = function() private$..covCols$value,
         snpCols = function() private$..snpCols$value,
         responseCol = function() private$..responseCol$value,
-        weightsPath = function() private$..weightsPath$value,
+        covCols = function() private$..covCols$value,
         weightingMode = function() private$..weightingMode$value,
+        weightsPath = function() private$..weightsPath$value,
         missingStrategy = function() private$..missingStrategy$value,
         normalize = function() private$..normalize$value,
         standardize = function() private$..standardize$value,
         showCoverage = function() private$..showCoverage$value,
-        saveScores = function() private$..saveScores$value,
         showDistPlot = function() private$..showDistPlot$value,
         showPercentiles = function() private$..showPercentiles$value,
         percentileBreaks = function() private$..percentileBreaks$value,
-        showAssoc = function() private$..showAssoc$value),
+        showAssoc = function() private$..showAssoc$value,
+        saveScores = function() private$..saveScores$value),
     private = list(
-        ..covCols = NA,
         ..snpCols = NA,
         ..responseCol = NA,
-        ..weightsPath = NA,
+        ..covCols = NA,
         ..weightingMode = NA,
+        ..weightsPath = NA,
         ..missingStrategy = NA,
         ..normalize = NA,
         ..standardize = NA,
         ..showCoverage = NA,
-        ..saveScores = NA,
         ..showDistPlot = NA,
         ..showPercentiles = NA,
         ..percentileBreaks = NA,
-        ..showAssoc = NA)
+        ..showAssoc = NA,
+        ..saveScores = NA)
 )
 
 snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
@@ -190,12 +190,13 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 columns=list(
                     list(
                         `name`="rsid", 
-                        `title`="SNP (rsID / column)", 
+                        `title`="SNP", 
                         `type`="text"),
                     list(
                         `name`="chr", 
                         `title`="Chr", 
-                        `type`="text"),
+                        `type`="text", 
+                        `format`="narrow"),
                     list(
                         `name`="pos", 
                         `title`="Position", 
@@ -203,11 +204,13 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     list(
                         `name`="effect_allele", 
                         `title`="Effect allele", 
-                        `type`="text"),
+                        `type`="text", 
+                        `format`="narrow"),
                     list(
                         `name`="other_allele", 
                         `title`="Other allele", 
-                        `type`="text"),
+                        `type`="text", 
+                        `format`="narrow"),
                     list(
                         `name`="effect_weight", 
                         `title`="Weight", 
@@ -440,7 +443,7 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             super$initialize(
                 package = "SNPstats",
                 name = "snpPGS",
-                version = c(0,5,0),
+                version = c(0,1,0),
                 options = options,
                 results = snpPGSResults$new(options=options),
                 data = data,
@@ -457,26 +460,26 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'
 #' 
 #' @param data [object Object]
-#' @param covCols Optional covariate columns. If provided, regression models
-#'   (logistic and linear) are adjusted for these variables. A note listing the
-#'   covariates is added to the association table.
 #' @param snpCols One column per SNP. Dosage (0/1/2) or allele strings
 #'   auto-detected per column.
 #' @param responseCol Optional outcome variable. If provided, an association
 #'   test between PGS and response is reported (logistic for binary, linear for
 #'   continuous).
-#' @param weightsPath Path to a PGS Catalog-format file. Lines starting with
-#'   '#' are skipped automatically. Recognised columns: rsID/variant_id,
-#'   effect_allele, other_allele, effect_weight/beta, chr_name/chr,
-#'   chr_position/pos. Missing expected columns are hidden in output; extra
-#'   columns are shown concatenated in an 'Extra fields' column.
+#' @param covCols Optional covariate columns. If provided, regression models
+#'   (logistic and linear) are adjusted for these variables. A note listing the
+#'   covariates is added to the association table.
 #' @param weightingMode Controls how SNP weights are applied. 'weighted' uses
 #'   effect_weight values from the loaded PGS Catalog file. 'unweighted' assigns
 #'   weight 1 to every SNP regardless of the file. 'both' computes and reports
 #'   both scores side by side in the summary and association tables. If no
 #'   weights file is loaded, unweighted scoring is used automatically.
+#' @param weightsPath Path to a PGS Catalog-format file. Lines starting with
+#'   '#' are skipped automatically. Recognised columns: rsID/variant_id,
+#'   effect_allele, other_allele, effect_weight/beta, chr_name/chr,
+#'   chr_position/pos. Missing expected columns are hidden in output; extra
+#'   columns are shown concatenated in an 'Extra fields' column.
 #' @param missingStrategy Strategy for handling missing genotype values.
-#'   'snp_wise' scores each individual using only their observed SNPs and
+#'   'SNP-wise' scores each individual using only their observed SNPs and
 #'   divides by that individual's observed SNP count, keeping all individuals
 #'   regardless of missingness.
 #' @param normalize If TRUE, divides each individual's raw score by the
@@ -518,12 +521,12 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @export
 snpPGS <- function(
     data,
-    covCols,
     snpCols,
     responseCol,
+    covCols,
+    weightingMode = "both",
     weightsPath = "",
-    weightingMode = "weighted",
-    missingStrategy = "mean",
+    missingStrategy = "SNP-wise",
     normalize = TRUE,
     standardize = FALSE,
     showCoverage = TRUE,
@@ -535,23 +538,23 @@ snpPGS <- function(
     if ( ! requireNamespace("jmvcore", quietly=TRUE))
         stop("snpPGS requires jmvcore to be installed (restart may be required)")
 
-    if ( ! missing(covCols)) covCols <- jmvcore::resolveQuo(jmvcore::enquo(covCols))
     if ( ! missing(snpCols)) snpCols <- jmvcore::resolveQuo(jmvcore::enquo(snpCols))
     if ( ! missing(responseCol)) responseCol <- jmvcore::resolveQuo(jmvcore::enquo(responseCol))
+    if ( ! missing(covCols)) covCols <- jmvcore::resolveQuo(jmvcore::enquo(covCols))
     if (missing(data))
         data <- jmvcore::marshalData(
             parent.frame(),
-            `if`( ! missing(covCols), covCols, NULL),
             `if`( ! missing(snpCols), snpCols, NULL),
-            `if`( ! missing(responseCol), responseCol, NULL))
+            `if`( ! missing(responseCol), responseCol, NULL),
+            `if`( ! missing(covCols), covCols, NULL))
 
 
     options <- snpPGSOptions$new(
-        covCols = covCols,
         snpCols = snpCols,
         responseCol = responseCol,
-        weightsPath = weightsPath,
+        covCols = covCols,
         weightingMode = weightingMode,
+        weightsPath = weightsPath,
         missingStrategy = missingStrategy,
         normalize = normalize,
         standardize = standardize,
