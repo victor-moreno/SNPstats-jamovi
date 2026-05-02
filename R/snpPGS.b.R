@@ -429,68 +429,28 @@ snpPGSClass <- R6::R6Class(
         qc  <- "unweighted"
 
         # SNP data must be factor or dosage
-        if (!is.numeric(col)) {
-          # Normalise to uppercase character vector, respecting factor level order
-          if (is.factor(col)) {
-            lvls     <- levels(col)
-            col_char <- as.character(col)
-          } else {
-            lvls     <- character(0)
-            col_char <- as.character(col)
-          }
-          col_char <- toupper(trimws(col_char))
+        # numeric → no allele inference
+        if (is.numeric(col)) {
+          ea <- ""
+          oa <- ""
+          qc <- "numeric (dosage)"
+        } else {
+          # infer alleles (best effort, no QC decisions)
+          col_char <- toupper(trimws(as.character(col)))
           col_char[col_char %in% c("", "NA")] <- NA_character_
 
-          # Split every genotype into single-base alleles (handles / | concatenated)
-          bases_list <- strsplit(col_char[!is.na(col_char)], "[^ACGT]|(?<=.)(?=.)",
-                                 perl = TRUE)
+          bases_list <- strsplit(col_char[!is.na(col_char)],
+                                "[^ACGT]|(?<=.)(?=.)", perl = TRUE)
           bases_list <- lapply(bases_list, function(b) b[b %in% c("A","C","G","T")])
-          all_alleles <- sort(unique(unlist(bases_list)))
+          alleles <- sort(unique(unlist(bases_list)))
 
-          if (length(all_alleles) == 0) {
-            qc <- "no valid genotypes \u274c"
-          } else if (length(all_alleles) > 2) {
-            qc <- "non-biallelic \u26a0"
-            oa <- all_alleles[1]; ea <- all_alleles[2]
-          } else if (length(all_alleles) == 1) {
-            qc <- "monomorphic \u26a0"
-            oa <- all_alleles[1]; ea <- all_alleles[1]
-          } else {
-            # Biallelic: identify reference from first homozygous level or
-            # the homozygous genotype appearing at the lowest factor level.
-            ref_allele <- NA_character_
-
-            # Try factor levels first: find first level whose genotype is homozygous
-            if (length(lvls) > 0) {
-              for (lv in lvls) {
-                lv_up   <- toupper(trimws(lv))
-                lv_base <- unique(strsplit(lv_up, "[^ACGT]|(?<=.)(?=.)",
-                                           perl = TRUE)[[1]])
-                lv_base <- lv_base[lv_base %in% c("A","C","G","T")]
-                if (length(lv_base) == 1) {
-                  ref_allele <- lv_base
-                  break
-                }
-              }
-            }
-            # revise if needed
-            # Fallback: homozygous genotype with highest frequency
-            if (is.na(ref_allele)) {
-              homozyg <- sapply(all_alleles, function(a) {
-                sum(sapply(bases_list, function(b) length(b) >= 2 && all(b == a)),
-                    na.rm = TRUE)
-              })
-              if (any(homozyg > 0))
-                ref_allele <- all_alleles[which.max(homozyg)]
-              else
-                ref_allele <- all_alleles[1]
-            }
-
-            oa <- ref_allele
-            ea <- setdiff(all_alleles, ref_allele)
+          if (length(alleles) >= 1) {
+            oa <- alleles[1]
+            ea <- if (length(alleles) >= 2) alleles[2] else alleles[1]
           }
-        } # else numeric dosage column: leave alleles blank, no QC
-        
+
+          qc <- "unweighted"
+        }        
         data.frame(
           rsid           = snp,
           effect_allele  = ea,
@@ -519,23 +479,9 @@ snpPGSClass <- R6::R6Class(
     },
 
     # ════════════════════════════════════════════════════════════════════════
-    # .buildDosageMatrix
-    #
-    # For each SNP column:
-    #   • Numeric columns  — trusted as dosage (0/1/2); flag as "dosage (unverified)"
-    #     when allele info is available (we cannot check orientation).
-    #   • Character columns — observed alleles are extracted from the data,
-    #     compared against the catalog, and one of these statuses is assigned:
-    #       "ok"                  alleles match catalog, dosage counts EA
-    #       "strand flip"         complement alleles match; dosage corrected
-    #       "allele mismatch"     alleles do not match catalog; SNP excluded
-    #       "ambiguous"           AT/CG SNP — no strand resolution possible;
-    #                             dosage still attempted (counts EA as given)
-    #       "no allele info"      catalog has no EA — dosage set to NA
-    #
-    # wtable is annotated in-place (allele_status, strand_flipped columns).
-    # SNPs with "allele mismatch" status are dropped from the returned matrix.
+    # .buildDosageMatrix (Revised)
     # ════════════════════════════════════════════════════════════════════════
+
     .buildDosageMatrix = function(snpCols, wtable, missing_st) {
 
       useCols <- intersect(wtable$rsid, names(self$data))
@@ -547,182 +493,224 @@ snpPGSClass <- R6::R6Class(
         return(NULL)
       }
 
-      mat      <- matrix(NA_real_, nrow = nrow(self$data), ncol = length(useCols),
-                         dimnames = list(NULL, useCols))
-      exclude  <- character(0)   # SNPs to drop due to allele mismatch
+      mat <- matrix(NA_real_,
+                    nrow = nrow(self$data),
+                    ncol = length(useCols),
+                    dimnames = list(NULL, useCols))
+
+      exclude <- character(0)
+      qc_warn <- list()
 
       for (snp in useCols) {
+
+        allele_ok <- NA  # TRUE / FALSE / NA
+
         col_raw <- self$data[[snp]]
-        idx     <- which(wtable$rsid == snp)[1]   # row index in wtable
-        ea_cat  <- wtable$effect_allele[idx]       # already uppercase from parse
-        oa_cat  <- wtable$other_allele[idx]
+        idx     <- which(wtable$rsid == snp)[1]
 
-        has_allele_info <- !is.na(ea_cat) && nchar(ea_cat) > 0
-        is_ambiguous    <- private$.isAmbiguous(ea_cat, oa_cat)[1]
+        ea_cat <- toupper(as.character(wtable$effect_allele[idx]))
+        oa_cat <- toupper(as.character(wtable$other_allele[idx]))
+        has_allele_info <- !is.na(ea_cat) && nchar(trimws(ea_cat)) > 0
 
-        # ── Numeric column (dosage already encoded) ──────────────────────
-        if (is.numeric(col_raw)) {
-          col_num <- as.numeric(col_raw)
-          invalid <- is.na(col_num) | col_num < 0 | col_num > 2
-          col_num[invalid] <- NA_real_
-          if (any(invalid, na.rm = TRUE)) {
-            wtable$allele_status[idx] <- "invalid dosage set to NA"
+        # ── All missing ─────────────────────────────────────────────────────
+        if (all(is.na(col_raw))) {
+          exclude <- c(exclude, snp)
+          wtable$allele_status[idx] <- "all missing (excluded)"
+          qc_warn[[snp]] <- c(qc_warn[[snp]], "All values missing")
+          next
+        }
+
+        # ── Determine input type ─────────────────────────────────────────────
+        is_numeric_like <- is.numeric(col_raw)
+        if (!is_numeric_like && (is.factor(col_raw) || is.character(col_raw))) {
+          tmp <- suppressWarnings(as.numeric(as.character(col_raw)))
+          if (mean(!is.na(tmp)) > 0.5) is_numeric_like <- TRUE
+        }
+
+        # ── Numeric dosage SNPs (NO allele QC) ───────────────────────────────
+        if (is_numeric_like) {
+
+          col_num <- suppressWarnings(as.numeric(as.character(col_raw)))
+          invalid <- !is.na(col_num) & (col_num < 0 | col_num > 2)
+
+          if (any(invalid)) {
+            col_num[invalid] <- NA_real_
+            qc_warn[[snp]] <- c(qc_warn[[snp]], "invalid dosage (<0 or >2) set to NA")
           }
 
           mat[, snp] <- col_num
 
-          if (wtable$allele_status[idx] == "") {
-            wtable$allele_status[idx] <- if (has_allele_info)
-              "dosage (orientation unverified)" else "ok (numeric dosage)"
+          obs_vals <- sort(unique(col_num[!is.na(col_num)]))
+          obs_str  <- paste0("dosage(", paste(obs_vals, collapse = ","), ")")
+
+          wtable$allele_status[idx] <- paste0("numeric dosage (no allele QC); obs: ", obs_str)
+
+          if (length(obs_vals) <= 1) {
+            exclude <- c(exclude, snp)
+            wtable$allele_status[idx] <-
+              paste0("constant numeric dosage (excluded); obs: ", obs_str)
+            qc_warn[[snp]] <- c(qc_warn[[snp]],
+                                "constant numeric dosage (cannot distinguish allele mismatch)")
           }
+
           next
         }
 
-        # Skip allele QC for unweighted SNPs that had no valid genotypes or
-        # are numeric — allele_status already set by unitWeightTableFromData.
-        if (wtable$allele_status[idx] %in%
-            c("no valid genotypes \u274c", "monomorphic \u26a0",
-              "non-biallelic \u26a0", "not in weights file \u274c")) {
-          mat[, snp] <- NA_real_
-          exclude    <- c(exclude, snp)
-          next
-        }
-
-        if (wtable$allele_status[idx] == "unweighted") {
-          # effect_allele and other_allele are populated from the data;
-          # count copies of effect_allele per individual.
-          col_char <- toupper(trimws(as.character(col_raw)))
-          col_char[col_char %in% c("", "NA")] <- NA_character_
-          ea_use   <- wtable$effect_allele[idx]
-
-          if (nchar(ea_use) == 0) {
-            # Numeric dosage column — already handled above by is.numeric;
-            # should not reach here, but guard anyway.
-            mat[, snp] <- NA_real_
-            exclude    <- c(exclude, snp)
-          } else {
-            mat[, snp] <- vapply(col_char, function(g) {
-              if (is.na(g)) return(NA_real_)
-              bases <- strsplit(g, "[^ACGT]|(?<=.)(?=.)", perl = TRUE)[[1]]
-              bases <- bases[bases %in% c("A","C","G","T")]
-              as.numeric(sum(bases == ea_use))
-            }, numeric(1))
-          }
-          next
-        }
-
-        # ── Character/factor column — allele strings ─────────────────────
+        # ── Genotype / character SNPs ────────────────────────────────────────
         col_char <- toupper(trimws(as.character(col_raw)))
-        col_char[col_char == "" | col_char == "NA"] <- NA_character_
+        col_char[col_char %in% c("", "NA")] <- NA_character_
 
-        # Extract unique observed alleles using the same regex as dosage
-        # counting: splits on separators AND between adjacent ACGT chars.
-        obs_alleles <- unique(unlist(strsplit(col_char[!is.na(col_char)],
-                                              "[^ACGT]|(?<=.)(?=.)", perl = TRUE)))
-        obs_alleles <- obs_alleles[obs_alleles %in% c("A","C","G","T")]
+        bases_list <- strsplit(col_char[!is.na(col_char)],
+                              "[^ACGT]|(?<=.)(?=.)", perl = TRUE)
+        bases_list <- lapply(bases_list, function(b) b[b %in% c("A","C","G","T")])
+        alleles <- sort(unique(unlist(bases_list)))
 
+        if (length(alleles) == 0) {
+          exclude <- c(exclude, snp)
+          wtable$allele_status[idx] <- "no valid alleles observed (excluded)"
+          qc_warn[[snp]] <- c(qc_warn[[snp]], "No valid genotype alleles")
+          next
+        }
+
+        obs_str <- paste(alleles, collapse = "/")
+
+        # ── Multiallelic ─────────────────────────────────────────────────────
+        if (length(alleles) > 2) {
+          exclude <- c(exclude, snp)
+          wtable$allele_status[idx] <-
+            paste0("multiallelic (excluded); obs: ", obs_str)
+          qc_warn[[snp]] <- c(qc_warn[[snp]],
+                              paste0("multiallelic: ", obs_str))
+          next
+        }
+
+        # ── No allele info ───────────────────────────────────────────────────
         if (!has_allele_info) {
-          mat[, snp] <- NA_real_
-          wtable$allele_status[idx] <- "no allele info in weights file"
           exclude <- c(exclude, snp)
+          wtable$allele_status[idx] <-
+            paste0("no allele info (excluded); obs: ", obs_str)
           next
         }
 
-        if (length(obs_alleles) == 0) {
-          wtable$allele_status[idx] <- "no valid genotypes observed"
-          exclude <- c(exclude, snp)
-          next
-        }
-
+        # ── Allele matching ──────────────────────────────────────────────────
         ea_comp <- private$.complement(ea_cat)
         oa_comp <- private$.complement(oa_cat)
 
-        obs_str    <- paste(sort(obs_alleles), collapse = "/")
-        direct_str <- paste(sort(c(ea_cat, oa_cat)), collapse = "/")
-        flip_str   <- paste(sort(c(ea_comp, oa_comp)), collapse = "/")
+        matches_direct <-
+          length(alleles) == 2 && all(alleles %in% c(ea_cat, oa_cat))
 
-        matches_direct     <- all(obs_alleles %in% c(ea_cat, oa_cat))
-        matches_complement <- all(obs_alleles %in% c(ea_comp, oa_comp))
+        matches_complement <-
+          length(alleles) == 2 && all(alleles %in% c(ea_comp, oa_comp))
 
-        ea_use <- ea_cat
-        status <- ""
-
-        if (matches_direct) {
-          status <- if (is_ambiguous)
-            paste0("ambiguous (AT/CG) \u26a0 (obs: ", obs_str, ")")
-          else
-            paste0("ok (obs: ", obs_str, ")")
-        } else if (matches_complement) {
-          ea_use <- ea_comp
-          wtable$strand_flipped[idx] <- TRUE
-          status <- if (is_ambiguous)
-            paste0("ambiguous (AT/CG) \u26a0 (obs: ", obs_str, ")")
-          else
-            paste0("strand flip \u2194 (obs: ", obs_str,
-                   " \u2192 ", flip_str, ", corrected)")
-        } else {
-          wtable$allele_status[idx] <- paste0(
-            "allele mismatch \u274c (obs: ", obs_str,
-            ", exp: ", direct_str, ")")
+        if (!matches_direct && !matches_complement) {
+          allele_ok <- FALSE
           exclude <- c(exclude, snp)
+          wtable$allele_status[idx] <-
+            paste0("allele mismatch (excluded); obs: ", obs_str,
+                  "; exp: ", ea_cat, "/", oa_cat)
+          qc_warn[[snp]] <- c(qc_warn[[snp]],
+            paste0("mismatch: obs=", obs_str, " exp=", ea_cat, "/", oa_cat))
           next
         }
 
-        # Count copies of ea_use per genotype string.
-        # Splits on any non-ACGT character or between adjacent ACGT chars
-        # so both "G/T" and "GT" and "G|T" are handled identically.
-        mat[, snp] <- vapply(col_char, function(g) {
+        allele_ok <- TRUE
+
+        # ── Strand handling ──────────────────────────────────────────────────
+        if (matches_direct) {
+          ea_use <- ea_cat
+          status <- "ok"
+        } else {
+          ea_use <- ea_comp
+          status <- "strand flip"
+          wtable$strand_flipped[idx] <- TRUE
+        }
+
+        if (private$.isAmbiguous(ea_cat, oa_cat)) {
+          status <- paste0(status, "; ambiguous AT/CG")
+          qc_warn[[snp]] <- c(qc_warn[[snp]], "ambiguous AT/CG SNP")
+        }
+
+        # ── Dosage computation ───────────────────────────────────────────────
+        dos <- vapply(col_char, function(g) {
           if (is.na(g)) return(NA_real_)
-          bases <- strsplit(g, "[^ACGT]|(?<=.)(?=.)", perl = TRUE)[[1]]
-          bases <- bases[bases %in% c("A","C","G","T")]
-          as.numeric(sum(bases == ea_use))
+          b <- strsplit(g, "[^ACGT]|(?<=.)(?=.)", perl = TRUE)[[1]]
+          b <- b[b %in% c("A","C","G","T")]
+          if (length(b) != 2) return(NA_real_)
+          sum(b == ea_use)
         }, numeric(1))
 
-        wtable$allele_status[idx] <- status
+        mat[, snp] <- dos
+
+        base_status <- paste0(status, "; obs: ", obs_str)
+
+        # ── Monomorphism ONLY if allele_ok == TRUE ───────────────────────────
+        if (isTRUE(allele_ok)) {
+          if (length(unique(dos[!is.na(dos)])) <= 1) {
+            exclude <- c(exclude, snp)
+            wtable$allele_status[idx] <-
+              paste0("monomorphic (excluded); obs: ", obs_str)
+            qc_warn[[snp]] <- c(qc_warn[[snp]], "monomorphic SNP excluded")
+          } else {
+            wtable$allele_status[idx] <- base_status
+          }
+        }
       }
 
-      # Drop mismatched SNPs
-      mat <- mat[, setdiff(colnames(mat), exclude), drop = FALSE]
+      # ── Post‑QC summary ────────────────────────────────────────────────────
+      keep_snps <- setdiff(colnames(mat), exclude)
 
-      # Per-SNP missingness (before imputation)
+      if (length(keep_snps) == 0) {
+        self$results$validationMsg$setContent(
+          "<p style='color:#c0392b;'>No SNPs passed QC filters.</p>")
+        self$results$validationMsg$setVisible(TRUE)
+        return(NULL)
+      }
+
+      valid_counts <- !is.na(mat[, keep_snps, drop = FALSE])
+
       for (snp in colnames(mat)) {
         idx <- which(wtable$rsid == snp)[1]
         n_na <- sum(is.na(mat[, snp]))
         wtable$n_missing[idx]   <- n_na
-        wtable$pct_missing[idx] <- if (nrow(mat) > 0) round(n_na / nrow(mat) * 100, 1) else NA_real_
+        wtable$pct_missing[idx] <- round(n_na / nrow(mat) * 100, 1)
       }
 
-      # Snapshot valid cells before any imputation/exclusion
-      valid_before_impute <- !is.na(mat)
-
-      # Handle within-column missingness
-      for (snp in colnames(mat)) {
+      for (snp in keep_snps) {
         na_mask <- is.na(mat[, snp])
         if (any(na_mask)) {
-          mat[, snp] <- switch(missing_st,
-            'mean'     = { m <- mean(mat[, snp], na.rm = TRUE)
-                         mat[na_mask, snp] <- if (is.nan(m)) 0 else m
-                         mat[, snp] },
-            'zero'     = { mat[na_mask, snp] <- 0; mat[, snp] },
-            'exclude'  = mat[, snp],
-            'SNP-wise' = { mat[na_mask, snp] <- 0; mat[, snp] }
+          mat[na_mask, snp] <- switch(missing_st,
+            mean     = { m <- mean(mat[, snp], na.rm = TRUE); if (is.nan(m)) 0 else m },
+            zero     = 0,
+            "SNP-wise" = 0,
+            exclude  = NA_real_
           )
         }
       }
 
       if (missing_st == "exclude") {
-        keep <- complete.cases(mat)
-        # Apply keep mask to both mat and the valid_counts snapshot so they stay aligned
-        valid_before_impute <- valid_before_impute[keep, , drop = FALSE]
-        mat  <- mat[keep, , drop = FALSE]
-        private$.keepMask <- keep
+        keep_rows <- complete.cases(mat[, keep_snps, drop = FALSE])
+        mat <- mat[keep_rows, , drop = FALSE]
+        valid_counts <- valid_counts[keep_rows, , drop = FALSE]
+        private$.keepMask <- keep_rows
       } else {
         private$.keepMask <- rep(TRUE, nrow(self$data))
       }
 
-      list(mat = mat, wtable = wtable, valid_counts = valid_before_impute)
-    },
+      mat <- mat[, keep_snps, drop = FALSE]
 
+      if (length(qc_warn) > 0) {
+        msgs <- sapply(names(qc_warn), function(s) {
+          paste0("<b>", s, "</b>: ",
+                paste(unique(qc_warn[[s]]), collapse = "; "))
+        })
+        self$results$validationMsg$setContent(
+          paste0("<div style='color:#e67e22;'><b>SNP QC warnings:</b><br>",
+                paste(msgs, collapse = "<br>"), "</div>"))
+        self$results$validationMsg$setVisible(TRUE)
+      }
+
+      list(mat = mat, wtable = wtable, valid_counts = valid_counts)
+    },
 
     # ════════════════════════════════════════════════════════════════════════
     # Output helpers
