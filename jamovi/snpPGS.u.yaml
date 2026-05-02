@@ -1,106 +1,89 @@
-# snpPGS_u.yaml  — UI layout for SNPstats PGS module
----
 name: snpPGS
 title: Polygenic Score (PGS)
-jus: "3.0"
+jus: '3.0'
 compilerMode: developer
-
 children:
-    # ── Variable targets ────────────────────────────────────────────────────
-    - type: VariableSupplier
-      persistentItems: false
-      stretchFactor: 1
-      children:
-          - type: TargetLayoutBox
-            label: SNP columns (genotype data)
+  - type: VariableSupplier
+    persistentItems: false
+    stretchFactor: 1
+    children:
+      - type: TargetLayoutBox
+        label: SNP columns (genotype data)
+        children:
+          - type: VariablesListBox
+            name: snpCols
+            isTarget: true
+      - type: TargetLayoutBox
+        label: Covariates (optional)
+        children:
+          - type: VariablesListBox
+            name: covCols
+            isTarget: true
+      - type: TargetLayoutBox
+        label: Response variable (optional)
+        children:
+          - type: VariablesListBox
+            name: responseCol
+            isTarget: true
+            maxItemCount: 1
+  - type: LayoutBox
+    margin: large
+    children:
+      - type: Label
+        label: Weights File
+        children:
+          - type: ComboBox
+            name: weightingMode
+            label: SNP weighting mode
+          - type: TextBox
+            name: weightsPath
+            label: 'PGS Catalog weights file (.csv / .txt / .tsv / .txt.gz):'
+            format: string
+            width: largest
+            enable: (weightingMode != 'unweighted')
+  - type: LayoutBox
+    margin: large
+    children:
+      - type: Label
+        label: Scoring Options
+        children:
+          - type: ComboBox
+            name: missingStrategy
+            label: Missing genotype handling
+          - type: CheckBox
+            name: normalize
+            label: Normalize by valid SNPs per individual
+          - type: CheckBox
+            name: standardize
+            label: Standardize score (divide by SD, for 1-SD model estimates)
+  - type: LayoutBox
+    margin: large
+    stretchFactor: 1
+    children:
+      - type: Label
+        label: Output
+        children:
+          - type: CheckBox
+            name: showCoverage
+            label: SNP coverage summary
+          - type: CheckBox
+            name: showDistPlot
+            label: Score distribution plot
+          - type: CheckBox
+            name: showPercentiles
+            label: Percentile ranks
             children:
-                - type: VariablesListBox
-                  name: snpCols
-                  isTarget: true
-
-          - type: TargetLayoutBox
-            label: Covariates (optional)
-            children:
-                - type: VariablesListBox
-                  name: covCols
-                  isTarget: true
-
-          - type: TargetLayoutBox
-            label: Response variable (optional)
-            children:
-                - type: VariablesListBox
-                  name: responseCol
-                  isTarget: true
-                  maxItemCount: 1
-
-    # ── Weights file ─────────────────────────────────────────────────────────
-    - type: LayoutBox
-      margin: large
-      children:
-          - type: Label
-            label: Weights File
-            children:
-                - type: ComboBox
-                  name: weightingMode
-                  label: SNP weighting mode
-
-                - type: TextBox
-                  name: weightsPath
-                  label: "PGS Catalog weights file (.csv / .txt / .tsv / .txt.gz):"
-                  format: string
-                  width: largest
-                  enable: (weightingMode != 'unweighted')
-
-    # ── Scoring options ──────────────────────────────────────────────────────
-    - type: LayoutBox
-      margin: large
-      children:
-          - type: Label
-            label: Scoring Options
-            children:
-                - type: ComboBox
-                  name: missingStrategy
-                  label: Missing genotype handling
-
-                - type: CheckBox
-                  name: normalize
-                  label: Normalize by valid SNPs per individual
-
-                - type: CheckBox
-                  name: standardize
-                  label: Standardize score (divide by SD, for 1-SD model estimates)
-
-    # ── Output options ───────────────────────────────────────────────────────
-    - type: LayoutBox
-      margin: large
-      stretchFactor: 1
-      children:
-          - type: Label
-            label: Output
-            children:
-                - type: CheckBox
-                  name: showCoverage
-                  label: SNP coverage summary
-
-                - type: CheckBox
-                  name: showScoreTable
-                  label: Per-individual score table
-
-                - type: CheckBox
-                  name: showDistPlot
-                  label: Score distribution plot
-
-                - type: CheckBox
-                  name: showPercentiles
-                  label: Percentile ranks
-                  children:
-                      - type: TextBox
-                        name: percentileBreaks
-                        label: "Percentile thresholds (comma-separated):"
-                        format: string
-                        enable: (showPercentiles)
-
-                - type: CheckBox
-                  name: showAssoc
-                  label: PGS-response association test
-                  enable: (responseCol)
+              - type: TextBox
+                name: percentileBreaks
+                label: 'Percentile thresholds (comma-separated):'
+                format: string
+                enable: (showPercentiles)
+          - type: CheckBox
+            name: showAssoc
+            label: PGS-response association test
+            enable: (responseCol)
+      - type: LayoutBox
+        margin: large
+        children:
+          - type: Output
+            name: saveScores

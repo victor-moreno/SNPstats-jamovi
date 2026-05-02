@@ -15,7 +15,6 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             normalize = TRUE,
             standardize = FALSE,
             showCoverage = TRUE,
-            showScoreTable = FALSE,
             showDistPlot = FALSE,
             showPercentiles = FALSE,
             percentileBreaks = "20,40,60,80,90,95",
@@ -87,10 +86,8 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "showCoverage",
                 showCoverage,
                 default=TRUE)
-            private$..showScoreTable <- jmvcore::OptionBool$new(
-                "showScoreTable",
-                showScoreTable,
-                default=FALSE)
+            private$..saveScores <- jmvcore::OptionOutput$new(
+                "saveScores")
             private$..showDistPlot <- jmvcore::OptionBool$new(
                 "showDistPlot",
                 showDistPlot,
@@ -117,7 +114,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..normalize)
             self$.addOption(private$..standardize)
             self$.addOption(private$..showCoverage)
-            self$.addOption(private$..showScoreTable)
+            self$.addOption(private$..saveScores)
             self$.addOption(private$..showDistPlot)
             self$.addOption(private$..showPercentiles)
             self$.addOption(private$..percentileBreaks)
@@ -133,7 +130,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         normalize = function() private$..normalize$value,
         standardize = function() private$..standardize$value,
         showCoverage = function() private$..showCoverage$value,
-        showScoreTable = function() private$..showScoreTable$value,
+        saveScores = function() private$..saveScores$value,
         showDistPlot = function() private$..showDistPlot$value,
         showPercentiles = function() private$..showPercentiles$value,
         percentileBreaks = function() private$..percentileBreaks$value,
@@ -148,7 +145,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..normalize = NA,
         ..standardize = NA,
         ..showCoverage = NA,
-        ..showScoreTable = NA,
+        ..saveScores = NA,
         ..showDistPlot = NA,
         ..showPercentiles = NA,
         ..percentileBreaks = NA,
@@ -163,7 +160,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         snpGridTable = function() private$.items[["snpGridTable"]],
         coverageTable = function() private$.items[["coverageTable"]],
         summaryTable = function() private$.items[["summaryTable"]],
-        scoreTable = function() private$.items[["scoreTable"]],
+        saveScores = function() private$.items[["saveScores"]],
         percentileTable = function() private$.items[["percentileTable"]],
         assocTable = function() private$.items[["assocTable"]],
         distPlot = function() private$.items[["distPlot"]],
@@ -316,39 +313,18 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                         `title`="Skewness", 
                         `type`="number", 
                         `format`="zto"))))
-            self$add(jmvcore::Table$new(
+            self$add(jmvcore::Output$new(
                 options=options,
-                name="scoreTable",
-                title="Per-Individual Scores",
-                visible="(showScoreTable)",
+                name="saveScores",
+                title="PGS Scores",
+                initInRun=TRUE,
                 clearWith=list(
                     "snpCols",
                     "weightsPath",
                     "weightingMode",
                     "missingStrategy",
                     "normalize",
-                    "standardize"),
-                columns=list(
-                    list(
-                        `name`="individual", 
-                        `title`="Individual", 
-                        `type`="text"),
-                    list(
-                        `name`="pgs", 
-                        `title`="PGS Score", 
-                        `type`="number", 
-                        `format`="zto"),
-                    list(
-                        `name`="pgs_z", 
-                        `title`="Z-score", 
-                        `type`="number", 
-                        `format`="zto"),
-                    list(
-                        `name`="percentile", 
-                        `title`="Percentile", 
-                        `type`="number", 
-                        `format`="zto", 
-                        `visible`="(showPercentiles)"))))
+                    "standardize")))
             self$add(jmvcore::Table$new(
                 options=options,
                 name="percentileTable",
@@ -423,18 +399,27 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                         `name`="stat", 
                         `title`="Value", 
                         `type`="number", 
-                        `format`="zto"),
+                        `format`="zto", 
+                        `visible`=FALSE),
                     list(
                         `name`="df", 
                         `title`="df", 
-                        `type`="text"),
+                        `type`="text", 
+                        `visible`=FALSE),
+                    list(
+                        `name`="se", 
+                        `title`="SE", 
+                        `type`="number", 
+                        `format`="zto", 
+                        `visible`=FALSE),
                     list(
                         `name`="p", 
                         `title`="p-value", 
                         `type`="number", 
                         `format`="zto,pvalue")),
                 notes=list(
-                    `covNote`="")))
+                    `covNote`="", 
+                    `respNote`="")))
             self$add(jmvcore::Image$new(
                 options=options,
                 name="distPlot",
@@ -470,7 +455,7 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 pause = NULL,
                 completeWhenFilled = FALSE,
                 requiresMissings = FALSE,
-                weightsSupport = 'auto')
+                weightsSupport = 'none')
         }))
 
 #' Polygenic Score (PGS)
@@ -507,7 +492,6 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'   standard deviation across all individuals. The resulting score has SD = 1,
 #'   so regression coefficients represent the effect per 1-SD change in PGS.
 #' @param showCoverage Show the SNP coverage summary table.
-#' @param showScoreTable Show the per-individual PGS score table.
 #' @param showDistPlot Show the score distribution histogram and density plot.
 #' @param showPercentiles Show percentile ranks for each individual and
 #'   threshold table.
@@ -521,7 +505,7 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'   \code{results$snpGridTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$coverageTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$summaryTable} \tab \tab \tab \tab \tab a table \cr
-#'   \code{results$scoreTable} \tab \tab \tab \tab \tab a table \cr
+#'   \code{results$saveScores} \tab \tab \tab \tab \tab an output \cr
 #'   \code{results$percentileTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$assocTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$distPlot} \tab \tab \tab \tab \tab an image \cr
@@ -546,7 +530,6 @@ snpPGS <- function(
     normalize = TRUE,
     standardize = FALSE,
     showCoverage = TRUE,
-    showScoreTable = FALSE,
     showDistPlot = FALSE,
     showPercentiles = FALSE,
     percentileBreaks = "20,40,60,80,90,95",
@@ -576,7 +559,6 @@ snpPGS <- function(
         normalize = normalize,
         standardize = standardize,
         showCoverage = showCoverage,
-        showScoreTable = showScoreTable,
         showDistPlot = showDistPlot,
         showPercentiles = showPercentiles,
         percentileBreaks = percentileBreaks,

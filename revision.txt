@@ -1,25 +1,20 @@
 
-check consistency: 
-- SNP names: show observed alleles if mismath / complemented/ ...
-- remove ambiguous
-
-Verify that effect allele if correctly selected no matter how in data
-
 Revise 
         Percentile ranks
         standardization of score
-        
+
 Allow variable / no header in metadata
 
-save PGS to data
+SNP formats & agreement with other modules
 
 clean:
 
 Hide empty tables if not selected or empty because no data
 
+Add interaction of PGS by first covar
+
 Test in criprev
 
-Replace individual ID by adjustment covariates for the regression models
 Revise association table
 	log-OR -> OR
 	SE for t-test

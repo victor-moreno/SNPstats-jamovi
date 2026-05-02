@@ -104,12 +104,11 @@ snpPGSClass <- R6::R6Class(
       self$results$assocTable$getColumn("score_type")$setVisible(show_type_col)
 
       first_scores <- NULL
-      ids <- as.character(seq_len(nrow(dosage)))
+      all_scores   <- list()   # named by mode_label, for saveScores output
 
       for (mode_label in names(modes)) {
         wvec <- modes[[mode_label]]
 
-        # Drop NA-weight SNPs (only applies to catalog weights)
         na_snps <- names(wvec)[is.na(wvec)]
         if (length(na_snps) > 0) {
           keep_cols <- names(wvec)[!is.na(wvec)]
@@ -123,10 +122,12 @@ snpPGSClass <- R6::R6Class(
 
         scores <- private$.computeScores(dos_m, wvec, qc, normalize, standardize,
                                           missing_st, mode_label == "Unweighted")
+        all_scores[[mode_label]] <- scores
+
         if (is.null(first_scores)) {
           first_scores       <- scores
           private$.pgsScores <- scores
-          private$.idLabels  <- ids
+          private$.idLabels  <- as.character(seq_len(nrow(dosage)))
         }
 
         private$.fillSummaryTable(scores, resp, mode_label, show_type_col)
@@ -146,11 +147,11 @@ snpPGSClass <- R6::R6Class(
       self$results$stratPlot$setVisible(show_strat)
       if (show_strat) private$.cache$resp <- resp
 
-      if (self$options$showScoreTable || self$options$showPercentiles)
-        private$.fillScoreTable(first_scores, ids, resp)
-
       if (self$options$showPercentiles)
         private$.fillPercentileTable(first_scores)
+
+      if (self$results$saveScores$isNotFilled())
+        private$.saveScoresToData(all_scores)
     },
 
 
@@ -560,10 +561,10 @@ snpPGSClass <- R6::R6Class(
         col_char <- toupper(trimws(as.character(col_raw)))
         col_char[col_char == "" | col_char == "NA"] <- NA_character_
 
-        # Extract unique observed alleles: split each genotype string and keep
-        # only single ACGT characters — this handles separators like "/" or "|"
-        # (e.g. "G/T", "G|T", "GT") as well as plain concatenated strings.
-        obs_alleles <- unique(unlist(strsplit(col_char[!is.na(col_char)], "")))
+        # Extract unique observed alleles using the same regex as dosage
+        # counting: splits on separators AND between adjacent ACGT chars.
+        obs_alleles <- unique(unlist(strsplit(col_char[!is.na(col_char)],
+                                              "[^ACGT]|(?<=.)(?=.)", perl = TRUE)))
         obs_alleles <- obs_alleles[obs_alleles %in% c("A","C","G","T")]
 
         if (!has_allele_info) {
@@ -582,37 +583,45 @@ snpPGSClass <- R6::R6Class(
         ea_comp <- private$.complement(ea_cat)
         oa_comp <- private$.complement(oa_cat)
 
+        obs_str    <- paste(sort(obs_alleles), collapse = "/")
+        direct_str <- paste(sort(c(ea_cat, oa_cat)), collapse = "/")
+        flip_str   <- paste(sort(c(ea_comp, oa_comp)), collapse = "/")
+
         matches_direct     <- all(obs_alleles %in% c(ea_cat, oa_cat))
         matches_complement <- all(obs_alleles %in% c(ea_comp, oa_comp))
 
-        # Determine effect allele to count and whether strand flip needed.
-        # Ambiguous (AT/CG) catalog pairs are checked the same way — if the
-        # data alleles don't match either orientation they are a mismatch, not
-        # merely ambiguous. We only apply the ambiguous warning when the data
-        # alleles DO match, because in that case strand resolution is uncertain.
         ea_use <- ea_cat
         status <- ""
 
         if (matches_direct) {
-          status <- if (is_ambiguous) "ambiguous (AT/CG) \u26a0" else "ok"
+          status <- if (is_ambiguous)
+            paste0("ambiguous (AT/CG) \u26a0 (obs: ", obs_str, ")")
+          else
+            paste0("ok (obs: ", obs_str, ")")
         } else if (matches_complement) {
           ea_use <- ea_comp
           wtable$strand_flipped[idx] <- TRUE
           status <- if (is_ambiguous)
-            "ambiguous (AT/CG) \u26a0"          # can't trust flip for ambiguous
+            paste0("ambiguous (AT/CG) \u26a0 (obs: ", obs_str, ")")
           else
-            "strand flip \u2194 (corrected)"
+            paste0("strand flip \u2194 (obs: ", obs_str,
+                   " \u2192 ", flip_str, ", corrected)")
         } else {
-          wtable$allele_status[idx] <- "allele mismatch \u274c"
+          wtable$allele_status[idx] <- paste0(
+            "allele mismatch \u274c (obs: ", obs_str,
+            ", exp: ", direct_str, ")")
           exclude <- c(exclude, snp)
           next
         }
 
+        # Count copies of ea_use per genotype string.
+        # Splits on any non-ACGT character or between adjacent ACGT chars
+        # so both "G/T" and "GT" and "G|T" are handled identically.
         mat[, snp] <- vapply(col_char, function(g) {
           if (is.na(g)) return(NA_real_)
-          bases <- strsplit(g, "")[[1]]
+          bases <- strsplit(g, "[^ACGT]|(?<=.)(?=.)", perl = TRUE)[[1]]
           bases <- bases[bases %in% c("A","C","G","T")]
-          sum(bases == ea_use)
+          as.numeric(sum(bases == ea_use))
         }, numeric(1))
 
         wtable$allele_status[idx] <- status
@@ -806,22 +815,41 @@ snpPGSClass <- R6::R6Class(
       }
     },
 
-    .fillScoreTable = function(scores, ids, resp = NULL) {
-      tbl <- self$results$scoreTable
-      tbl$deleteRows()
-      mu  <- mean(scores, na.rm = TRUE)
-      sig <- sd(scores,   na.rm = TRUE)
-      for (i in seq_along(scores)) {
-        z   <- if (!is.na(sig) && sig > 0) (scores[i] - mu) / sig else NA_real_
-        pct <- if (!is.na(scores[i]))
-                 mean(scores <= scores[i], na.rm = TRUE) * 100
-               else NA_real_
-        tbl$addRow(rowKey = i, values = list(
-          individual = ids[i],
-          pgs        = scores[i],
-          pgs_z      = z,
-          percentile = pct
-        ))
+    .saveScoresToData = function(all_scores) {
+      out   <- self$results$saveScores
+      n_tot <- nrow(self$data)
+      keep  <- private$.keepMask   # NULL or logical[n_tot]
+
+      keys   <- character(0)
+      titles <- character(0)
+      descs  <- character(0)
+      types  <- character(0)
+
+      for (mode_label in names(all_scores)) {
+        key   <- paste0("PGS_", mode_label)
+        title <- paste0("PGS (", mode_label, ")")
+        desc  <- paste0("Polygenic score — ", tolower(mode_label), " weighting")
+        keys   <- c(keys,   key)
+        titles <- c(titles, title)
+        descs  <- c(descs,  desc)
+        types  <- c(types,  "continuous")
+      }
+
+      out$set(keys = keys, titles = titles,
+              descriptions = descs, measureTypes = types)
+
+      # Row numbers: map scores back to original data rows via keepMask
+      all_row_nums <- seq_len(n_tot)
+      score_rows   <- if (!is.null(keep)) all_row_nums[keep] else all_row_nums
+      out$setRowNums(as.character(score_rows))
+
+      for (mode_label in names(all_scores)) {
+        key    <- paste0("PGS_", mode_label)
+        scores <- all_scores[[mode_label]]
+        # Expand to full-data length: NAs for excluded rows
+        full_vals <- rep(NA_real_, n_tot)
+        full_vals[score_rows] <- scores
+        out$setValues(key = key, values = full_vals[score_rows])
       }
     },
 
@@ -853,21 +881,32 @@ snpPGSClass <- R6::R6Class(
       df <- df[complete.cases(df), ]
       if (nrow(df) < 3) return()
 
-      # Set or clear the covariate note on the table
-      if (has_covs) {
-        cov_lbl <- paste(names(covs), collapse = ", ")
+      lvls      <- levels(factor(df$resp))
+      n_lvls    <- length(lvls)
+      resp_type <- if (!is.factor(df$resp) && n_lvls > 5) "continuous"
+                   else if (n_lvls == 2)                  "binary"
+                   else if (n_lvls > 2)                   "polytomous"
+                   else                                   "continuous"
+
+      # ── Table notes ───────────────────────────────────────────────────────
+      if (has_covs)
         self$results$assocTable$setNote(
-          "covNote", paste0("Adjusted for: ", cov_lbl))
-      } else {
+          "covNote", paste0("Adjusted for: ", paste(names(covs), collapse = ", ")))
+      else
         self$results$assocTable$setNote("covNote", NULL)
-      }
 
-      is_binary <- is.factor(df$resp) || length(unique(df$resp)) == 2
+      resp_note <- switch(resp_type,
+        binary     = paste0("Response: ", respCol,
+                            " (", lvls[2], " vs ", lvls[1], ")"),
+        polytomous = paste0("Response: ", respCol,
+                            " (ref: ", lvls[1], "; ",
+                            paste(lvls[-1], collapse = ", "), ")"),
+        paste0("Response: ", respCol)
+      )
+      self$results$assocTable$setNote("respNote", resp_note)
 
-      # Build covariate term for formula (sanitise names for formula use)
       cov_terms <- if (has_covs)
-        paste(paste0("`", names(covs), "`"), collapse = " + ")
-      else ""
+        paste(paste0("`", names(covs), "`"), collapse = " + ") else ""
 
       add_row <- function(test, stat_label, estimate, se, ci_low, ci_high,
                           stat, df_val, p) {
@@ -886,72 +925,141 @@ snpPGSClass <- R6::R6Class(
         ))
       }
 
-      if (is_binary) {
-        lvls <- levels(factor(df$resp))
-        g1   <- df$pgs[as.character(df$resp) == lvls[1]]
-        g2   <- df$pgs[as.character(df$resp) == lvls[2]]
-        lbl  <- paste0(lvls[2], " vs ", lvls[1])
+      # ── Binary response ───────────────────────────────────────────────────
+      if (resp_type == "binary") {
 
-        # Logistic regression — adjusted if covariates present
-        frm <- if (has_covs)
-          as.formula(paste("resp ~ pgs +", cov_terms))
-        else
-          resp ~ pgs
+        df$resp <- factor(df$resp)
+        g1 <- df$pgs[df$resp == lvls[1]]
+        g2 <- df$pgs[df$resp == lvls[2]]
+
+        frm <- if (has_covs) as.formula(paste("resp ~ pgs +", cov_terms))
+               else resp ~ pgs
         fit <- tryCatch(glm(frm, data = df, family = binomial()),
                         error = function(e) NULL)
         if (!is.null(fit)) {
-          cf  <- coef(summary(fit))
-          ci  <- tryCatch(confint.default(fit)["pgs", ],
-                          error = function(e) c(NA_real_, NA_real_))
+          cf <- coef(summary(fit))
+          ci <- tryCatch(confint.default(fit)["pgs", ],
+                         error = function(e) c(NA_real_, NA_real_))
           if ("pgs" %in% rownames(cf))
-            add_row(paste0("Logistic regression (", respCol, ")"),
-                    "log-OR", cf["pgs", 1], cf["pgs", 2],
-                    ci[1], ci[2], cf["pgs", 3], "", cf["pgs", 4])
+            add_row("Logistic regression", "OR",
+                    exp(cf["pgs", 1]), NA_real_,
+                    exp(ci[1]), exp(ci[2]),
+                    cf["pgs", 3], "", cf["pgs", 4])
         }
 
-        # Welch t-test and Mann-Whitney are unadjusted (non-parametric / no covariate support)
         tt <- tryCatch(t.test(g2, g1), error = function(e) NULL)
         if (!is.null(tt))
-          add_row(paste0("Welch t-test (", lbl, ")"),
-                  "t", diff(tt$estimate), NA_real_,
+          add_row("Welch t-test", "t",
+                  diff(tt$estimate), NA_real_,
                   tt$conf.int[1], tt$conf.int[2],
                   tt$statistic, round(tt$parameter, 1), tt$p.value)
 
         mw <- tryCatch(wilcox.test(g2, g1, exact = FALSE, conf.int = TRUE),
                        error = function(e) NULL)
         if (!is.null(mw))
-          add_row(paste0("Mann-Whitney U (", lbl, ")"),
-                  "W", mw$estimate, NA_real_,
+          add_row("Mann-Whitney U", "W",
+                  mw$estimate, NA_real_,
                   mw$conf.int[1], mw$conf.int[2],
                   mw$statistic, "", mw$p.value)
 
+      # ── Polytomous response (>2 groups) ───────────────────────────────────
+      } else if (resp_type == "polytomous") {
+
+        df$resp <- factor(df$resp)   # first level is reference by default
+
+        # Polytomous logistic via nnet::multinom — one OR row per non-ref level
+        fit <- tryCatch(
+          nnet::multinom(
+            if (has_covs) as.formula(paste("resp ~ pgs +", cov_terms))
+            else resp ~ pgs,
+            data = df, trace = FALSE),
+          error = function(e) NULL)
+
+        if (!is.null(fit)) {
+          cf_mat <- coef(fit)                       # levels × predictors matrix
+          # Wald SEs from the vcov matrix (rows ordered as coef)
+          vc     <- tryCatch(vcov(fit), error = function(e) NULL)
+
+          for (lv in lvls[-1]) {
+            lv_row <- as.character(lv)
+            if (!lv_row %in% rownames(cf_mat)) next
+            b  <- cf_mat[lv_row, "pgs"]
+            se_b <- if (!is.null(vc)) {
+              nm <- paste0(lv_row, ":pgs")
+              if (nm %in% rownames(vc)) sqrt(vc[nm, nm]) else NA_real_
+            } else NA_real_
+            z    <- if (!is.na(se_b) && se_b > 0) b / se_b else NA_real_
+            p_z  <- if (!is.na(z)) 2 * pnorm(-abs(z)) else NA_real_
+            ci_lo <- b - 1.96 * se_b
+            ci_hi <- b + 1.96 * se_b
+            lbl   <- paste0("Polytomous logistic (", lv_row, " vs ", lvls[1], ")")
+            add_row(lbl, "OR",
+                    exp(b), NA_real_, exp(ci_lo), exp(ci_hi),
+                    z, "", p_z)
+          }
+
+          # Overall likelihood-ratio test for pgs across all levels
+          fit0 <- tryCatch(
+            nnet::multinom(
+              if (has_covs) as.formula(paste("resp ~", cov_terms))
+              else resp ~ 1,
+              data = df, trace = FALSE),
+            error = function(e) NULL)
+          if (!is.null(fit0)) {
+            lr    <- 2 * (logLik(fit) - logLik(fit0))
+            df_lr <- length(lvls) - 1
+            p_lr  <- pchisq(as.numeric(lr), df = df_lr, lower.tail = FALSE)
+            add_row("Polytomous logistic (overall)", "\u03c7\u00b2",
+                    NA_real_, NA_real_, NA_real_, NA_real_,
+                    as.numeric(lr), df_lr, p_lr)
+          }
+        }
+
+        # One-way ANOVA (parametric)
+        aov_fit <- tryCatch(aov(pgs ~ resp, data = df), error = function(e) NULL)
+        if (!is.null(aov_fit)) {
+          sm  <- summary(aov_fit)[[1]]
+          f   <- sm["resp", "F value"]
+          df1 <- sm["resp", "Df"]
+          df2 <- sm["Residuals", "Df"]
+          p_f <- sm["resp", "Pr(>F)"]
+          add_row("ANOVA", "F",
+                  NA_real_, NA_real_, NA_real_, NA_real_,
+                  f, paste0(df1, ", ", df2), p_f)
+        }
+
+        # Kruskal-Wallis (non-parametric)
+        kw <- tryCatch(kruskal.test(pgs ~ resp, data = df), error = function(e) NULL)
+        if (!is.null(kw))
+          add_row("Kruskal-Wallis", "\u03c7\u00b2",
+                  NA_real_, NA_real_, NA_real_, NA_real_,
+                  kw$statistic, round(kw$parameter, 0), kw$p.value)
+
+      # ── Continuous response ───────────────────────────────────────────────
       } else {
+
         resp_num <- as.numeric(df$resp)
         df$resp  <- resp_num
 
-        # Linear regression — adjusted if covariates present
-        frm <- if (has_covs)
-          as.formula(paste("resp ~ pgs +", cov_terms))
-        else
-          resp ~ pgs
+        frm <- if (has_covs) as.formula(paste("resp ~ pgs +", cov_terms))
+               else resp ~ pgs
         fit <- tryCatch(lm(frm, data = df), error = function(e) NULL)
         if (!is.null(fit)) {
-          cf  <- coef(summary(fit))
-          ci  <- tryCatch(confint(fit)["pgs", ],
-                          error = function(e) c(NA_real_, NA_real_))
-          dff <- df.residual(fit)
+          cf <- coef(summary(fit))
+          ci <- tryCatch(confint(fit)["pgs", ],
+                         error = function(e) c(NA_real_, NA_real_))
           if ("pgs" %in% rownames(cf))
-            add_row(paste0("Linear regression (", respCol, ")"),
-                    "\u03b2", cf["pgs", 1], cf["pgs", 2],
-                    ci[1], ci[2], cf["pgs", 3], dff, cf["pgs", 4])
+            add_row("Linear regression", "\u03b2",
+                    cf["pgs", 1], cf["pgs", 2],
+                    ci[1], ci[2],
+                    cf["pgs", 3], df.residual(fit), cf["pgs", 4])
         }
 
-        # Pearson and Spearman are unadjusted
         pc <- tryCatch(cor.test(df$pgs, resp_num, method = "pearson"),
                        error = function(e) NULL)
         if (!is.null(pc))
-          add_row("Pearson correlation",
-                  "r", pc$estimate, NA_real_,
+          add_row("Pearson correlation", "r",
+                  pc$estimate, NA_real_,
                   pc$conf.int[1], pc$conf.int[2],
                   pc$statistic, round(pc$parameter, 0), pc$p.value)
 
@@ -963,9 +1071,9 @@ snpPGSClass <- R6::R6Class(
           z  <- 0.5 * log((1 + r) / (1 - r))
           se <- 1 / sqrt(n - 3)
           ci <- tanh(c(z - 1.96 * se, z + 1.96 * se))
-          add_row("Spearman correlation",
-                  "\u03c1", r, NA_real_,
-                  ci[1], ci[2], sp$statistic, "", sp$p.value)
+          add_row("Spearman correlation", "\u03c1",
+                  r, NA_real_, ci[1], ci[2],
+                  sp$statistic, "", sp$p.value)
         }
       }
     },

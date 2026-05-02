@@ -147,12 +147,13 @@ options:
       description:
           R: Show the SNP coverage summary table.
 
-    - name: showScoreTable
-      title: Show per-individual score table
-      type: Bool
-      default: false
+    - name: saveScores
+      title: Save scores to data
+      type: Output
       description:
-          R: Show the per-individual PGS score table.
+          R: >
+              Appends PGS score column(s) to the dataset. One column is
+              added per active weighting mode (Weighted, Unweighted, or both).
 
     - name: showDistPlot
       title: Show score distribution plot

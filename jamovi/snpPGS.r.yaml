@@ -127,11 +127,11 @@ items:
           type: number
           format: zto
 
-  # ── Per-individual scores ───────────────────────────────────────────────────
-  - name: scoreTable
-    title: Per-Individual Scores
-    type: Table
-    visible: (showScoreTable)
+  # ── Save scores to data ─────────────────────────────────────────────────────
+  - name: saveScores
+    title: PGS Scores
+    type: Output
+    initInRun: true
     clearWith:
         - snpCols
         - weightsPath
@@ -139,23 +139,6 @@ items:
         - missingStrategy
         - normalize
         - standardize
-    columns:
-        - name: individual
-          title: Individual
-          type: text
-        - name: pgs
-          title: PGS Score
-          type: number
-          format: zto
-        - name: pgs_z
-          title: Z-score
-          type: number
-          format: zto
-        - name: percentile
-          title: Percentile
-          type: number
-          format: zto
-          visible: (showPercentiles)
 
   # ── Percentile thresholds ───────────────────────────────────────────────────
   - name: percentileTable
@@ -223,15 +206,23 @@ items:
           title: Value
           type: number
           format: zto
+          visible: false
         - name: df
           title: df
           type: text
+          visible: false
+        - name: se
+          title: SE
+          type: number
+          format: zto
+          visible: false
         - name: p
           title: p-value
           type: number
           format: zto,pvalue
     notes:
         covNote: ''
+        respNote: ''
 
   # ── Distribution plot ───────────────────────────────────────────────────────
   - name: distPlot
