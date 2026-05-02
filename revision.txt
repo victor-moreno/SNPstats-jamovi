@@ -1,32 +1,21 @@
-
 Revise 
-        Percentile ranks
-        standardization of score
-
-Allow variable / no header in metadata
+  - standardization of score
 
 SNP formats & agreement with other modules
 
 clean:
+- Hide empty tables if not selected or empty because no data
+- Revise association table
 
-Hide empty tables if not selected or empty because no data
+Organize code cleanly
 
-Add interaction of PGS by first covar
+Enhancements
+  Percentile ranks
+    - OR / differences for extremes vs a selected reference
+
+  Add interaction of PGS by first covar
 
 Test in criprev
-
-Revise association table
-	log-OR -> OR
-	SE for t-test
-	Value ?
-	 
-          add_row(paste0("Welch t-test (", lbl, ")"),
-                  "t", diff(tt$estimate), tt$stderr,
-                  tt$conf.int[1], tt$conf.int[2],
-                  tt$statistic, round(tt$parameter, 1), tt$p.value)
-                  
-                  
-                  
                   
 SNPs 
 assoc/haplotypes

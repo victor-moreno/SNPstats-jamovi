@@ -52,7 +52,7 @@ children:
             label: Missing genotype handling
           - type: CheckBox
             name: normalize
-            label: Normalize by valid SNPs per individual
+            label: Normalize score (divide by maximum possible)
           - type: CheckBox
             name: standardize
             label: Standardize score (divide by SD, for 1-SD model estimates)

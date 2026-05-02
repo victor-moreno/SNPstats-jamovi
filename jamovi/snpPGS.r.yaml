@@ -157,10 +157,6 @@ items:
         - name: threshold
           title: Percentile
           type: text
-        - name: score
-          title: PGS Score
-          type: number
-          format: zto
 
   # ── PGS–response association ────────────────────────────────────────────────
   - name: assocTable

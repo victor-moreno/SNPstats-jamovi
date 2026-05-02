@@ -342,12 +342,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     list(
                         `name`="threshold", 
                         `title`="Percentile", 
-                        `type`="text"),
-                    list(
-                        `name`="score", 
-                        `title`="PGS Score", 
-                        `type`="number", 
-                        `format`="zto"))))
+                        `type`="text"))))
             self$add(jmvcore::Table$new(
                 options=options,
                 name="assocTable",
@@ -484,10 +479,12 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'   'snp_wise' scores each individual using only their observed SNPs and
 #'   divides by that individual's observed SNP count, keeping all individuals
 #'   regardless of missingness.
-#' @param normalize If TRUE, divides each individual's PGS by the number of
-#'   SNPs that were actually observed (non-missing) for that individual. This
-#'   corrects for differential missingness: individuals with fewer observed SNPs
-#'   are not systematically penalised.
+#' @param normalize If TRUE, divides each individual's raw score by the
+#'   maximum score they could have achieved given their observed SNPs. For
+#'   unweighted scoring: max = 2 × observed SNP count. For weighted scoring:
+#'   max = 2 × sum of weights for observed SNPs. Individuals with missing SNPs
+#'   get a per-individual maximum, so scores remain comparable across
+#'   individuals with different missingness. Result is in [0, 1].
 #' @param standardize If TRUE, divides the (optionally normalized) PGS by its
 #'   standard deviation across all individuals. The resulting score has SD = 1,
 #'   so regression coefficients represent the effect per 1-SD change in PGS.

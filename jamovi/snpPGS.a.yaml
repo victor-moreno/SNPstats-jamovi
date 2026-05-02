@@ -119,15 +119,18 @@ options:
               all individuals regardless of missingness.
 
     - name: normalize
-      title: Normalize score by number of valid SNPs per individual
+      title: Normalize score (divide by maximum possible score)
       type: Bool
       default: true
       description:
           R: >
-              If TRUE, divides each individual's PGS by the number of SNPs
-              that were actually observed (non-missing) for that individual.
-              This corrects for differential missingness: individuals with
-              fewer observed SNPs are not systematically penalised.
+              If TRUE, divides each individual's raw score by the maximum
+              score they could have achieved given their observed SNPs.
+              For unweighted scoring: max = 2 × observed SNP count.
+              For weighted scoring:   max = 2 × sum of weights for observed SNPs.
+              Individuals with missing SNPs get a per-individual maximum,
+              so scores remain comparable across individuals with different
+              missingness. Result is in [0, 1].
 
     - name: standardize
       title: Standardize score (divide by SD)

@@ -120,8 +120,12 @@ snpPGSClass <- R6::R6Class(
 
         if (length(wvec) == 0) next
 
-        scores <- private$.computeScores(dos_m, wvec, qc, normalize, standardize,
-                                          missing_st, mode_label == "Unweighted")
+        # snp_wise strategy: zero-fill happened in buildDosageMatrix;
+        # normalization by observed SNPs is mandatory for correct per-individual scoring.
+        normalize_eff <- normalize || (missing_st == "snp_wise")
+
+        scores <- private$.computeScores(dos_m, wvec, qc, normalize_eff, standardize,
+                                          mode_label == "Unweighted")
         all_scores[[mode_label]] <- scores
 
         if (is.null(first_scores)) {
@@ -148,7 +152,7 @@ snpPGSClass <- R6::R6Class(
       if (show_strat) private$.cache$resp <- resp
 
       if (self$options$showPercentiles)
-        private$.fillPercentileTable(first_scores)
+        private$.fillPercentileTable(all_scores)
 
       if (self$results$saveScores$isNotFilled())
         private$.saveScoresToData(all_scores)
@@ -164,33 +168,65 @@ snpPGSClass <- R6::R6Class(
     #
     # If no file is configured, returns unit-weight rows for snpCols.
     # ════════════════════════════════════════════════════════════════════════
-    .computeScores = function(dosage, wvec, qc, normalize, standardize, missing_st,
+    # ════════════════════════════════════════════════════════════════════════
+    # .computeScores
+    #
+    # Pipeline (in order):
+    #   1. Raw score  = dosage %*% wvec  (weighted sum of dosage per individual)
+    #   2. Normalize  = raw / max_possible  where max_possible is computed
+    #                   per individual using only the SNPs they had observed
+    #                   (pre-imputation valid_counts):
+    #                     unweighted: 2 * n_valid_snps
+    #                     weighted:   2 * sum(wvec for valid snps)
+    #                   Result is in [0, 1].
+    #   3. Standardize = score / SD(score across individuals)
+    #                   SD is the empirical SD of the sample scores — this is
+    #                   the standard approach (used by PLINK --score). A
+    #                   theoretical SD from marginal Hardy-Weinberg colMeans
+    #                   would ignore LD between SNPs and give population-expected
+    #                   rather than observed SD, making it inappropriate here.
+    #
+    # is_unweighted: signals unit weights so we use SNP-count denominator.
+    # ════════════════════════════════════════════════════════════════════════
+    .computeScores = function(dosage, wvec, qc, normalize, standardize,
                               is_unweighted = FALSE) {
-      scores_raw <- as.numeric(dosage %*% wvec)
-      if (normalize || missing_st == "snp_wise") {
-        if (is_unweighted) {
-          # For unweighted scoring, divide by the number of SNPs in the score.
-          # valid_counts is unreliable here because the unweighted dosage bypass
-          # may leave mat as NA for unparseable genotypes, making rowSums = 0.
-          n_valid <- rep(length(wvec), nrow(dosage))
-        } else {
-          vc_cols <- intersect(names(wvec), colnames(qc$valid_counts))
-          if (length(vc_cols) > 0) {
-            vc      <- qc$valid_counts[, vc_cols, drop = FALSE]
-            n_valid <- rowSums(vc)
+
+      # ── Step 1: raw weighted sum ─────────────────────────────────────────
+      scores <- as.numeric(dosage %*% wvec)
+
+      # ── Step 2: normalize by maximum possible score per individual ────────
+      if (normalize) {
+        vc_cols <- intersect(names(wvec), colnames(qc$valid_counts))
+
+        if (length(vc_cols) > 0) {
+          vc <- qc$valid_counts[, vc_cols, drop = FALSE]   # logical matrix
+
+          if (is_unweighted) {
+            # Max unweighted = 2 alleles × number of observed SNPs
+            max_score <- 2 * rowSums(vc)
           } else {
-            n_valid <- rep(length(wvec), nrow(dosage))
+            # Max weighted = 2 × sum of weights for observed SNPs per individual
+            # vc is logical so vc %*% wvec[vc_cols] gives per-individual weight sum
+            w_sub     <- wvec[vc_cols]
+            max_score <- 2 * as.numeric(vc %*% w_sub)
           }
+        } else {
+          # valid_counts unavailable — fall back to global maximum
+          max_score <- if (is_unweighted) 2 * length(wvec)
+                       else               2 * sum(wvec, na.rm = TRUE)
+          max_score <- rep(max_score, nrow(dosage))
         }
-        n_valid[n_valid == 0] <- NA_real_
-        scores <- scores_raw / n_valid
-      } else {
-        scores <- scores_raw
+
+        max_score[max_score == 0] <- NA_real_
+        scores <- scores / max_score
       }
+
+      # ── Step 3: standardize to SD = 1 ────────────────────────────────────
       if (standardize) {
         s <- sd(scores, na.rm = TRUE)
         if (!is.na(s) && s > 0) scores <- scores / s
       }
+
       scores
     },
 
@@ -853,7 +889,7 @@ snpPGSClass <- R6::R6Class(
       }
     },
 
-    .fillPercentileTable = function(scores) {
+    .fillPercentileTable = function(all_scores) {
       breaks_str <- trimws(self$options$percentileBreaks)
       breaks_num <- suppressWarnings(as.numeric(strsplit(breaks_str, ",")[[1]]))
       breaks_num <- breaks_num[!is.na(breaks_num) & breaks_num >= 0 & breaks_num <= 100]
@@ -861,11 +897,23 @@ snpPGSClass <- R6::R6Class(
 
       tbl <- self$results$percentileTable
       tbl$deleteRows()
+
+      # Add one score column per active mode
+      show_label <- length(all_scores) > 1
+      for (mode_label in names(all_scores)) {
+        col_name  <- paste0("score_", mode_label)
+        col_title <- if (show_label) paste0("PGS (", mode_label, ")") else "PGS Score"
+        tbl$addColumn(name = col_name, title = col_title,
+                      type = "number", format = "zto")
+      }
+
       for (b in breaks_num) {
-        tbl$addRow(rowKey = b, values = list(
-          threshold = paste0("P", b),
-          score     = quantile(scores, b / 100, na.rm = TRUE)
-        ))
+        vals <- list(threshold = paste0("P", b))
+        for (mode_label in names(all_scores)) {
+          col_name       <- paste0("score_", mode_label)
+          vals[[col_name]] <- quantile(all_scores[[mode_label]], b / 100, na.rm = TRUE)
+        }
+        tbl$addRow(rowKey = b, values = vals)
       }
     },
 
