@@ -65,6 +65,11 @@ children:
           - type: CheckBox
             name: showCoverage
             label: SNP coverage summary
+            children:
+              - type: CheckBox
+                name: filterValidSnps
+                label: Show valid SNPs only
+                enable: (showCoverage)
           - type: CheckBox
             name: showDistPlot
             label: Score distribution plot
@@ -81,6 +86,10 @@ children:
             name: showAssoc
             label: PGS-response association test
             enable: (responseCol)
+          - type: CheckBox
+            name: showInteraction
+            label: PGS × covariate interaction
+            enable: (responseCol && covCols)
       - type: LayoutBox
         margin: large
         children:

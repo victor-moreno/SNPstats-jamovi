@@ -223,6 +223,49 @@ items:
         covNote: ''
         respNote: ''
 
+  # ── PGS × covariate interaction ────────────────────────────────────────────
+  - name: interactionTable
+    title: PGS × Covariate Interaction
+    type: Table
+    visible: (showInteraction)
+    clearWith:
+        - snpCols
+        - weightsPath
+        - weightingMode
+        - missingStrategy
+        - normalize
+        - standardize
+        - responseCol
+        - covCols
+    columns:
+        - name: score_type
+          title: Score type
+          type: text
+        - name: model
+          title: Model
+          type: text
+        - name: term
+          title: Term
+          type: text
+        - name: estimate
+          title: Estimate
+          type: number
+          format: zto
+        - name: ci_low
+          title: 95% CI low
+          type: number
+          format: zto
+        - name: ci_high
+          title: 95% CI high
+          type: number
+          format: zto
+        - name: p
+          title: p-value
+          type: number
+          format: zto,pvalue
+    notes:
+        intNote: ''
+
   # ── Distribution plot ───────────────────────────────────────────────────────
   - name: distPlot
     title: Score Distribution

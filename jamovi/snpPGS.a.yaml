@@ -180,6 +180,28 @@ options:
               Show the PGS-response association table (requires a response
               variable to be selected).
 
+    - name: filterValidSnps
+      title: Show valid SNPs only
+      type: Bool
+      default: false
+      description:
+          R: >
+              If TRUE, the SNP Weights table is filtered to show only SNPs
+              that passed QC and were used in scoring. SNPs excluded due to
+              allele mismatch, missing data, or being monomorphic are hidden.
+
+    - name: showInteraction
+      title: Show PGS × covariate interaction
+      type: Bool
+      default: false
+      description:
+          R: >
+              If TRUE, fits an interaction model between the PGS and the first
+              selected covariate (pgs × cov1) and reports the interaction term
+              in a dedicated table. Requires both a response variable and at
+              least one covariate. For binary responses a logistic model is
+              used; for continuous responses a linear model is used.
+
     - name: saveScores
       title: Save scores to data
       type: Output

@@ -6,21 +6,14 @@ Revise
         excluded SNPs:
                 N % missing ''
 
-clean:
-- Revise association table
-
 Enhancements
-  Add allele frequency to table
+  Add observed allele frequency to table
   Percentile ranks
     - OR / differences for extremes vs a selected reference
 
-  Add interaction of PGS by first covar
-
   SNP formats & agreement with other modules
 
-  option:  filter snpGrid table to valid SNPs
-
-Organize code cleanly
+Organize code & clean
 
 
 ---

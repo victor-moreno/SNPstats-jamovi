@@ -68,7 +68,7 @@ snpPGSClass <- R6::R6Class(
       # for the 'exclude' strategy, so it always matches qc$mat row count on
       # return. No additional filtering is needed here.
 
-      private$.fillSnpGridTable(wtable)
+      private$.fillSnpGridTable(wtable, valid_snps)
 
       # ── Weights aligned to dosage columns ───────────────────────────────
       matched_rows  <- wtable[wtable$rsid %in% colnames(dosage), , drop = FALSE]
@@ -118,6 +118,7 @@ snpPGSClass <- R6::R6Class(
       # ── Clear tables before multi-mode fill ─────────────────────────────
       self$results$summaryTable$deleteRows()
       self$results$assocTable$deleteRows()
+      self$results$interactionTable$deleteRows()
 
       first_scores <- NULL
       all_scores   <- list()   # named by mode_label, for saveScores output
@@ -164,6 +165,10 @@ snpPGSClass <- R6::R6Class(
 
         if (self$options$showAssoc && !is.null(resp))
           private$.fillAssocTable(scores, resp, respCol, covs, mode_label)
+
+        if (self$options$showInteraction && !is.null(resp) &&
+            !is.null(covs) && ncol(covs) > 0)
+          private$.fillInteractionTable(scores, resp, respCol, covs, mode_label)
       }
 
       if (is.null(first_scores)) {
@@ -563,11 +568,9 @@ snpPGSClass <- R6::R6Class(
       exclude <- character(0)
       snps_excluded <- setNames(rep(FALSE, length(useCols)), useCols)
 
-#      qc_warn <- list()
-
       for (snp in useCols) {
 
-        allele_ok <- NA  # TRUE / FALSE / NA
+        allele_ok <- NA
 
         col_raw <- self$data[[snp]]
         idx     <- which(wtable$rsid == snp)[1]
@@ -581,7 +584,6 @@ snpPGSClass <- R6::R6Class(
           exclude <- c(exclude, snp)
           snps_excluded[snp] <- TRUE
           wtable$allele_status[idx] <- "all missing  \u274c"
-          # qc_warn[[snp]] <- c(qc_warn[[snp]], "All values missing")
           next
         }
 
@@ -600,7 +602,6 @@ snpPGSClass <- R6::R6Class(
 
           if (any(invalid)) {
             col_num[invalid] <- NA_real_
-            # qc_warn[[snp]] <- c(qc_warn[[snp]], "invalid dosage (<0 or >2) set to NA")
           }
 
           mat[, snp] <- col_num
@@ -615,8 +616,6 @@ snpPGSClass <- R6::R6Class(
             snps_excluded[snp] <- TRUE
             wtable$allele_status[idx] <-
               paste0("constant numeric dosage \u274c: ", obs_str)
-            # qc_warn[[snp]] <- c(qc_warn[[snp]],
-            #                     "constant numeric dosage (cannot distinguish allele mismatch)")
           }
 
           next
@@ -635,7 +634,6 @@ snpPGSClass <- R6::R6Class(
           exclude <- c(exclude, snp)
           snps_excluded[snp] <- TRUE
           wtable$allele_status[idx] <- "no valid alleles observed \u274c "
-#          qc_warn[[snp]] <- c(qc_warn[[snp]], "No valid genotype alleles")
           next
         }
 
@@ -647,8 +645,6 @@ snpPGSClass <- R6::R6Class(
           snps_excluded[snp] <- TRUE
           wtable$allele_status[idx] <-
             paste0("multiallelic \u274c : ", obs_str)
-          # qc_warn[[snp]] <- c(qc_warn[[snp]],
-          #                     paste0("multiallelic: ", obs_str))
           next
         }
 
@@ -678,8 +674,6 @@ snpPGSClass <- R6::R6Class(
           wtable$allele_status[idx] <-
             paste0("allele mismatch \u274c obs: ", obs_str,
                   "; exp: ", ea_cat, "/", oa_cat)
-          # qc_warn[[snp]] <- c(qc_warn[[snp]],
-          #   paste0("mismatch: obs=", obs_str, " exp=", ea_cat, "/", oa_cat))
           next
         }
 
@@ -697,7 +691,6 @@ snpPGSClass <- R6::R6Class(
 
         if (private$.isAmbiguous(ea_cat, oa_cat)) {
           status <- paste0(status, "; ambiguous AT/CG \u2757")
-#          qc_warn[[snp]] <- c(qc_warn[[snp]], "ambiguous AT/CG SNP")
         }
 
         # ── Dosage computation ───────────────────────────────────────────────
@@ -720,7 +713,6 @@ snpPGSClass <- R6::R6Class(
             snps_excluded[snp] <- TRUE
             wtable$allele_status[idx] <-
               paste0("monomorphic \u274c : ", obs_str)
-#            qc_warn[[snp]] <- c(qc_warn[[snp]], "monomorphic SNP excluded")
           } else {
             wtable$allele_status[idx] <- base_status
           }
@@ -776,17 +768,6 @@ snpPGSClass <- R6::R6Class(
 
       mat <- mat[, keep_snps, drop = FALSE]
 
-      # if (length(qc_warn) > 0) {
-      #   msgs <- sapply(names(qc_warn), function(s) {
-      #     paste0("<b>", s, "</b>: ",
-      #           paste(unique(qc_warn[[s]]), collapse = "; "))
-      #   })
-      #   self$results$validationMsg$setContent(
-      #     paste0("<div style='color:#e67e22;'><b>SNP QC warnings:</b><br>",
-      #           paste(msgs, collapse = "<br>"), "</div>"))
-      #   self$results$validationMsg$setVisible(TRUE)
-      # }
-
       list(mat = mat, wtable = wtable, valid_counts = valid_counts, valid_snps = keep_snps)
     },
 
@@ -794,10 +775,14 @@ snpPGSClass <- R6::R6Class(
     # Output helpers
     # ════════════════════════════════════════════════════════════════════════
 
-    .fillSnpGridTable = function(wtable) {
+    .fillSnpGridTable = function(wtable, valid_snps = character(0)) {
       tbl    <- self$results$snpGridTable
       tbl$deleteRows()
       inData <- names(self$data)
+
+      if (isTRUE(self$options$filterValidSnps)) {
+        wtable <- wtable[wtable$rsid %in% valid_snps, , drop = FALSE]
+      }
 
       # Hide columns that are entirely empty (field not present in file)
       has_chr   <- any(nchar(wtable$chr)           > 0, na.rm = TRUE)
@@ -1070,10 +1055,10 @@ snpPGSClass <- R6::R6Class(
         if (!is.null(fit)) {
           cf <- coef(summary(fit))
           ci <- tryCatch(confint.default(fit)["pgs", ],
-                         error = function(e) c(NA_real_, NA_real_))
+                         error = function(e) c('', ''))
           if ("pgs" %in% rownames(cf))
             add_row("Logistic regression", "OR",
-                    exp(cf["pgs", 1]), NA_real_,
+                    exp(cf["pgs", 1]), '',
                     exp(ci[1]), exp(ci[2]),
                     cf["pgs", 3], "", cf["pgs", 4])
         }
@@ -1081,7 +1066,7 @@ snpPGSClass <- R6::R6Class(
         tt <- tryCatch(t.test(g2, g1), error = function(e) NULL)
         if (!is.null(tt))
           add_row("Welch t-test", "t",
-                  diff(tt$estimate), NA_real_,
+                  diff(tt$estimate), '',
                   tt$conf.int[1], tt$conf.int[2],
                   tt$statistic, round(tt$parameter, 1), tt$p.value)
 
@@ -1089,7 +1074,7 @@ snpPGSClass <- R6::R6Class(
                        error = function(e) NULL)
         if (!is.null(mw))
           add_row("Mann-Whitney U", "W",
-                  mw$estimate, NA_real_,
+                  mw$estimate, '',
                   mw$conf.int[1], mw$conf.int[2],
                   mw$statistic, "", mw$p.value)
 
@@ -1141,7 +1126,7 @@ snpPGSClass <- R6::R6Class(
             df_lr <- length(lvls) - 1
             p_lr  <- pchisq(as.numeric(lr), df = df_lr, lower.tail = FALSE)
             add_row("Polytomous logistic (overall)", "\u03c7\u00b2",
-                    NA_real_, NA_real_, NA_real_, NA_real_,
+                    '', '', '', '',
                     as.numeric(lr), df_lr, p_lr)
           }
         }
@@ -1155,7 +1140,7 @@ snpPGSClass <- R6::R6Class(
           df2 <- sm["Residuals", "Df"]
           p_f <- sm["resp", "Pr(>F)"]
           add_row("ANOVA", "F",
-                  NA_real_, NA_real_, NA_real_, NA_real_,
+                  '', '', '', '',
                   f, paste0(df1, ", ", df2), p_f)
         }
 
@@ -1163,7 +1148,7 @@ snpPGSClass <- R6::R6Class(
         kw <- tryCatch(kruskal.test(pgs ~ resp, data = df), error = function(e) NULL)
         if (!is.null(kw))
           add_row("Kruskal-Wallis", "\u03c7\u00b2",
-                  NA_real_, NA_real_, NA_real_, NA_real_,
+                  '', '', '', '',
                   kw$statistic, round(kw$parameter, 0), kw$p.value)
 
       # ── Continuous response ───────────────────────────────────────────────
@@ -1178,7 +1163,7 @@ snpPGSClass <- R6::R6Class(
         if (!is.null(fit)) {
           cf <- coef(summary(fit))
           ci <- tryCatch(confint(fit)["pgs", ],
-                         error = function(e) c(NA_real_, NA_real_))
+                         error = function(e) c('', ''))
           if ("pgs" %in% rownames(cf))
             add_row("Linear regression", "\u03b2",
                     cf["pgs", 1], cf["pgs", 2],
@@ -1190,7 +1175,7 @@ snpPGSClass <- R6::R6Class(
                        error = function(e) NULL)
         if (!is.null(pc))
           add_row("Pearson correlation", "r",
-                  pc$estimate, NA_real_,
+                  pc$estimate, '',
                   pc$conf.int[1], pc$conf.int[2],
                   pc$statistic, round(pc$parameter, 0), pc$p.value)
 
@@ -1203,8 +1188,191 @@ snpPGSClass <- R6::R6Class(
           se <- 1 / sqrt(n - 3)
           ci <- tanh(c(z - 1.96 * se, z + 1.96 * se))
           add_row("Spearman correlation", "\u03c1",
-                  r, NA_real_, ci[1], ci[2],
+                  r, '', ci[1], ci[2],
                   sp$statistic, "", sp$p.value)
+        }
+      }
+    },
+
+    .fillInteractionTable = function(scores, resp, respCol, covs, score_type = "") {
+      tbl     <- self$results$interactionTable
+      cov1_nm <- names(covs)[1]
+      cov1    <- covs[[1]]
+
+      # Build analysis data frame
+      other_covs <- if (ncol(covs) > 1) covs[, -1, drop = FALSE] else NULL
+      has_other  <- !is.null(other_covs) && ncol(other_covs) > 0
+
+      df_cols <- list(pgs = scores, resp = resp, cov1 = cov1)
+      other_col_names <- character(0)
+      if (has_other) {
+        for (j in seq_len(ncol(other_covs))) {
+          cn <- paste0("ocov", j)
+          df_cols[[cn]] <- other_covs[[j]]
+          other_col_names <- c(other_col_names, cn)
+        }
+      }
+      df <- as.data.frame(df_cols, check.names = FALSE)
+      df <- df[complete.cases(df), ]
+      if (nrow(df) < 5) return()
+
+      lvls      <- levels(factor(df$resp))
+      n_lvls    <- length(lvls)
+      resp_type <- if (!is.factor(df$resp) && n_lvls > 5) "continuous"
+                   else if (n_lvls == 2)                   "binary"
+                   else                                    "polytomous"
+
+      # Rename estimate column to OR or β depending on response type
+      est_title <- switch(resp_type,
+        binary     = "OR",
+        continuous = "β",
+        "Estimate"
+      )
+      self$results$interactionTable$getColumn("estimate")$setTitle(est_title)
+
+      # Set table note describing the interaction being tested
+      if (has_other)
+        self$results$interactionTable$setNote("intNote",
+                paste0("Adjusted for: ",
+                paste(names(other_covs), collapse = ", ")))
+      else
+        self$results$interactionTable$setNote("intNote", NULL)
+
+      other_terms <- if (length(other_col_names) > 0)
+        paste(" +", paste(other_col_names, collapse = " + "))
+      else ""
+
+      # Formulas use safe internal names; cov1 is always the column name
+      frm_int_str  <- paste0("resp ~ pgs * cov1", other_terms)
+      frm_main_str <- paste0("resp ~ pgs + cov1", other_terms)
+
+      add_row <- function(model_lbl, term_lbl, estimate, ci_low, ci_high, p) {
+        row_key <- paste0(score_type, "_", model_lbl, "_", term_lbl)
+        tbl$addRow(rowKey = row_key, values = list(
+          score_type = score_type,
+          model      = model_lbl,
+          term       = term_lbl,
+          estimate   = estimate,
+          ci_low     = ci_low,
+          ci_high    = ci_high,
+          p          = p
+        ))
+      }
+
+      # ── Polytomous: not supported ─────────────────────────────────────────
+      if (resp_type == "polytomous") {
+        add_row("(not yet supported for polytomous response)", "",
+                '', '', '', '')
+        return()
+      }
+
+      # ── Binary: logistic regression ───────────────────────────────────────
+      if (resp_type == "binary") {
+        df$resp <- factor(df$resp)
+
+        frm_int  <- as.formula(frm_int_str)
+        frm_main <- as.formula(frm_main_str)
+
+        fit_int  <- tryCatch(glm(frm_int,  data = df, family = binomial()),
+                             error = function(e) NULL)
+        fit_main <- tryCatch(glm(frm_main, data = df, family = binomial()),
+                             error = function(e) NULL)
+        if (is.null(fit_int)) return()
+
+        cf  <- coef(summary(fit_int))
+        cis <- tryCatch(confint.default(fit_int), error = function(e) NULL)
+
+        report_term <- function(coef_nm, display_nm) {
+          if (!coef_nm %in% rownames(cf)) return()
+          b  <- cf[coef_nm, 1]
+          p  <- cf[coef_nm, 4]
+          ci <- if (!is.null(cis) && coef_nm %in% rownames(cis))
+                  cis[coef_nm, ] else c(NA_real_, NA_real_)
+          add_row("Logistic (int)", display_nm,
+                  exp(b), exp(ci[1]), exp(ci[2]), p)
+        }
+
+        report_term("pgs", "PGS (main)")
+        # For factor cov1, R appends the level label: "cov1Male", "cov11", etc.
+        # Report one row per non-reference level.
+        cov1_main_nms <- rownames(cf)[startsWith(rownames(cf), "cov1") &
+                                      !startsWith(rownames(cf), "pgs:")]
+        for (cnm in cov1_main_nms) {
+          lbl <- if (cnm == "cov1") paste0(cov1_nm, " (main)")
+                 else paste0(cov1_nm, " (", sub("^cov1", "", cnm), ")")
+          report_term(cnm, lbl)
+        }
+        cov1_int_nms <- rownames(cf)[startsWith(rownames(cf), "pgs:cov1")]
+        for (cnm in cov1_int_nms) {
+          lbl <- if (cnm == "pgs:cov1") paste0("PGS × ", cov1_nm, " (int)")
+                 else paste0("PGS × ", cov1_nm,
+                             " (", sub("^pgs:cov1", "", cnm), ")")
+          report_term(cnm, lbl)
+        }
+
+        # LRT: interaction model vs main-effects model
+        if (!is.null(fit_main)) {
+          lrt <- tryCatch(anova(fit_main, fit_int, test = "LRT"), error = function(e) NULL)
+          if (!is.null(lrt) && nrow(lrt) >= 2) {
+            chi2 <- lrt[2, "Deviance"]
+            df_l <- lrt[2, "Df"]
+            p_l  <- lrt[2, "Pr(>Chi)"]
+            add_row("Logistic (int)", "LRT (interaction)",
+                    '', '', '', p_l)
+          }
+        }
+
+      # ── Continuous: linear regression ─────────────────────────────────────
+      } else {
+        df$resp <- as.numeric(df$resp)
+
+        frm_int  <- as.formula(frm_int_str)
+        frm_main <- as.formula(frm_main_str)
+
+        fit_int  <- tryCatch(lm(frm_int,  data = df), error = function(e) NULL)
+        fit_main <- tryCatch(lm(frm_main, data = df), error = function(e) NULL)
+        if (is.null(fit_int)) return()
+
+        cf  <- coef(summary(fit_int))
+        cis <- tryCatch(confint(fit_int), error = function(e) NULL)
+
+        report_term <- function(coef_nm, display_nm) {
+          if (!coef_nm %in% rownames(cf)) return()
+          b  <- cf[coef_nm, 1]
+          p  <- cf[coef_nm, 4]
+          ci <- if (!is.null(cis) && coef_nm %in% rownames(cis))
+                  cis[coef_nm, ] else c('', '')
+          add_row("Linear (int)", display_nm,
+                  b, ci[1], ci[2], p)
+        }
+
+        report_term("pgs", "PGS (main)")
+        cov1_main_nms <- rownames(cf)[startsWith(rownames(cf), "cov1") &
+                                      !startsWith(rownames(cf), "pgs:")]
+        for (cnm in cov1_main_nms) {
+          lbl <- if (cnm == "cov1") paste0(cov1_nm, " (main)")
+                 else paste0(cov1_nm, " (", sub("^cov1", "", cnm), ")")
+          report_term(cnm, lbl)
+        }
+        cov1_int_nms <- rownames(cf)[startsWith(rownames(cf), "pgs:cov1")]
+        for (cnm in cov1_int_nms) {
+          lbl <- if (cnm == "pgs:cov1") paste0("PGS × ", cov1_nm, " (int)")
+                 else paste0("PGS × ", cov1_nm,
+                             " (", sub("^pgs:cov1", "", cnm), ")")
+          report_term(cnm, lbl)
+        }
+
+        # F-test: interaction model vs main-effects model
+        if (!is.null(fit_main)) {
+          ftest <- tryCatch(anova(fit_main, fit_int), error = function(e) NULL)
+          if (!is.null(ftest) && nrow(ftest) >= 2) {
+            f_val <- ftest[2, "F"]
+            df1   <- ftest[2, "Df"]
+            df2   <- ftest[2, "Res.Df"]
+            p_f   <- ftest[2, "Pr(>F)"]
+            add_row("Linear (int)", "F-test (interaction)",
+                    '', '', '', p_f)
+          }
         }
       }
     },

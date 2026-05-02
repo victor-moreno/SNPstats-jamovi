@@ -18,7 +18,9 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             showDistPlot = FALSE,
             showPercentiles = FALSE,
             percentileBreaks = "20,40,60,80,90,95",
-            showAssoc = FALSE, ...) {
+            showAssoc = FALSE,
+            filterValidSnps = FALSE,
+            showInteraction = FALSE, ...) {
 
             super$initialize(
                 package="SNPstats",
@@ -102,6 +104,14 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "showAssoc",
                 showAssoc,
                 default=FALSE)
+            private$..filterValidSnps <- jmvcore::OptionBool$new(
+                "filterValidSnps",
+                filterValidSnps,
+                default=FALSE)
+            private$..showInteraction <- jmvcore::OptionBool$new(
+                "showInteraction",
+                showInteraction,
+                default=FALSE)
             private$..saveScores <- jmvcore::OptionOutput$new(
                 "saveScores")
 
@@ -118,6 +128,8 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..showPercentiles)
             self$.addOption(private$..percentileBreaks)
             self$.addOption(private$..showAssoc)
+            self$.addOption(private$..filterValidSnps)
+            self$.addOption(private$..showInteraction)
             self$.addOption(private$..saveScores)
         }),
     active = list(
@@ -134,6 +146,8 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         showPercentiles = function() private$..showPercentiles$value,
         percentileBreaks = function() private$..percentileBreaks$value,
         showAssoc = function() private$..showAssoc$value,
+        filterValidSnps = function() private$..filterValidSnps$value,
+        showInteraction = function() private$..showInteraction$value,
         saveScores = function() private$..saveScores$value),
     private = list(
         ..snpCols = NA,
@@ -149,6 +163,8 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..showPercentiles = NA,
         ..percentileBreaks = NA,
         ..showAssoc = NA,
+        ..filterValidSnps = NA,
+        ..showInteraction = NA,
         ..saveScores = NA)
 )
 
@@ -163,6 +179,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         saveScores = function() private$.items[["saveScores"]],
         percentileTable = function() private$.items[["percentileTable"]],
         assocTable = function() private$.items[["assocTable"]],
+        interactionTable = function() private$.items[["interactionTable"]],
         distPlot = function() private$.items[["distPlot"]],
         stratPlot = function() private$.items[["stratPlot"]]),
     private = list(),
@@ -418,6 +435,55 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 notes=list(
                     `covNote`="", 
                     `respNote`="")))
+            self$add(jmvcore::Table$new(
+                options=options,
+                name="interactionTable",
+                title="PGS \u00D7 Covariate Interaction",
+                visible="(showInteraction)",
+                clearWith=list(
+                    "snpCols",
+                    "weightsPath",
+                    "weightingMode",
+                    "missingStrategy",
+                    "normalize",
+                    "standardize",
+                    "responseCol",
+                    "covCols"),
+                columns=list(
+                    list(
+                        `name`="score_type", 
+                        `title`="Score type", 
+                        `type`="text"),
+                    list(
+                        `name`="model", 
+                        `title`="Model", 
+                        `type`="text"),
+                    list(
+                        `name`="term", 
+                        `title`="Term", 
+                        `type`="text"),
+                    list(
+                        `name`="estimate", 
+                        `title`="Estimate", 
+                        `type`="number", 
+                        `format`="zto"),
+                    list(
+                        `name`="ci_low", 
+                        `title`="95% CI low", 
+                        `type`="number", 
+                        `format`="zto"),
+                    list(
+                        `name`="ci_high", 
+                        `title`="95% CI high", 
+                        `type`="number", 
+                        `format`="zto"),
+                    list(
+                        `name`="p", 
+                        `title`="p-value", 
+                        `type`="number", 
+                        `format`="zto,pvalue")),
+                notes=list(
+                    `intNote`="")))
             self$add(jmvcore::Image$new(
                 options=options,
                 name="distPlot",
@@ -499,6 +565,14 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'   the threshold table.
 #' @param showAssoc Show the PGS-response association table (requires a
 #'   response variable to be selected).
+#' @param filterValidSnps If TRUE, the SNP Weights table is filtered to show
+#'   only SNPs that passed QC and were used in scoring. SNPs excluded due to
+#'   allele mismatch, missing data, or being monomorphic are hidden.
+#' @param showInteraction If TRUE, fits an interaction model between the PGS
+#'   and the first selected covariate (pgs × cov1) and reports the interaction
+#'   term in a dedicated table. Requires both a response variable and at least
+#'   one covariate. For binary responses a logistic model is used; for
+#'   continuous responses a linear model is used.
 #' @return A results object containing:
 #' \tabular{llllll}{
 #'   \code{results$validationMsg} \tab \tab \tab \tab \tab a html \cr
@@ -508,6 +582,7 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'   \code{results$saveScores} \tab \tab \tab \tab \tab an output \cr
 #'   \code{results$percentileTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$assocTable} \tab \tab \tab \tab \tab a table \cr
+#'   \code{results$interactionTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$distPlot} \tab \tab \tab \tab \tab an image \cr
 #'   \code{results$stratPlot} \tab \tab \tab \tab \tab an image \cr
 #' }
@@ -533,7 +608,9 @@ snpPGS <- function(
     showDistPlot = FALSE,
     showPercentiles = FALSE,
     percentileBreaks = "20,40,60,80,90,95",
-    showAssoc = FALSE) {
+    showAssoc = FALSE,
+    filterValidSnps = FALSE,
+    showInteraction = FALSE) {
 
     if ( ! requireNamespace("jmvcore", quietly=TRUE))
         stop("snpPGS requires jmvcore to be installed (restart may be required)")
@@ -562,7 +639,9 @@ snpPGS <- function(
         showDistPlot = showDistPlot,
         showPercentiles = showPercentiles,
         percentileBreaks = percentileBreaks,
-        showAssoc = showAssoc)
+        showAssoc = showAssoc,
+        filterValidSnps = filterValidSnps,
+        showInteraction = showInteraction)
 
     analysis <- snpPGSClass$new(
         options = options,
