@@ -7,8 +7,6 @@ Revise
         excluded SNPs:
                 N % missing ''
 
-
-
 clean:
 - Revise association table
 
@@ -20,6 +18,8 @@ Enhancements
   Add interaction of PGS by first covar
 
   SNP formats & agreement with other modules
+
+  option:  filter snpGrid table to valid SNPs
 
 Organize code cleanly
 

@@ -62,6 +62,7 @@ snpPGSClass <- R6::R6Class(
       if (is.null(qc)) return()
       dosage <- qc$mat
       wtable <- qc$wtable
+      valid_snps <- qc$valid_snps
 
       private$.fillSnpGridTable(wtable)
 
@@ -108,7 +109,7 @@ snpPGSClass <- R6::R6Class(
         }
       }
 
-      private$.fillCoverageTable(snpCols, wtable, missing_st)
+      private$.fillCoverageTable(snpCols, wtable, missing_st, valid_snps)
 
       # ── Clear tables before multi-mode fill ─────────────────────────────
       self$results$summaryTable$deleteRows()
@@ -358,20 +359,64 @@ snpPGSClass <- R6::R6Class(
       )
 
       # Scope to selected SNPs; unmatched SNPs get placeholder rows
-      result       <- catalog[catalog$rsid %in% snpCols, , drop = FALSE]
-      missing_snps <- setdiff(snpCols, result$rsid)
-      if (length(missing_snps) > 0) {
+      # result       <- catalog[catalog$rsid %in% snpCols, , drop = FALSE]
+      # missing_snps <- setdiff(snpCols, result$rsid)
+      # if (length(missing_snps) > 0) {
+      #   extra_rows <- data.frame(
+      #     rsid = missing_snps, effect_allele = "", other_allele = "",
+      #     effect_weight = NA_real_, chr = "", pos = "",
+      #     matched = FALSE, allele_status = "not in weights file \u274c",
+      #     strand_flipped = FALSE, extra_cols = "",
+      #     n_missing = NA_integer_, pct_missing = NA_real_,
+      #     stringsAsFactors = FALSE
+      #   )
+      #   result <- rbind(result, extra_rows)
+      # }
+
+      # Keep ALL catalog SNPs, plus add placeholder for any selected SNPs not in catalog
+      result <- catalog
+
+      # Mark which SNPs are selected (present in snpCols)
+      result$selected_flag <- result$rsid %in% snpCols
+
+      # Add placeholder rows for selected SNPs not in catalog
+      missing_from_catalog <- setdiff(snpCols, catalog$rsid)
+      if (length(missing_from_catalog) > 0) {
         extra_rows <- data.frame(
-          rsid = missing_snps, effect_allele = "", other_allele = "",
-          effect_weight = NA_real_, chr = "", pos = "",
-          matched = FALSE, allele_status = "not in weights file \u274c",
-          strand_flipped = FALSE, extra_cols = "",
-          n_missing = NA_integer_, pct_missing = NA_real_,
+          rsid = missing_from_catalog, 
+          effect_allele = "", 
+          other_allele = "",
+          effect_weight = NA_real_, 
+          chr = "", 
+          pos = "",
+          matched = FALSE, 
+          allele_status = "not in weights file \u274c",
+          strand_flipped = FALSE, 
+          extra_cols = "",
+          n_missing = NA_integer_, 
+          pct_missing = NA_real_,
+          selected_flag = TRUE,  # These are selected but not in catalog
           stringsAsFactors = FALSE
         )
         result <- rbind(result, extra_rows)
       }
 
+      # Now also mark catalog SNPs that are NOT selected (but we still show them)
+      result$selected_flag[!result$rsid %in% snpCols] <- FALSE
+
+      # Sort: selected first, then unselected
+      result <- result[order(-result$selected_flag, result$rsid), ]
+
+      # Add a visual indicator in allele_status for unselected SNPs
+      result$allele_status <- ifelse(
+        !result$selected_flag & result$matched,
+        paste0(result$allele_status, " (in catalog but not selected)"),
+        result$allele_status
+      )
+
+      # Remove the temporary flag column before returning
+      result$selected_flag <- NULL
+      
       attr(result, "pgs_meta") <- meta
       result
     },
@@ -499,7 +544,9 @@ snpPGSClass <- R6::R6Class(
                     dimnames = list(NULL, useCols))
 
       exclude <- character(0)
-      qc_warn <- list()
+      snps_excluded <- setNames(rep(FALSE, length(useCols)), useCols)
+
+#      qc_warn <- list()
 
       for (snp in useCols) {
 
@@ -515,8 +562,9 @@ snpPGSClass <- R6::R6Class(
         # ── All missing ─────────────────────────────────────────────────────
         if (all(is.na(col_raw))) {
           exclude <- c(exclude, snp)
-          wtable$allele_status[idx] <- "all missing (excluded)"
-          qc_warn[[snp]] <- c(qc_warn[[snp]], "All values missing")
+          snps_excluded[snp] <- TRUE
+          wtable$allele_status[idx] <- "all missing  \u274c"
+          # qc_warn[[snp]] <- c(qc_warn[[snp]], "All values missing")
           next
         }
 
@@ -535,7 +583,7 @@ snpPGSClass <- R6::R6Class(
 
           if (any(invalid)) {
             col_num[invalid] <- NA_real_
-            qc_warn[[snp]] <- c(qc_warn[[snp]], "invalid dosage (<0 or >2) set to NA")
+            # qc_warn[[snp]] <- c(qc_warn[[snp]], "invalid dosage (<0 or >2) set to NA")
           }
 
           mat[, snp] <- col_num
@@ -543,14 +591,15 @@ snpPGSClass <- R6::R6Class(
           obs_vals <- sort(unique(col_num[!is.na(col_num)]))
           obs_str  <- paste0("dosage(", paste(obs_vals, collapse = ","), ")")
 
-          wtable$allele_status[idx] <- paste0("numeric dosage (no allele QC); obs: ", obs_str)
+          wtable$allele_status[idx] <- paste0("numeric dosage (no allele QC): ", obs_str)
 
           if (length(obs_vals) <= 1) {
             exclude <- c(exclude, snp)
+            snps_excluded[snp] <- TRUE
             wtable$allele_status[idx] <-
-              paste0("constant numeric dosage (excluded); obs: ", obs_str)
-            qc_warn[[snp]] <- c(qc_warn[[snp]],
-                                "constant numeric dosage (cannot distinguish allele mismatch)")
+              paste0("constant numeric dosage \u274c: ", obs_str)
+            # qc_warn[[snp]] <- c(qc_warn[[snp]],
+            #                     "constant numeric dosage (cannot distinguish allele mismatch)")
           }
 
           next
@@ -567,8 +616,9 @@ snpPGSClass <- R6::R6Class(
 
         if (length(alleles) == 0) {
           exclude <- c(exclude, snp)
-          wtable$allele_status[idx] <- "no valid alleles observed (excluded)"
-          qc_warn[[snp]] <- c(qc_warn[[snp]], "No valid genotype alleles")
+          snps_excluded[snp] <- TRUE
+          wtable$allele_status[idx] <- "no valid alleles observed \u274c "
+#          qc_warn[[snp]] <- c(qc_warn[[snp]], "No valid genotype alleles")
           next
         }
 
@@ -577,18 +627,20 @@ snpPGSClass <- R6::R6Class(
         # ── Multiallelic ─────────────────────────────────────────────────────
         if (length(alleles) > 2) {
           exclude <- c(exclude, snp)
+          snps_excluded[snp] <- TRUE
           wtable$allele_status[idx] <-
-            paste0("multiallelic (excluded); obs: ", obs_str)
-          qc_warn[[snp]] <- c(qc_warn[[snp]],
-                              paste0("multiallelic: ", obs_str))
+            paste0("multiallelic \u274c : ", obs_str)
+          # qc_warn[[snp]] <- c(qc_warn[[snp]],
+          #                     paste0("multiallelic: ", obs_str))
           next
         }
 
         # ── No allele info ───────────────────────────────────────────────────
         if (!has_allele_info) {
           exclude <- c(exclude, snp)
+          snps_excluded[snp] <- TRUE
           wtable$allele_status[idx] <-
-            paste0("no allele info (excluded); obs: ", obs_str)
+            paste0("no allele info \u274c : ", obs_str)
           next
         }
 
@@ -605,11 +657,12 @@ snpPGSClass <- R6::R6Class(
         if (!matches_direct && !matches_complement) {
           allele_ok <- FALSE
           exclude <- c(exclude, snp)
+          snps_excluded[snp] <- TRUE
           wtable$allele_status[idx] <-
-            paste0("allele mismatch (excluded); obs: ", obs_str,
+            paste0("allele mismatch \u274c obs: ", obs_str,
                   "; exp: ", ea_cat, "/", oa_cat)
-          qc_warn[[snp]] <- c(qc_warn[[snp]],
-            paste0("mismatch: obs=", obs_str, " exp=", ea_cat, "/", oa_cat))
+          # qc_warn[[snp]] <- c(qc_warn[[snp]],
+          #   paste0("mismatch: obs=", obs_str, " exp=", ea_cat, "/", oa_cat))
           next
         }
 
@@ -618,16 +671,16 @@ snpPGSClass <- R6::R6Class(
         # ── Strand handling ──────────────────────────────────────────────────
         if (matches_direct) {
           ea_use <- ea_cat
-          status <- "ok"
+          status <- "\u2705 ok"
         } else {
           ea_use <- ea_comp
-          status <- "strand flip"
+          status <- "\u2705 strand flip \u2757"
           wtable$strand_flipped[idx] <- TRUE
         }
 
         if (private$.isAmbiguous(ea_cat, oa_cat)) {
-          status <- paste0(status, "; ambiguous AT/CG")
-          qc_warn[[snp]] <- c(qc_warn[[snp]], "ambiguous AT/CG SNP")
+          status <- paste0(status, "; ambiguous AT/CG \u2757")
+#          qc_warn[[snp]] <- c(qc_warn[[snp]], "ambiguous AT/CG SNP")
         }
 
         # ── Dosage computation ───────────────────────────────────────────────
@@ -641,15 +694,16 @@ snpPGSClass <- R6::R6Class(
 
         mat[, snp] <- dos
 
-        base_status <- paste0(status, "; obs: ", obs_str)
+        base_status <- paste0(status, ": ", obs_str)
 
         # ── Monomorphism ONLY if allele_ok == TRUE ───────────────────────────
         if (isTRUE(allele_ok)) {
           if (length(unique(dos[!is.na(dos)])) <= 1) {
             exclude <- c(exclude, snp)
+            snps_excluded[snp] <- TRUE
             wtable$allele_status[idx] <-
-              paste0("monomorphic (excluded); obs: ", obs_str)
-            qc_warn[[snp]] <- c(qc_warn[[snp]], "monomorphic SNP excluded")
+              paste0("monomorphic \u274c : ", obs_str)
+#            qc_warn[[snp]] <- c(qc_warn[[snp]], "monomorphic SNP excluded")
           } else {
             wtable$allele_status[idx] <- base_status
           }
@@ -686,6 +740,13 @@ snpPGSClass <- R6::R6Class(
           )
         }
       }
+      for (snp in exclude) {
+        idx <- which(wtable$rsid == snp)[1]
+        if (!is.na(idx)) {
+          wtable$n_missing[idx] <- NA_integer_
+          wtable$pct_missing[idx] <- NA_real_
+        }
+      }
 
       if (missing_st == "exclude") {
         keep_rows <- complete.cases(mat[, keep_snps, drop = FALSE])
@@ -698,18 +759,18 @@ snpPGSClass <- R6::R6Class(
 
       mat <- mat[, keep_snps, drop = FALSE]
 
-      if (length(qc_warn) > 0) {
-        msgs <- sapply(names(qc_warn), function(s) {
-          paste0("<b>", s, "</b>: ",
-                paste(unique(qc_warn[[s]]), collapse = "; "))
-        })
-        self$results$validationMsg$setContent(
-          paste0("<div style='color:#e67e22;'><b>SNP QC warnings:</b><br>",
-                paste(msgs, collapse = "<br>"), "</div>"))
-        self$results$validationMsg$setVisible(TRUE)
-      }
+      # if (length(qc_warn) > 0) {
+      #   msgs <- sapply(names(qc_warn), function(s) {
+      #     paste0("<b>", s, "</b>: ",
+      #           paste(unique(qc_warn[[s]]), collapse = "; "))
+      #   })
+      #   self$results$validationMsg$setContent(
+      #     paste0("<div style='color:#e67e22;'><b>SNP QC warnings:</b><br>",
+      #           paste(msgs, collapse = "<br>"), "</div>"))
+      #   self$results$validationMsg$setVisible(TRUE)
+      # }
 
-      list(mat = mat, wtable = wtable, valid_counts = valid_counts)
+      list(mat = mat, wtable = wtable, valid_counts = valid_counts, valid_snps = keep_snps)
     },
 
     # ════════════════════════════════════════════════════════════════════════
@@ -758,7 +819,7 @@ snpPGSClass <- R6::R6Class(
       }
     },
 
-    .fillCoverageTable = function(snpCols, wtable, missing_st) {
+    .fillCoverageTable = function(snpCols, wtable, missing_st, valid_snps) {
       inData    <- names(self$data)
       matched   <- intersect(wtable$rsid[wtable$matched], inData)
       n_weights <- sum(wtable$matched)
@@ -797,6 +858,7 @@ snpPGSClass <- R6::R6Class(
       add("Ambiguous SNPs (AT/CG)",     ambiguous)
       add("Strand flipped (corrected)", flipped)
       add("Allele mismatch (excluded)", mismatch)
+      add("SNPs used in score",         length(valid_snps))
       add("Missing genotype strategy",  missing_st)
     },
 
@@ -811,11 +873,9 @@ snpPGSClass <- R6::R6Class(
       skewness <- function(x) {
         x <- x[!is.na(x)]; n <- length(x)
         if (n < 3) return(NA_real_)
-        mu <- mean(x); s <- sd(x)
-        if (s == 0) return(NA_real_)
-        tryCatch(e1071::skewness(x),
-          error = function(e)
-            sum(((x - mu) / s)^3) * n / ((n - 1) * (n - 2)))
+        x <- x - mean(x)
+        y <- sqrt(n) * sum(x ^ 3) / (sum(x ^ 2) ^ (3/2))      
+        y * ((1 - 1 / n)) ^ (3/2)
       }
 
       add_row <- function(grp_label, sc) {
