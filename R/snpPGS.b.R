@@ -33,7 +33,25 @@ snpPGSClass <- R6::R6Class(
       standardize <- self$options$standardize
       wmode       <- self$options$weightingMode
 
-      if (is.null(snpCols) || length(snpCols) == 0) return()
+      # ── Nothing selected yet: show guidance, hide everything ────────────
+      if (is.null(snpCols) || length(snpCols) == 0) {
+        self$results$validationMsg$setContent(
+          "<div style='color:#555; padding:6px 0;'>
+             <b>Getting started:</b><br>
+             \u2022 Drag one or more SNP columns into <i>SNP columns</i>.<br>
+             \u2022 Optionally load a PGS Catalog weights file (.csv / .tsv) for weighted scoring.<br>
+             \u2022 Optionally select a response variable to test association.
+           </div>")
+        self$results$validationMsg$setVisible(TRUE)
+        self$results$snpGridTable$setVisible(FALSE)
+        self$results$coverageTable$setVisible(FALSE)
+        self$results$summaryTable$setVisible(FALSE)
+        self$results$percentileTable$setVisible(FALSE)
+        self$results$assocTable$setVisible(FALSE)
+        self$results$distPlot$setVisible(FALSE)
+        self$results$stratPlot$setVisible(FALSE)
+        return()
+      }
 
       self$results$validationMsg$setContent(
         "<span style='color:#888;font-size:0.85em;'>snpPGS v0.5 — allele QC active</span>")
