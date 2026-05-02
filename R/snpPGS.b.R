@@ -64,6 +64,10 @@ snpPGSClass <- R6::R6Class(
       wtable <- qc$wtable
       valid_snps <- qc$valid_snps
 
+      # Note: qc$valid_counts is already row-filtered inside buildDosageMatrix
+      # for the 'exclude' strategy, so it always matches qc$mat row count on
+      # return. No additional filtering is needed here.
+
       private$.fillSnpGridTable(wtable)
 
       # ── Weights aligned to dosage columns ───────────────────────────────
@@ -132,11 +136,21 @@ snpPGSClass <- R6::R6Class(
 
         if (length(wvec) == 0) next
 
-        # SNP-wise strategy: zero-fill happened in buildDosageMatrix;
-        # normalization by observed SNPs is mandatory for correct per-individual scoring.
-        normalize_eff <- normalize || (missing_st == "SNP-wise")
+        # normalize_eff strictly follows the user's checkbox.
+        # For SNP-wise missing strategy, zero-fill already happened in buildDosageMatrix,
+        # so the raw sum is over observed SNPs only. When the user enables normalization,
+        # valid_counts correctly provides per-individual observed-SNP denominators.
+        normalize_eff <- normalize
 
-        scores <- private$.computeScores(dos_m, wvec, qc, normalize_eff, standardize,
+        # Fix: pass a valid_counts slice restricted to the SNPs actually in dos_m.
+        # This matters when weighted mode drops NA-weight SNPs (dos_m has fewer
+        # columns than qc$valid_counts), ensuring the normalization denominator
+        # is computed over exactly the same SNP set as the raw score.
+        qc_mode <- qc
+        qc_mode$valid_counts <- qc$valid_counts[,
+          intersect(colnames(qc$valid_counts), colnames(dos_m)), drop = FALSE]
+
+        scores <- private$.computeScores(dos_m, wvec, qc_mode, normalize_eff, standardize,
                                           mode_label == "Unweighted")
         all_scores[[mode_label]] <- scores
 
@@ -230,15 +244,18 @@ snpPGSClass <- R6::R6Class(
             # Max unweighted = 2 alleles × number of observed SNPs
             max_score <- 2 * rowSums(vc)
           } else {
-            # Max weighted = 2 × sum of weights for observed SNPs per individual
-            # vc is logical so vc %*% wvec[vc_cols] gives per-individual weight sum
+            # Max weighted = 2 × sum of positive weights for observed SNPs per individual.
+            # Only positive-weight SNPs can increase the score (dosage in {0,1,2}), so
+            # negative weights must be excluded from the maximum — otherwise the
+            # denominator is under-estimated and scores can exceed 1.
             w_sub     <- wvec[vc_cols]
-            max_score <- 2 * as.numeric(vc %*% w_sub)
+            w_pos     <- pmax(w_sub, 0)
+            max_score <- 2 * as.numeric(vc %*% w_pos)
           }
         } else {
           # valid_counts unavailable — fall back to global maximum
           max_score <- if (is_unweighted) 2 * length(wvec)
-                       else               2 * sum(wvec, na.rm = TRUE)
+                       else               2 * sum(pmax(wvec, 0), na.rm = TRUE)
           max_score <- rep(max_score, nrow(dosage))
         }
 

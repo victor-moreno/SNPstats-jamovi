@@ -1,5 +1,4 @@
 Revise 
-  - standardization of score
   - SNP QC 
         formats allowed: A/B A|B AB A>B 012
         coding errors: non-biallelic, monomorphic 
