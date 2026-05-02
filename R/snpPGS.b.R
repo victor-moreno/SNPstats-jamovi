@@ -489,15 +489,8 @@ snpPGSClass <- R6::R6Class(
             oa <- ref_allele
             ea <- setdiff(all_alleles, ref_allele)
           }
-        } else { 
-          # numeric column — treated as dosage with no allele info
-          # 
-          offlimits <- col < 0 | col >2
-          if (any(offlimits, na.rm = TRUE)) {
-            col[offlimits] <- NA_real_
-            qc <- "invalid dosage set to NA"
-          } 
-        }
+        } # else numeric dosage column: leave alleles blank, no QC
+        
         data.frame(
           rsid           = snp,
           effect_allele  = ea,
@@ -569,7 +562,15 @@ snpPGSClass <- R6::R6Class(
 
         # ── Numeric column (dosage already encoded) ──────────────────────
         if (is.numeric(col_raw)) {
-          mat[, snp] <- as.numeric(col_raw)
+          col_num <- as.numeric(col_raw)
+          invalid <- is.na(col_num) | col_num < 0 | col_num > 2
+          col_num[invalid] <- NA_real_
+          if (any(invalid, na.rm = TRUE)) {
+            wtable$allele_status[idx] <- "invalid dosage set to NA"
+          }
+
+          mat[, snp] <- col_num
+
           if (wtable$allele_status[idx] == "") {
             wtable$allele_status[idx] <- if (has_allele_info)
               "dosage (orientation unverified)" else "ok (numeric dosage)"

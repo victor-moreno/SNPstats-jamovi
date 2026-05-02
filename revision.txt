@@ -7,19 +7,24 @@ Revise
         excluded SNPs:
                 N % missing ''
 
-SNP formats & agreement with other modules
 
 
 clean:
 - Revise association table
 
-Organize code cleanly
-
 Enhancements
+  Add allele frequency to table
   Percentile ranks
     - OR / differences for extremes vs a selected reference
 
   Add interaction of PGS by first covar
+
+  SNP formats & agreement with other modules
+
+Organize code cleanly
+
+
+---
 
 Test in criprev
                   
@@ -28,8 +33,5 @@ assoc/haplotypes
 if value > 1000 : Inf
 NA : ''
 
-
 ---
 
-warn & adjust
-weightingMode both | weighted but no PGS files 
