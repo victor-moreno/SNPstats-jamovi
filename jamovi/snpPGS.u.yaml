@@ -19,12 +19,11 @@ children:
                   isTarget: true
 
           - type: TargetLayoutBox
-            label: Individual ID (optional)
+            label: Covariates (optional)
             children:
                 - type: VariablesListBox
-                  name: idCol
+                  name: covCols
                   isTarget: true
-                  maxItemCount: 1
 
           - type: TargetLayoutBox
             label: Response variable (optional)

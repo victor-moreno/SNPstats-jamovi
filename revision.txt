@@ -1,7 +1,3 @@
-default to weight 1
-if no PGS file, show unweighted stats and association. Generate effect and reference alleles from data order
-and do minimal QC (bialelic SNPs, no monomorphics)
-define defaults in a.yaml
 
 check consistency: 
 - SNP names: show observed alleles if mismath / complemented/ ...
@@ -9,8 +5,10 @@ check consistency:
 
 Verify that effect allele if correctly selected no matter how in data
 
-Revise Percentile ranks
-
+Revise 
+        Percentile ranks
+        standardization of score
+        
 Allow variable / no header in metadata
 
 save PGS to data

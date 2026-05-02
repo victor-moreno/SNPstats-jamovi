@@ -87,6 +87,7 @@ items:
         - normalize
         - standardize
         - responseCol
+        - covCols
     columns:
         - name: score_type
           title: Score type
@@ -191,6 +192,7 @@ items:
         - normalize
         - standardize
         - responseCol
+        - covCols
     columns:
         - name: score_type
           title: Score type
@@ -228,6 +230,8 @@ items:
           title: p-value
           type: number
           format: zto,pvalue
+    notes:
+        covNote: ''
 
   # ── Distribution plot ───────────────────────────────────────────────────────
   - name: distPlot

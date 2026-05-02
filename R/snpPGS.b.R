@@ -26,7 +26,7 @@ snpPGSClass <- R6::R6Class(
     .run = function() {
 
       snpCols     <- self$options$snpCols
-      idCol       <- self$options$idCol
+      covCols     <- self$options$covCols
       respCol     <- self$options$responseCol
       missing_st  <- self$options$missingStrategy
       normalize   <- self$options$normalize
@@ -69,25 +69,30 @@ snpPGSClass <- R6::R6Class(
       if (run_unweighted) modes[["Unweighted"]] <- unit_wvec
       show_type_col <- length(modes) > 1
 
-      # ── Individual IDs ───────────────────────────────────────────────────
-      if (!is.null(idCol) && nchar(idCol) > 0 && idCol %in% names(self$data)) {
-        ids_full <- as.character(self$data[[idCol]])
-        ids <- if (!is.null(private$.keepMask)) ids_full[private$.keepMask] else ids_full
-      } else {
-        ids <- as.character(seq_len(nrow(dosage)))
-      }
+      # ── Row indices after keepMask ───────────────────────────────────────
+      keep <- private$.keepMask  # NULL or logical vector length nrow(data)
 
       # ── Resolve response vector ──────────────────────────────────────────
       resp <- NULL
       if (!is.null(respCol) && nchar(respCol) > 0 && respCol %in% names(self$data)) {
         resp_full <- self$data[[respCol]]
-        resp <- if (!is.null(private$.keepMask) &&
-                    length(private$.keepMask) == length(resp_full))
-                  resp_full[private$.keepMask]
-                else resp_full
+        resp <- if (!is.null(keep) && length(keep) == length(resp_full))
+                  resp_full[keep] else resp_full
         if (is.numeric(resp) && length(unique(resp[!is.na(resp)])) == 2 &&
             all(resp[!is.na(resp)] %in% c(0, 1)))
           resp <- factor(resp)
+      }
+
+      # ── Resolve covariate data frame ─────────────────────────────────────
+      covs <- NULL
+      if (!is.null(covCols) && length(covCols) > 0) {
+        valid_covs <- covCols[covCols %in% names(self$data)]
+        if (length(valid_covs) > 0) {
+          cov_full <- self$data[, valid_covs, drop = FALSE]
+          covs <- if (!is.null(keep) && length(keep) == nrow(cov_full))
+                    cov_full[keep, , drop = FALSE]
+                  else cov_full
+        }
       }
 
       private$.fillCoverageTable(snpCols, wtable, missing_st)
@@ -99,6 +104,7 @@ snpPGSClass <- R6::R6Class(
       self$results$assocTable$getColumn("score_type")$setVisible(show_type_col)
 
       first_scores <- NULL
+      ids <- as.character(seq_len(nrow(dosage)))
 
       for (mode_label in names(modes)) {
         wvec <- modes[[mode_label]]
@@ -118,7 +124,7 @@ snpPGSClass <- R6::R6Class(
         scores <- private$.computeScores(dos_m, wvec, qc, normalize, standardize,
                                           missing_st, mode_label == "Unweighted")
         if (is.null(first_scores)) {
-          first_scores <- scores
+          first_scores       <- scores
           private$.pgsScores <- scores
           private$.idLabels  <- ids
         }
@@ -126,7 +132,7 @@ snpPGSClass <- R6::R6Class(
         private$.fillSummaryTable(scores, resp, mode_label, show_type_col)
 
         if (self$options$showAssoc && !is.null(resp))
-          private$.fillAssocTable(scores, resp, respCol, mode_label, show_type_col)
+          private$.fillAssocTable(scores, resp, respCol, covs, mode_label, show_type_col)
       }
 
       if (is.null(first_scores)) {
@@ -835,14 +841,33 @@ snpPGSClass <- R6::R6Class(
       }
     },
 
-    .fillAssocTable = function(scores, resp, respCol, score_type = "", show_type_col = FALSE) {
+    .fillAssocTable = function(scores, resp, respCol, covs = NULL,
+                              score_type = "", show_type_col = FALSE) {
       tbl <- self$results$assocTable
 
-      df <- data.frame(pgs = scores, resp = resp)
+      has_covs <- !is.null(covs) && ncol(covs) > 0
+      df <- if (has_covs)
+              data.frame(pgs = scores, resp = resp, covs, check.names = FALSE)
+            else
+              data.frame(pgs = scores, resp = resp)
       df <- df[complete.cases(df), ]
       if (nrow(df) < 3) return()
 
+      # Set or clear the covariate note on the table
+      if (has_covs) {
+        cov_lbl <- paste(names(covs), collapse = ", ")
+        self$results$assocTable$setNote(
+          "covNote", paste0("Adjusted for: ", cov_lbl))
+      } else {
+        self$results$assocTable$setNote("covNote", NULL)
+      }
+
       is_binary <- is.factor(df$resp) || length(unique(df$resp)) == 2
+
+      # Build covariate term for formula (sanitise names for formula use)
+      cov_terms <- if (has_covs)
+        paste(paste0("`", names(covs), "`"), collapse = " + ")
+      else ""
 
       add_row <- function(test, stat_label, estimate, se, ci_low, ci_high,
                           stat, df_val, p) {
@@ -867,21 +892,24 @@ snpPGSClass <- R6::R6Class(
         g2   <- df$pgs[as.character(df$resp) == lvls[2]]
         lbl  <- paste0(lvls[2], " vs ", lvls[1])
 
-        # ── Logistic regression (Wald 95% CI on log-OR scale) ────────────
-        fit <- tryCatch(
-          glm(resp ~ pgs, data = df, family = binomial()),
-          error = function(e) NULL)
+        # Logistic regression — adjusted if covariates present
+        frm <- if (has_covs)
+          as.formula(paste("resp ~ pgs +", cov_terms))
+        else
+          resp ~ pgs
+        fit <- tryCatch(glm(frm, data = df, family = binomial()),
+                        error = function(e) NULL)
         if (!is.null(fit)) {
           cf  <- coef(summary(fit))
           ci  <- tryCatch(confint.default(fit)["pgs", ],
                           error = function(e) c(NA_real_, NA_real_))
-          if (nrow(cf) >= 2)
+          if ("pgs" %in% rownames(cf))
             add_row(paste0("Logistic regression (", respCol, ")"),
-                    "log-OR", cf[2,1], cf[2,2], ci[1], ci[2],
-                    cf[2,3], "", cf[2,4])
+                    "log-OR", cf["pgs", 1], cf["pgs", 2],
+                    ci[1], ci[2], cf["pgs", 3], "", cf["pgs", 4])
         }
 
-        # ── Welch t-test (95% CI of mean difference) ─────────────────────
+        # Welch t-test and Mann-Whitney are unadjusted (non-parametric / no covariate support)
         tt <- tryCatch(t.test(g2, g1), error = function(e) NULL)
         if (!is.null(tt))
           add_row(paste0("Welch t-test (", lbl, ")"),
@@ -889,7 +917,6 @@ snpPGSClass <- R6::R6Class(
                   tt$conf.int[1], tt$conf.int[2],
                   tt$statistic, round(tt$parameter, 1), tt$p.value)
 
-        # ── Mann-Whitney U (Hodges-Lehmann 95% CI) ────────────────────────
         mw <- tryCatch(wilcox.test(g2, g1, exact = FALSE, conf.int = TRUE),
                        error = function(e) NULL)
         if (!is.null(mw))
@@ -900,45 +927,45 @@ snpPGSClass <- R6::R6Class(
 
       } else {
         resp_num <- as.numeric(df$resp)
+        df$resp  <- resp_num
 
-        # ── Linear regression (95% CI of slope) ──────────────────────────
-        fit <- tryCatch(lm(resp_num ~ pgs, data = df), error = function(e) NULL)
+        # Linear regression — adjusted if covariates present
+        frm <- if (has_covs)
+          as.formula(paste("resp ~ pgs +", cov_terms))
+        else
+          resp ~ pgs
+        fit <- tryCatch(lm(frm, data = df), error = function(e) NULL)
         if (!is.null(fit)) {
           cf  <- coef(summary(fit))
           ci  <- tryCatch(confint(fit)["pgs", ],
                           error = function(e) c(NA_real_, NA_real_))
           dff <- df.residual(fit)
-          if (nrow(cf) >= 2)
+          if ("pgs" %in% rownames(cf))
             add_row(paste0("Linear regression (", respCol, ")"),
-                    "\u03b2", cf[2,1], cf[2,2], ci[1], ci[2],
-                    cf[2,3], dff, cf[2,4])
+                    "\u03b2", cf["pgs", 1], cf["pgs", 2],
+                    ci[1], ci[2], cf["pgs", 3], dff, cf["pgs", 4])
         }
 
-        # ── Pearson correlation (Fisher-z 95% CI via cor.test) ────────────
-        pc <- tryCatch(
-          cor.test(df$pgs, resp_num, method = "pearson"),
-          error = function(e) NULL)
+        # Pearson and Spearman are unadjusted
+        pc <- tryCatch(cor.test(df$pgs, resp_num, method = "pearson"),
+                       error = function(e) NULL)
         if (!is.null(pc))
           add_row("Pearson correlation",
                   "r", pc$estimate, NA_real_,
                   pc$conf.int[1], pc$conf.int[2],
                   pc$statistic, round(pc$parameter, 0), pc$p.value)
 
-        # ── Spearman correlation (Fisher-z approximation for CI) ──────────
-        sp <- tryCatch(
-          cor.test(df$pgs, resp_num, method = "spearman", exact = FALSE),
-          error = function(e) NULL)
+        sp <- tryCatch(cor.test(df$pgs, resp_num, method = "spearman", exact = FALSE),
+                       error = function(e) NULL)
         if (!is.null(sp)) {
           r  <- as.numeric(sp$estimate)
           n  <- nrow(df)
-          # Fisher-z transform CI
           z  <- 0.5 * log((1 + r) / (1 - r))
           se <- 1 / sqrt(n - 3)
           ci <- tanh(c(z - 1.96 * se, z + 1.96 * se))
           add_row("Spearman correlation",
                   "\u03c1", r, NA_real_,
-                  ci[1], ci[2],
-                  sp$statistic, "", sp$p.value)
+                  ci[1], ci[2], sp$statistic, "", sp$p.value)
         }
       }
     },

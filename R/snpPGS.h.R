@@ -6,7 +6,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
     inherit = jmvcore::Options,
     public = list(
         initialize = function(
-            idCol = NULL,
+            covCols = NULL,
             snpCols = NULL,
             responseCol = NULL,
             weightsPath = "",
@@ -27,16 +27,15 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 requiresData=TRUE,
                 ...)
 
-            private$..idCol <- jmvcore::OptionVariable$new(
-                "idCol",
-                idCol,
+            private$..covCols <- jmvcore::OptionVariables$new(
+                "covCols",
+                covCols,
                 suggested=list(
-                    "nominal",
-                    "id"),
+                    "continuous",
+                    "nominal"),
                 permitted=list(
-                    "factor",
                     "numeric",
-                    "id"))
+                    "factor"))
             private$..snpCols <- jmvcore::OptionVariables$new(
                 "snpCols",
                 snpCols,
@@ -109,7 +108,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 showAssoc,
                 default=FALSE)
 
-            self$.addOption(private$..idCol)
+            self$.addOption(private$..covCols)
             self$.addOption(private$..snpCols)
             self$.addOption(private$..responseCol)
             self$.addOption(private$..weightsPath)
@@ -125,7 +124,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..showAssoc)
         }),
     active = list(
-        idCol = function() private$..idCol$value,
+        covCols = function() private$..covCols$value,
         snpCols = function() private$..snpCols$value,
         responseCol = function() private$..responseCol$value,
         weightsPath = function() private$..weightsPath$value,
@@ -140,7 +139,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         percentileBreaks = function() private$..percentileBreaks$value,
         showAssoc = function() private$..showAssoc$value),
     private = list(
-        ..idCol = NA,
+        ..covCols = NA,
         ..snpCols = NA,
         ..responseCol = NA,
         ..weightsPath = NA,
@@ -267,7 +266,8 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "missingStrategy",
                     "normalize",
                     "standardize",
-                    "responseCol"),
+                    "responseCol",
+                    "covCols"),
                 columns=list(
                     list(
                         `name`="score_type", 
@@ -384,7 +384,8 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "missingStrategy",
                     "normalize",
                     "standardize",
-                    "responseCol"),
+                    "responseCol",
+                    "covCols"),
                 columns=list(
                     list(
                         `name`="score_type", 
@@ -431,7 +432,9 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                         `name`="p", 
                         `title`="p-value", 
                         `type`="number", 
-                        `format`="zto,pvalue"))))
+                        `format`="zto,pvalue")),
+                notes=list(
+                    `covNote`="")))
             self$add(jmvcore::Image$new(
                 options=options,
                 name="distPlot",
@@ -474,8 +477,9 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'
 #' 
 #' @param data [object Object]
-#' @param idCol Column identifying each individual. Row numbers used if
-#'   omitted.
+#' @param covCols Optional covariate columns. If provided, regression models
+#'   (logistic and linear) are adjusted for these variables. A note listing the
+#'   covariates is added to the association table.
 #' @param snpCols One column per SNP. Dosage (0/1/2) or allele strings
 #'   auto-detected per column.
 #' @param responseCol Optional outcome variable. If provided, an association
@@ -533,7 +537,7 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @export
 snpPGS <- function(
     data,
-    idCol,
+    covCols,
     snpCols,
     responseCol,
     weightsPath = "",
@@ -551,19 +555,19 @@ snpPGS <- function(
     if ( ! requireNamespace("jmvcore", quietly=TRUE))
         stop("snpPGS requires jmvcore to be installed (restart may be required)")
 
-    if ( ! missing(idCol)) idCol <- jmvcore::resolveQuo(jmvcore::enquo(idCol))
+    if ( ! missing(covCols)) covCols <- jmvcore::resolveQuo(jmvcore::enquo(covCols))
     if ( ! missing(snpCols)) snpCols <- jmvcore::resolveQuo(jmvcore::enquo(snpCols))
     if ( ! missing(responseCol)) responseCol <- jmvcore::resolveQuo(jmvcore::enquo(responseCol))
     if (missing(data))
         data <- jmvcore::marshalData(
             parent.frame(),
-            `if`( ! missing(idCol), idCol, NULL),
+            `if`( ! missing(covCols), covCols, NULL),
             `if`( ! missing(snpCols), snpCols, NULL),
             `if`( ! missing(responseCol), responseCol, NULL))
 
 
     options <- snpPGSOptions$new(
-        idCol = idCol,
+        covCols = covCols,
         snpCols = snpCols,
         responseCol = responseCol,
         weightsPath = weightsPath,

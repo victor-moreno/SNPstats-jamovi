@@ -22,18 +22,20 @@ options:
                          snpCols = vars(rs123, rs456),
                          weightsPath = "pgs_catalog.csv")
 
-    - name: idCol
-      title: Individual ID column (optional)
-      type: Variable
+    - name: covCols
+      title: Covariates (optional)
+      type: Variables
       suggested:
+          - continuous
           - nominal
-          - id
       permitted:
-          - factor
           - numeric
-          - id
+          - factor
       description:
-          R: Column identifying each individual. Row numbers used if omitted.
+          R: >
+              Optional covariate columns. If provided, regression models
+              (logistic and linear) are adjusted for these variables.
+              A note listing the covariates is added to the association table.
 
     - name: snpCols
       title: SNP columns
