@@ -377,6 +377,8 @@ snpPGSClass <- R6::R6Class(
         extra_cols    = extra_str,
         n_missing     = NA_integer_,
         pct_missing   = NA_real_,
+        effect_af     = NA_real_,
+        hwe_p         = NA_real_,
         stringsAsFactors = FALSE
       )
 
@@ -417,6 +419,8 @@ snpPGSClass <- R6::R6Class(
           extra_cols = "",
           n_missing = NA_integer_, 
           pct_missing = NA_real_,
+          effect_af = NA_real_,
+          hwe_p = NA_real_,
           selected_flag = TRUE,  # These are selected but not in catalog
           stringsAsFactors = FALSE
         )
@@ -474,6 +478,8 @@ snpPGSClass <- R6::R6Class(
         extra_cols     = "",
         n_missing      = NA_integer_,
         pct_missing    = NA_real_,
+        effect_af      = NA_real_,
+        hwe_p          = NA_real_,
         stringsAsFactors = FALSE
       )
     },
@@ -531,6 +537,8 @@ snpPGSClass <- R6::R6Class(
           extra_cols     = "",
           n_missing      = NA_integer_,
           pct_missing    = NA_real_,
+          effect_af      = NA_real_,
+          hwe_p          = NA_real_,
           stringsAsFactors = FALSE
         )
       })
@@ -738,6 +746,17 @@ snpPGSClass <- R6::R6Class(
         wtable$pct_missing[idx] <- round(n_na / nrow(mat) * 100, 1)
       }
 
+      # ── Allele frequency + HWE for all matched SNPs ─────────────────────────
+      # Uses snp_af_hwe() from snp_helpers.R — same parse_genotype / HWE.exact
+      # pipeline as snpDesc, ensuring consistency across modules.
+      for (snp in intersect(wtable$rsid, names(self$data))) {
+        idx <- which(wtable$rsid == snp)[1]
+        ea  <- as.character(wtable$effect_allele[idx])
+        res <- snp_af_hwe(self$data[[snp]], effect_allele = ea)
+        wtable$effect_af[idx] <- res$effect_af
+        wtable$hwe_p[idx]     <- res$hwe_p
+      }
+
       for (snp in keep_snps) {
         na_mask <- is.na(mat[, snp])
         if (any(na_mask)) {
@@ -791,6 +810,8 @@ snpPGSClass <- R6::R6Class(
       has_oa    <- any(nchar(wtable$other_allele)  > 0, na.rm = TRUE)
       has_extra <- any(nchar(wtable$extra_cols)    > 0, na.rm = TRUE)
       has_miss  <- any(!is.na(wtable$n_missing))
+      has_af    <- any(!is.na(wtable$effect_af))
+      has_hwe   <- any(!is.na(wtable$hwe_p))
 
       tbl$getColumn("chr")$setVisible(has_chr)
       tbl$getColumn("pos")$setVisible(has_pos)
@@ -799,6 +820,8 @@ snpPGSClass <- R6::R6Class(
       tbl$getColumn("extra_cols")$setVisible(has_extra)
       tbl$getColumn("n_missing")$setVisible(has_miss)
       tbl$getColumn("pct_missing")$setVisible(has_miss)
+      tbl$getColumn("effect_af")$setVisible(has_af)
+      tbl$getColumn("hwe_p")$setVisible(has_hwe)
 
       for (i in seq_len(nrow(wtable))) {
         r      <- wtable[i, ]
@@ -816,7 +839,9 @@ snpPGSClass <- R6::R6Class(
           allele_status = status,
           extra_cols    = as.character(r$extra_cols),
           n_missing     = if (is.na(r$n_missing))   '' else as.integer(r$n_missing),
-          pct_missing   = if (is.na(r$pct_missing)) '' else r$pct_missing
+          pct_missing   = if (is.na(r$pct_missing)) '' else r$pct_missing,
+          effect_af     = if (is.na(r$effect_af))   '' else r$effect_af,
+          hwe_p         = if (is.na(r$hwe_p))       '' else r$hwe_p
         ))
       }
     },

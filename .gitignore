@@ -3,3 +3,5 @@ build
 example*.*
 mejoras.R
 *.pdf
+data-raw/criprev
+data-raw/haplotipai

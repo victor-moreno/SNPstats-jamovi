@@ -5,13 +5,15 @@ Revise
         dosage errors [0,2]
         excluded SNPs:
                 N % missing ''
+  - MAF effect allele correctly selected
 
 Enhancements
-  Add observed allele frequency to table
+  allow A1 A2 and other columns
+  Add observed allele frequency & HWE to table
   Percentile ranks
     - OR / differences for extremes vs a selected reference
 
-  SNP formats & agreement with other modules
+  SNPs from plink ped/tped
 
 Organize code & clean
 

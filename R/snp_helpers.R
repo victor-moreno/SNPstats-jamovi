@@ -274,6 +274,66 @@ validate_snp_vars <- function(snp_vars, data) {
   list(valid_snps = setdiff(snp_vars, bad_snps), bad_html = html)
 }
 
+#' Compute effect-allele frequency and exact HWE p-value for one SNP column.
+#'
+#' Uses the same parse_genotype() / HWE.exact() pipeline as snpDesc so that
+#' allele orientation and HWE calculation are identical across modules.
+#'
+#' @param col        Raw column vector (factor, character, or numeric dosage).
+#' @param effect_allele  Character scalar — the allele whose frequency is
+#'   reported. If NULL or "" the function picks the minor allele automatically.
+#' @return Named list:
+#'   $effect_af  numeric [0, 1] or NA_real_
+#'   $hwe_p      numeric [0, 1] or NA_real_
+snp_af_hwe <- function(col, effect_allele = NULL) {
+  out <- list(effect_af = NA_real_, hwe_p = NA_real_)
+
+  # Numeric dosage columns: estimate AF from mean dosage (dosage = 0/1/2
+  # copies of the effect allele, so mean / 2 = effect-allele frequency).
+  if (is.numeric(col)) {
+    vals <- col[!is.na(col)]
+    if (length(vals) == 0 || !all(vals %in% c(0, 1, 2))) return(out)
+    out$effect_af <- mean(vals) / 2
+    # HWE from dosage counts
+    n0 <- sum(vals == 0); n1 <- sum(vals == 1); n2 <- sum(vals == 2)
+    geno_obj <- tryCatch(
+      genetics::genotype(
+        rep(c("A/A", "A/B", "B/B"), c(n0, n1, n2)), sep = "/"),
+      error = function(e) NULL)
+    if (!is.null(geno_obj)) {
+      hw <- tryCatch(genetics::HWE.exact(geno_obj), error = function(e) NULL)
+      if (!is.null(hw)) out$hwe_p <- hw$p.value
+    }
+    return(out)
+  }
+
+  # Genotype-string columns: use the shared parse_genotype() pipeline.
+  user_levels <- get_snp_level_order(col)
+  geno_obj    <- tryCatch(parse_genotype(col, user_levels), error = function(e) NULL)
+  if (is.null(geno_obj)) return(out)
+
+  sm <- tryCatch(summary(geno_obj), error = function(e) NULL)
+  if (is.null(sm)) return(out)
+
+  af <- sm$allele.freq
+  allele_names <- rownames(af)
+
+  # Determine which allele to report frequency for.
+  ea <- toupper(trimws(as.character(effect_allele %||% "")))
+  if (nchar(ea) == 0 || !ea %in% allele_names) {
+    # Fall back to the allele with lower frequency (minor allele)
+    props <- af[allele_names != "NA", "Proportion", drop = TRUE]
+    ea    <- allele_names[allele_names != "NA"][which.min(props)]
+  }
+  if (ea %in% allele_names)
+    out$effect_af <- af[ea, "Proportion"]
+
+  hw <- tryCatch(genetics::HWE.exact(geno_obj), error = function(e) NULL)
+  if (!is.null(hw)) out$hwe_p <- hw$p.value
+
+  out
+}
+
 #' Detect response type ("binary" / "quantitative" / "none").
 detect_response_type <- function(response_raw, responseType_opt) {
   if (responseType_opt != "auto") return(responseType_opt)

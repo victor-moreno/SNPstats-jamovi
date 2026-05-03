@@ -251,6 +251,16 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                         `type`="number", 
                         `format`="zto"),
                     list(
+                        `name`="effect_af", 
+                        `title`="Effect AF", 
+                        `type`="number", 
+                        `format`="zto"),
+                    list(
+                        `name`="hwe_p", 
+                        `title`="HWE p", 
+                        `type`="number", 
+                        `format`="zto,pvalue"),
+                    list(
                         `name`="extra_cols", 
                         `title`="Extra fields", 
                         `type`="text"))))

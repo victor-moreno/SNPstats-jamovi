@@ -57,6 +57,14 @@ items:
           title: "% missing"
           type: number
           format: zto
+        - name: effect_af
+          title: "Effect AF"
+          type: number
+          format: zto
+        - name: hwe_p
+          title: "HWE p"
+          type: number
+          format: zto,pvalue
         - name: extra_cols
           title: Extra fields
           type: text
