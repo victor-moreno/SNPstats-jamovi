@@ -18,7 +18,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             showDistPlot = FALSE,
             showPercentiles = FALSE,
             percentileBreaks = "20,40,60,80,90,95",
-            pgsRefCategory = "lowest",
+            pgsRefCategory = "middle",
             showAssoc = FALSE,
             filterValidSnps = FALSE,
             showInteraction = FALSE, ...) {
@@ -108,7 +108,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "lowest",
                     "middle",
                     "highest"),
-                default="lowest")
+                default="middle")
             private$..showAssoc <- jmvcore::OptionBool$new(
                 "showAssoc",
                 showAssoc,
@@ -708,7 +708,7 @@ snpPGS <- function(
     showDistPlot = FALSE,
     showPercentiles = FALSE,
     percentileBreaks = "20,40,60,80,90,95",
-    pgsRefCategory = "lowest",
+    pgsRefCategory = "middle",
     showAssoc = FALSE,
     filterValidSnps = FALSE,
     showInteraction = FALSE) {

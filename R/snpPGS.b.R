@@ -113,7 +113,7 @@ snpPGSClass <- R6::R6Class(
         }
       }
 
-      private$.fillCoverageTable(snpCols, wtable, missing_st, valid_snps)
+      private$.fillCoverageTable(snpCols, wtable, missing_st, valid_snps, dosage)
 
       # ── Clear tables before multi-mode fill ─────────────────────────────
       self$results$summaryTable$deleteRows()
@@ -846,7 +846,7 @@ snpPGSClass <- R6::R6Class(
       }
     },
 
-    .fillCoverageTable = function(snpCols, wtable, missing_st, valid_snps) {
+    .fillCoverageTable = function(snpCols, wtable, missing_st, valid_snps, dosage) {
       inData    <- names(self$data)
       matched   <- intersect(wtable$rsid[wtable$matched], inData)
       n_weights <- sum(wtable$matched)
@@ -856,6 +856,8 @@ snpPGSClass <- R6::R6Class(
       ambiguous <- sum(private$.isAmbiguous(wtable$effect_allele, wtable$other_allele))
       flipped   <- sum(wtable$strand_flipped == TRUE, na.rm = TRUE)
       mismatch  <- sum(grepl("mismatch", wtable$allele_status, ignore.case = TRUE))
+      complete  <- sum(complete.cases(dosage))
+
 
       meta <- attr(wtable, "pgs_meta") %||%
               list(pgs_id = "", pgs_name = "", trait_reported = "",
@@ -887,6 +889,8 @@ snpPGSClass <- R6::R6Class(
       add("Allele mismatch (excluded)", mismatch)
       add("SNPs used in score",         length(valid_snps))
       add("Missing genotype strategy",  missing_st)
+      add("Total sample size", NROW(dosage))
+      add("Complete cases", paste0(complete, " (", round(complete / NROW(dosage) * 100, 1), "%)"))    
     },
 
     .isAmbiguous = function(ea, oa) {

@@ -1,13 +1,23 @@
 Revise 
   - SNP QC 
         formats allowed: A/B A|B AB A>B 012
+        if 0/0 -> NA
         coding errors: non-biallelic, monomorphic 
         dosage errors [0,2]
         excluded SNPs:
                 N % missing ''
   - MAF effect allele correctly selected
 
+  - dosage missing value handling to count and report complete cases
+
 Enhancements
+  report sample size: total & complete cases
+  plots 
+    by weighting type
+    more breaks
+
+  standardize per max/r risk alleles ?
+
   allow A1 A2 and other columns
   SNPs from plink ped/tped
 
