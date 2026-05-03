@@ -50,11 +50,23 @@ children:
             name: missingStrategy
             label: Missing genotype handling
           - type: CheckBox
-            name: normalize
-            label: Normalize score (max=1)
+            name: missingCorrection
+            label: Correct for missing genotypes
+          - type: ComboBox
+            name: scaleMethod
+            label: Score rescaling
+          - type: TextBox
+            name: scaleFactor
+            label: 'Scale factor / N alleles:'
+            format: number
+            width: small
+            enable: (scaleMethod == 'multiply' || scaleMethod == 'perNAlleles')
+          - type: CheckBox
+            name: scaleWeights
+            label: Scale weights to unit mean (comparable to unweighted)
           - type: CheckBox
             name: standardize
-            label: Standardize score (SD=1)
+            label: Standardize score (SD = 1)
   - type: LayoutBox
     margin: large
     children:

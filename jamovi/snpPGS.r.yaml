@@ -98,7 +98,10 @@ items:
         - weightsPath
         - weightingMode
         - missingStrategy
-        - normalize
+        - missingCorrection
+        - scaleMethod
+        - scaleFactor
+        - scaleWeights
         - standardize
         - responseCol
         - covCols
@@ -151,7 +154,10 @@ items:
         - weightsPath
         - weightingMode
         - missingStrategy
-        - normalize
+        - missingCorrection
+        - scaleMethod
+        - scaleFactor
+        - scaleWeights
         - standardize
 
   # ── Percentile category counts (N and % overall / by response) ─────────────
@@ -164,7 +170,10 @@ items:
         - weightsPath
         - weightingMode
         - missingStrategy
-        - normalize
+        - missingCorrection
+        - scaleMethod
+        - scaleFactor
+        - scaleWeights
         - standardize
         - percentileBreaks
         - responseCol
@@ -192,7 +201,10 @@ items:
         - weightsPath
         - weightingMode
         - missingStrategy
-        - normalize
+        - missingCorrection
+        - scaleMethod
+        - scaleFactor
+        - scaleWeights
         - standardize
         - responseCol
         - covCols
@@ -242,7 +254,10 @@ items:
         - weightsPath
         - weightingMode
         - missingStrategy
-        - normalize
+        - missingCorrection
+        - scaleMethod
+        - scaleFactor
+        - scaleWeights
         - standardize
         - responseCol
         - covCols
@@ -304,7 +319,10 @@ items:
         - weightsPath
         - weightingMode
         - missingStrategy
-        - normalize
+        - missingCorrection
+        - scaleMethod
+        - scaleFactor
+        - scaleWeights
         - standardize
         - responseCol
         - covCols

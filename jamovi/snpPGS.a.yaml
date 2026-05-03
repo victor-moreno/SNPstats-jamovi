@@ -167,30 +167,92 @@ options:
               only (the lower/first level), following standard GWAS QC practice.
 
 
-    - name: normalize
-      title: Normalize score (max=1)
+    - name: missingCorrection
+      title: Correct for missing genotypes
       type: Bool
       default: true
       description:
           R: >
               If TRUE, divides each individual's raw score by the maximum
-              score they could have achieved given their observed SNPs.
-              For unweighted scoring: max = 2 × observed SNP count.
-              For weighted scoring:   max = 2 × sum of weights for observed SNPs.
-              Individuals with missing SNPs get a per-individual maximum,
-              so scores remain comparable across individuals with different
-              missingness. Result is in [0, 1].
+              score they could have achieved given their observed SNPs only.
+              For unweighted scoring: denominator = 2 × n_observed_SNPs.
+              For weighted scoring:   denominator = 2 × sum of positive weights
+              for observed SNPs (negative weights excluded from the maximum
+              to prevent scores exceeding the rescaled range).
+              This correction is strongly recommended whenever genotypes are
+              missing, as it ensures scores are comparable across individuals
+              with different amounts of missing data. It is a prerequisite
+              for meaningful proportional or percent rescaling.
 
-    - name: standardize
-      title: Standardize score (SD=1)
+    - name: scaleMethod
+      title: Score rescaling
+      type: List
+      options:
+          - name: none
+            title: None (raw sum)
+          - name: proportion
+            title: Proportion of maximum (0–1)
+          - name: percent
+            title: Percent of maximum (0–100)
+          - name: multiply
+            title: Multiply by custom factor
+          - name: perNAlleles
+            title: Per N risk alleles
+      default: proportion
+      description:
+          R: >
+              How the (missingness-corrected) score is rescaled before output.
+              'none': report the raw weighted sum. 'proportion': divide by the
+              per-individual maximum possible score, giving a value in [0, 1]
+              (requires missingCorrection = TRUE to be meaningful).
+              'percent': same as proportion but multiplied by 100, giving
+              0–100. 'multiply': multiply the missingness-corrected score by
+              scaleFactor (e.g. 10 for a 0–10 scale). 'perNAlleles': divide
+              the raw score by scaleFactor; for the unweighted score this gives
+              the average dosage per N SNPs — e.g. with scaleFactor = 10 the
+              unit is "per 10 risk alleles", a common epidemiological reporting
+              convention. For the weighted score the denominator is
+              scaleFactor × mean(positive weights), giving comparable units.
+
+    - name: scaleFactor
+      title: Scale factor / N alleles
+      type: Number
+      default: 10
+      description:
+          R: >
+              Numeric value used by the 'multiply' and 'perNAlleles' rescaling
+              methods. For 'multiply': the corrected score is multiplied by
+              this value (e.g. 100 gives a 0–100 scale from a 0–1 proportion).
+              For 'perNAlleles': the raw score is divided by this value
+              (e.g. 10 for "per 10 risk alleles").
+
+    - name: scaleWeights
+      title: Scale weights to unit mean (comparable to unweighted)
       type: Bool
       default: false
       description:
           R: >
-              If TRUE, divides the (optionally normalized) PGS by its
-              standard deviation across all individuals. The resulting score
-              has SD = 1, so regression coefficients represent the effect
-              per 1-SD change in PGS.
+              If TRUE, the effect weights are L1-normalised to unit mean
+              (wvec / mean(|wvec|)) before scoring. This places the weighted
+              score on the same scale as the unweighted score, so the two can
+              be directly compared: both represent an effective risk-allele
+              count, and the difference between them reflects the contribution
+              of differential weighting. Has no effect when weightingMode is
+              'unweighted'. Rescaling and standardization are applied after
+              weight scaling.
+
+    - name: standardize
+      title: Standardize score (SD = 1)
+      type: Bool
+      default: false
+      description:
+          R: >
+              If TRUE, divides the rescaled score by its standard deviation
+              across all individuals (after all other transformations).
+              The resulting score has SD = 1, so regression coefficients
+              represent the effect per 1-SD change in PGS. Can be combined
+              with any rescaling method; when combined with 'proportion' or
+              'percent' the SD is computed on that scale before dividing.
 
     - name: showCoverage
       title: Show SNP coverage summary

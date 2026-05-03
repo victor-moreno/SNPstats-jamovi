@@ -29,8 +29,6 @@ snpPGSClass <- R6::R6Class(
       covCols     <- self$options$covCols
       respCol     <- self$options$responseCol
       missing_st  <- self$options$missingStrategy
-      normalize   <- self$options$normalize
-      standardize <- self$options$standardize
       wmode       <- self$options$weightingMode
 
       # ── Nothing selected yet: show guidance, hide everything ────────────
@@ -141,22 +139,16 @@ snpPGSClass <- R6::R6Class(
 
         if (length(wvec) == 0) next
 
-        # normalize_eff strictly follows the user's checkbox.
-        # For SNP-wise missing strategy, zero-fill already happened in buildDosageMatrix,
-        # so the raw sum is over observed SNPs only. When the user enables normalization,
-        # valid_counts correctly provides per-individual observed-SNP denominators.
-        normalize_eff <- normalize
-
-        # Fix: pass a valid_counts slice restricted to the SNPs actually in dos_m.
-        # This matters when weighted mode drops NA-weight SNPs (dos_m has fewer
-        # columns than qc$valid_counts), ensuring the normalization denominator
-        # is computed over exactly the same SNP set as the raw score.
+        # Slice valid_counts to exactly the SNPs in dos_m (weighted mode may
+        # have dropped NA-weight SNPs, so dos_m can have fewer columns than
+        # qc$valid_counts). This ensures the missingness-correction denominator
+        # is computed over the same SNP set as the raw score.
         qc_mode <- qc
         qc_mode$valid_counts <- qc$valid_counts[,
           intersect(colnames(qc$valid_counts), colnames(dos_m)), drop = FALSE]
 
-        scores <- private$.computeScores(dos_m, wvec, qc_mode, normalize_eff, standardize,
-                                          mode_label == "Unweighted")
+        scores <- private$.computeScores(dos_m, wvec, qc_mode,
+                                          is_unweighted = (mode_label == "Unweighted"))
         all_scores[[mode_label]] <- scores
 
         if (is.null(first_scores)) {
@@ -212,6 +204,34 @@ snpPGSClass <- R6::R6Class(
     # If no file is configured, returns unit-weight rows for snpCols.
     # ════════════════════════════════════════════════════════════════════════
     # ════════════════════════════════════════════════════════════════════════
+    # .scaleLabel
+    # Returns a short human-readable description of the active scoring pipeline
+    # used in table notes and plot axis labels.
+    # ════════════════════════════════════════════════════════════════════════
+    .scaleLabel = function(mode_label) {
+      mc  <- isTRUE(self$options$missingCorrection)
+      sm  <- self$options$scaleMethod
+      sf  <- self$options$scaleFactor %||% 10
+      sw  <- isTRUE(self$options$scaleWeights)
+      std <- isTRUE(self$options$standardize)
+
+      scale_str <- switch(sm,
+        proportion  = if (mc) "proportion of max [0–1]"
+                      else    "raw sum / theoretical max",
+        percent     = if (mc) "percent of max [0–100]"
+                      else    "raw sum / theoretical max × 100",
+        multiply    = paste0(if (mc) "corrected" else "raw", " × ", sf),
+        perNAlleles = paste0("per ", sf, " risk alleles"),
+        "raw weighted sum"
+      )
+      wt_str  <- if (sw && mode_label == "Weighted") " [weights L1-scaled]" else ""
+      std_str <- if (std) ", SD-standardized" else ""
+      mc_str  <- if (!mc && sm %in% c("proportion", "percent"))
+                   " [WARNING: missingness correction off]" else ""
+      paste0(mode_label, " — ", scale_str, wt_str, std_str, mc_str)
+    },
+
+    # ════════════════════════════════════════════════════════════════════════
     # .computeScores
     #
     # Pipeline (in order):
@@ -244,43 +264,126 @@ snpPGSClass <- R6::R6Class(
 
 
 
-    .computeScores = function(dosage, wvec, qc, normalize, standardize,
-                              is_unweighted = FALSE) {
+    # ════════════════════════════════════════════════════════════════════════
+    # .computeScores
+    #
+    # Pipeline (in order):
+    #   1. Optional weight scaling  — L1-normalise wvec to unit mean so the
+    #      weighted score is on the same numeric scale as the unweighted score.
+    #   2. Raw score                — dosage %*% wvec  (per-individual)
+    #   3. Missing correction       — divide by per-individual theoretical max
+    #      (positive weights only; falls back to global max if valid_counts
+    #      unavailable). This is the prerequisite for proportional rescaling.
+    #   4. Rescaling                — one of:
+    #        none        : keep the missingness-corrected (or raw) score
+    #        proportion  : score is already in [0,1] after correction; no-op
+    #                      (correction IS the proportion step)
+    #        percent     : × 100  → [0, 100]
+    #        multiply    : × scaleFactor  (user-supplied multiplier)
+    #        perNAlleles : raw_score / (scaleFactor × denominator_per_snp)
+    #                      for unweighted: denominator_per_snp = 1
+    #                      for weighted:   denominator_per_snp = mean(|pos weights|)
+    #   5. Standardize              — divide by SD across individuals (SD = 1)
+    #
+    # is_unweighted: signals unit weights so we use SNP-count denominator.
+    # ════════════════════════════════════════════════════════════════════════
+    .computeScores = function(dosage, wvec, qc, is_unweighted = FALSE) {
 
-      # ── Step 1: raw weighted sum ─────────────────────────────────────────
-      scores <- as.numeric(dosage %*% wvec)
+      missing_corr <- isTRUE(self$options$missingCorrection)
+      scale_method <- self$options$scaleMethod    # none/proportion/percent/multiply/perNAlleles
+      scale_factor <- self$options$scaleFactor
+      scale_wts    <- isTRUE(self$options$scaleWeights) && !is_unweighted
+      standardize  <- isTRUE(self$options$standardize)
 
-      # ── Step 2: normalize by maximum possible score per individual ────────
-      if (normalize) {
-        vc_cols <- intersect(names(wvec), colnames(qc$valid_counts))
+      if (is.null(scale_factor) || is.na(scale_factor) || scale_factor == 0)
+        scale_factor <- 10
 
-        if (length(vc_cols) > 0) {
-          vc <- qc$valid_counts[, vc_cols, drop = FALSE]   # logical matrix
-
-          if (is_unweighted) {
-            # Max unweighted = 2 alleles × number of observed SNPs
-            max_score <- 2 * rowSums(vc)
-          } else {
-            # Max weighted = 2 × sum of positive weights for observed SNPs per individual.
-            # Only positive-weight SNPs can increase the score (dosage in {0,1,2}), so
-            # negative weights must be excluded from the maximum — otherwise the
-            # denominator is under-estimated and scores can exceed 1.
-            w_sub     <- wvec[vc_cols]
-            w_pos     <- pmax(w_sub, 0)
-            max_score <- 2 * as.numeric(vc %*% w_pos)
-          }
-        } else {
-          # valid_counts unavailable — fall back to global maximum
-          max_score <- if (is_unweighted) 2 * length(wvec)
-                       else               2 * sum(pmax(wvec, 0), na.rm = TRUE)
-          max_score <- rep(max_score, nrow(dosage))
-        }
-
-        max_score[max_score == 0] <- NA_real_
-        scores <- scores / max_score
+      # ── Step 1: optional weight scaling ──────────────────────────────────
+      # L1-normalise to mean(|wvec|) = 1 so weighted and unweighted scores
+      # share a common scale ("effective risk-allele count").
+      if (scale_wts) {
+        mean_abs <- mean(abs(wvec), na.rm = TRUE)
+        if (!is.na(mean_abs) && mean_abs > 0)
+          wvec <- wvec / mean_abs
       }
 
-      # ── Step 3: standardize to SD = 1 ────────────────────────────────────
+      # ── Step 2: raw weighted sum ──────────────────────────────────────────
+      scores <- as.numeric(dosage %*% wvec)
+
+      # ── Step 3: per-individual maximum (used by correction and proportion) ─
+      # Always compute this; the rescaling branch needs it even when
+      # missingCorrection = FALSE (for 'proportion'/'percent' to be valid).
+      vc_cols <- intersect(names(wvec), colnames(qc$valid_counts))
+
+      if (length(vc_cols) > 0) {
+        vc <- qc$valid_counts[, vc_cols, drop = FALSE]   # logical TRUE/FALSE matrix
+        if (is_unweighted || scale_wts) {
+          # After weight-scaling, all effective weights are ≈ 1, so use SNP count.
+          # For truly unweighted: max = 2 × n_observed_SNPs.
+          max_possible <- 2 * rowSums(vc)
+        } else {
+          # Max weighted = 2 × sum of positive weights for observed SNPs.
+          # Negative weights reduce the score, so they cannot be part of the
+          # maximum — including them would underestimate the denominator.
+          w_sub        <- wvec[vc_cols]
+          w_pos        <- pmax(w_sub, 0)
+          max_possible <- 2 * as.numeric(vc %*% w_pos)
+        }
+      } else {
+        # valid_counts unavailable — fall back to global (same for all individuals)
+        if (is_unweighted || scale_wts) {
+          max_possible <- rep(2 * length(wvec), nrow(dosage))
+        } else {
+          max_possible <- rep(2 * sum(pmax(wvec, 0), na.rm = TRUE), nrow(dosage))
+        }
+      }
+      max_possible[max_possible == 0] <- NA_real_
+
+      # ── Step 4: missingness correction ───────────────────────────────────
+      # Divide by per-individual maximum to remove the effect of missingness.
+      # Required for 'proportion' and 'percent' to be valid.
+      if (missing_corr) {
+        scores <- scores / max_possible
+        # After correction, scores ≈ proportion in [0, 1] (may exceed 1 slightly
+        # when some weights are negative, which is mathematically correct).
+      }
+
+      # ── Step 5: rescaling ─────────────────────────────────────────────────
+      scores <- switch(scale_method,
+
+        # 'proportion': correction is the proportion step — already done.
+        # No further multiplication needed; this is the identity branch.
+        proportion = scores,
+
+        # 'percent': convert proportion to 0–100.
+        percent = scores * 100,
+
+        # 'multiply': user-supplied multiplier applied to the corrected score.
+        # If missingCorrection = FALSE, this multiplies the raw sum.
+        multiply = scores * scale_factor,
+
+        # 'perNAlleles': express the score per N risk alleles.
+        #   Unweighted: raw_sum / N  →  "dosage per N SNPs"
+        #   Weighted: raw_sum / (N × mean_pos_weight)  →  comparable unit
+        # If missingCorrection was applied, undo it first so we work on the
+        # raw scale, then apply the per-N denominator.
+        perNAlleles = {
+          # Reconstruct raw score if correction was already applied
+          raw <- if (missing_corr) scores * max_possible else scores
+          if (is_unweighted || scale_wts) {
+            raw / scale_factor
+          } else {
+            mean_pos_w <- mean(pmax(wvec, 0), na.rm = TRUE)
+            if (is.na(mean_pos_w) || mean_pos_w == 0) mean_pos_w <- 1
+            raw / (scale_factor * mean_pos_w)
+          }
+        },
+
+        # 'none': return the (optionally corrected) raw score as-is.
+        scores
+      )
+
+      # ── Step 6: standardize to SD = 1 ────────────────────────────────────
       if (standardize) {
         s <- sd(scores, na.rm = TRUE)
         if (!is.na(s) && s > 0) scores <- scores / s
@@ -1113,6 +1216,8 @@ snpPGSClass <- R6::R6Class(
       }
       add("SNPs used in score",                length(valid_snps))
       add("Missing genotype strategy",         missing_st)
+      add("Score scale (Weighted)",             private$.scaleLabel("Weighted"))
+      add("Score scale (Unweighted)",           private$.scaleLabel("Unweighted"))
       add("Total sample size",   n_total)
       add("Complete cases (no missing SNPs)", paste0(complete, " (", round(complete / n_total * 100, 1), "%)"))
     },

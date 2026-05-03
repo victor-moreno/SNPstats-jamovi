@@ -16,7 +16,10 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             qcMaxMissingPct = 10,
             qcFilterHwe = FALSE,
             qcHweP = 0.001,
-            normalize = TRUE,
+            missingCorrection = TRUE,
+            scaleMethod = "proportion",
+            scaleFactor = 10,
+            scaleWeights = FALSE,
             standardize = FALSE,
             showCoverage = TRUE,
             showDistPlot = FALSE,
@@ -103,10 +106,28 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 min=0,
                 max=1,
                 default=0.001)
-            private$..normalize <- jmvcore::OptionBool$new(
-                "normalize",
-                normalize,
+            private$..missingCorrection <- jmvcore::OptionBool$new(
+                "missingCorrection",
+                missingCorrection,
                 default=TRUE)
+            private$..scaleMethod <- jmvcore::OptionList$new(
+                "scaleMethod",
+                scaleMethod,
+                options=list(
+                    "none",
+                    "proportion",
+                    "percent",
+                    "multiply",
+                    "perNAlleles"),
+                default="proportion")
+            private$..scaleFactor <- jmvcore::OptionNumber$new(
+                "scaleFactor",
+                scaleFactor,
+                default=10)
+            private$..scaleWeights <- jmvcore::OptionBool$new(
+                "scaleWeights",
+                scaleWeights,
+                default=FALSE)
             private$..standardize <- jmvcore::OptionBool$new(
                 "standardize",
                 standardize,
@@ -174,7 +195,10 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..qcMaxMissingPct)
             self$.addOption(private$..qcFilterHwe)
             self$.addOption(private$..qcHweP)
-            self$.addOption(private$..normalize)
+            self$.addOption(private$..missingCorrection)
+            self$.addOption(private$..scaleMethod)
+            self$.addOption(private$..scaleFactor)
+            self$.addOption(private$..scaleWeights)
             self$.addOption(private$..standardize)
             self$.addOption(private$..showCoverage)
             self$.addOption(private$..showDistPlot)
@@ -199,7 +223,10 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         qcMaxMissingPct = function() private$..qcMaxMissingPct$value,
         qcFilterHwe = function() private$..qcFilterHwe$value,
         qcHweP = function() private$..qcHweP$value,
-        normalize = function() private$..normalize$value,
+        missingCorrection = function() private$..missingCorrection$value,
+        scaleMethod = function() private$..scaleMethod$value,
+        scaleFactor = function() private$..scaleFactor$value,
+        scaleWeights = function() private$..scaleWeights$value,
         standardize = function() private$..standardize$value,
         showCoverage = function() private$..showCoverage$value,
         showDistPlot = function() private$..showDistPlot$value,
@@ -223,7 +250,10 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..qcMaxMissingPct = NA,
         ..qcFilterHwe = NA,
         ..qcHweP = NA,
-        ..normalize = NA,
+        ..missingCorrection = NA,
+        ..scaleMethod = NA,
+        ..scaleFactor = NA,
+        ..scaleWeights = NA,
         ..standardize = NA,
         ..showCoverage = NA,
         ..showDistPlot = NA,
@@ -366,7 +396,10 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "weightsPath",
                     "weightingMode",
                     "missingStrategy",
-                    "normalize",
+                    "missingCorrection",
+                    "scaleMethod",
+                    "scaleFactor",
+                    "scaleWeights",
                     "standardize",
                     "responseCol",
                     "covCols"),
@@ -428,7 +461,10 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "weightsPath",
                     "weightingMode",
                     "missingStrategy",
-                    "normalize",
+                    "missingCorrection",
+                    "scaleMethod",
+                    "scaleFactor",
+                    "scaleWeights",
                     "standardize")))
             self$add(jmvcore::Table$new(
                 options=options,
@@ -440,7 +476,10 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "weightsPath",
                     "weightingMode",
                     "missingStrategy",
-                    "normalize",
+                    "missingCorrection",
+                    "scaleMethod",
+                    "scaleFactor",
+                    "scaleWeights",
                     "standardize",
                     "percentileBreaks",
                     "responseCol"),
@@ -471,7 +510,10 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "weightsPath",
                     "weightingMode",
                     "missingStrategy",
-                    "normalize",
+                    "missingCorrection",
+                    "scaleMethod",
+                    "scaleFactor",
+                    "scaleWeights",
                     "standardize",
                     "responseCol",
                     "covCols",
@@ -528,7 +570,10 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "weightsPath",
                     "weightingMode",
                     "missingStrategy",
-                    "normalize",
+                    "missingCorrection",
+                    "scaleMethod",
+                    "scaleFactor",
+                    "scaleWeights",
                     "standardize",
                     "responseCol",
                     "covCols"),
@@ -600,7 +645,10 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "weightsPath",
                     "weightingMode",
                     "missingStrategy",
-                    "normalize",
+                    "missingCorrection",
+                    "scaleMethod",
+                    "scaleFactor",
+                    "scaleWeights",
                     "standardize",
                     "responseCol",
                     "covCols"),
@@ -719,15 +767,44 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'   genotype column. When a binary response variable is selected, HWE is
 #'   automatically tested in controls only (the lower/first level), following
 #'   standard GWAS QC practice.
-#' @param normalize If TRUE, divides each individual's raw score by the
-#'   maximum score they could have achieved given their observed SNPs. For
-#'   unweighted scoring: max = 2 × observed SNP count. For weighted scoring:
-#'   max = 2 × sum of weights for observed SNPs. Individuals with missing SNPs
-#'   get a per-individual maximum, so scores remain comparable across
-#'   individuals with different missingness. Result is in [0, 1].
-#' @param standardize If TRUE, divides the (optionally normalized) PGS by its
-#'   standard deviation across all individuals. The resulting score has SD = 1,
-#'   so regression coefficients represent the effect per 1-SD change in PGS.
+#' @param missingCorrection If TRUE, divides each individual's raw score by
+#'   the maximum score they could have achieved given their observed SNPs only.
+#'   For unweighted scoring: denominator = 2 × n_observed_SNPs. For weighted
+#'   scoring:   denominator = 2 × sum of positive weights for observed SNPs
+#'   (negative weights excluded from the maximum to prevent scores exceeding the
+#'   rescaled range). This correction is strongly recommended whenever genotypes
+#'   are missing, as it ensures scores are comparable across individuals with
+#'   different amounts of missing data. It is a prerequisite for meaningful
+#'   proportional or percent rescaling.
+#' @param scaleMethod How the (missingness-corrected) score is rescaled before
+#'   output. 'none': report the raw weighted sum. 'proportion': divide by the
+#'   per-individual maximum possible score, giving a value in [0, 1] (requires
+#'   missingCorrection = TRUE to be meaningful). 'percent': same as proportion
+#'   but multiplied by 100, giving 0–100. 'multiply': multiply the
+#'   missingness-corrected score by scaleFactor (e.g. 10 for a 0–10 scale).
+#'   'perNAlleles': divide the raw score by scaleFactor; for the unweighted
+#'   score this gives the average dosage per N SNPs — e.g. with scaleFactor = 10
+#'   the unit is "per 10 risk alleles", a common epidemiological reporting
+#'   convention. For the weighted score the denominator is scaleFactor ×
+#'   mean(positive weights), giving comparable units.
+#' @param scaleFactor Numeric value used by the 'multiply' and 'perNAlleles'
+#'   rescaling methods. For 'multiply': the corrected score is multiplied by
+#'   this value (e.g. 100 gives a 0–100 scale from a 0–1 proportion). For
+#'   'perNAlleles': the raw score is divided by this value (e.g. 10 for "per 10
+#'   risk alleles").
+#' @param scaleWeights If TRUE, the effect weights are L1-normalised to unit
+#'   mean (wvec / mean(|wvec|)) before scoring. This places the weighted score
+#'   on the same scale as the unweighted score, so the two can be directly
+#'   compared: both represent an effective risk-allele count, and the difference
+#'   between them reflects the contribution of differential weighting. Has no
+#'   effect when weightingMode is 'unweighted'. Rescaling and standardization
+#'   are applied after weight scaling.
+#' @param standardize If TRUE, divides the rescaled score by its standard
+#'   deviation across all individuals (after all other transformations). The
+#'   resulting score has SD = 1, so regression coefficients represent the effect
+#'   per 1-SD change in PGS. Can be combined with any rescaling method; when
+#'   combined with 'proportion' or 'percent' the SD is computed on that scale
+#'   before dividing.
 #' @param showCoverage Show the SNP coverage summary table.
 #' @param showDistPlot Show the score distribution plot.
 #' @param distPlotType Controls the visual style of the distribution plot.
@@ -791,7 +868,10 @@ snpPGS <- function(
     qcMaxMissingPct = 10,
     qcFilterHwe = FALSE,
     qcHweP = 0.001,
-    normalize = TRUE,
+    missingCorrection = TRUE,
+    scaleMethod = "proportion",
+    scaleFactor = 10,
+    scaleWeights = FALSE,
     standardize = FALSE,
     showCoverage = TRUE,
     showDistPlot = FALSE,
@@ -829,7 +909,10 @@ snpPGS <- function(
         qcMaxMissingPct = qcMaxMissingPct,
         qcFilterHwe = qcFilterHwe,
         qcHweP = qcHweP,
-        normalize = normalize,
+        missingCorrection = missingCorrection,
+        scaleMethod = scaleMethod,
+        scaleFactor = scaleFactor,
+        scaleWeights = scaleWeights,
         standardize = standardize,
         showCoverage = showCoverage,
         showDistPlot = showDistPlot,
