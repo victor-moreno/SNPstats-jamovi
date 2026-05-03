@@ -75,12 +75,17 @@ children:
             label: Score distribution plot
           - type: CheckBox
             name: showPercentiles
-            label: Percentile ranks
+            label: Percentile category analysis
             children:
               - type: TextBox
                 name: percentileBreaks
                 label: 'Percentile thresholds:'
                 format: string
+                width: largest
+                enable: (showPercentiles)
+              - type: ComboBox
+                name: pgsRefCategory
+                label: 'Reference category:'
                 enable: (showPercentiles)
           - type: CheckBox
             name: showAssoc

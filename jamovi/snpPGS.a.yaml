@@ -169,7 +169,29 @@ options:
       type: String
       default: "20,40,60,80,90,95"
       description:
-          R: Comma-separated list of percentile thresholds for the threshold table.
+          R: >
+              Comma-separated list of percentile thresholds used to partition
+              individuals into categories (e.g. "20,40,60,80" creates five bands:
+              <P20, P20–P40, P40–P60, P60–P80, >P80).
+
+    - name: pgsRefCategory
+      title: Reference category
+      type: List
+      options:
+          - name: lowest
+            title: Lowest (<P_min)
+          - name: middle
+            title: Middle (nearest median)
+          - name: highest
+            title: Highest (>P_max)
+      default: middle
+      description:
+          R: >
+              The percentile category used as the reference group in logistic
+              (binary response) or linear (continuous response) regression.
+              'lowest' uses the bottom band (<lowest threshold), 'highest' uses
+              the top band (>highest threshold), and 'middle' uses the band
+              containing the median of the score distribution.
 
     - name: showAssoc
       title: Show PGS-response association

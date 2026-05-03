@@ -9,10 +9,6 @@ Revise
 
 Enhancements
   allow A1 A2 and other columns
-  Add observed allele frequency & HWE to table
-  Percentile ranks
-    - OR / differences for extremes vs a selected reference
-
   SNPs from plink ped/tped
 
 Organize code & clean

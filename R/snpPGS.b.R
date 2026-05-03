@@ -183,7 +183,7 @@ snpPGSClass <- R6::R6Class(
       if (show_strat) private$.cache$resp <- resp
 
       if (self$options$showPercentiles)
-        private$.fillPercentileTable(all_scores)
+        private$.fillPercentileTable(all_scores, resp, respCol, covs)
 
       if (self$results$saveScores$isNotFilled())
         private$.saveScoresToData(all_scores)
@@ -982,31 +982,252 @@ snpPGSClass <- R6::R6Class(
       }
     },
 
-    .fillPercentileTable = function(all_scores) {
+    .fillPercentileTable = function(all_scores, resp = NULL, respCol = NULL,
+                                    covs = NULL) {
+
+      # ── Parse percentile breaks ────────────────────────────────────────────
       breaks_str <- trimws(self$options$percentileBreaks)
       breaks_num <- suppressWarnings(as.numeric(strsplit(breaks_str, ",")[[1]]))
-      breaks_num <- breaks_num[!is.na(breaks_num) & breaks_num >= 0 & breaks_num <= 100]
+      breaks_num <- sort(unique(breaks_num[!is.na(breaks_num) &
+                                           breaks_num > 0 & breaks_num < 100]))
       if (length(breaks_num) == 0) breaks_num <- c(20, 40, 60, 80, 90, 95)
 
-      tbl <- self$results$percentileTable
-      tbl$deleteRows()
+      ref_opt <- self$options$pgsRefCategory   # "lowest" | "highest" | "middle"
 
-      # Add one score column per active mode
-      show_label <- length(all_scores) > 1
-      for (mode_label in names(all_scores)) {
-        col_name  <- paste0("score_", mode_label)
-        col_title <- if (show_label) paste0("PGS (", mode_label, ")") else "PGS Score"
-        tbl$addColumn(name = col_name, title = col_title,
-                      type = "number", format = "zto")
+      # ── Determine response type (mirrors .fillAssocTable logic) ───────────
+      resp_type <- "none"
+      if (!is.null(resp)) {
+        n_lvls <- length(unique(resp[!is.na(resp)]))
+        resp_type <- if (!is.factor(resp) && n_lvls > 5) "continuous"
+                     else if (n_lvls == 2)               "binary"
+                     else if (n_lvls > 2)                "polytomous"
+                     else                                "continuous"
       }
 
-      for (b in breaks_num) {
-        vals <- list(threshold = paste0("P", b))
-        for (mode_label in names(all_scores)) {
-          col_name       <- paste0("score_", mode_label)
-          vals[[col_name]] <- quantile(all_scores[[mode_label]], b / 100, na.rm = TRUE)
+      has_covs    <- !is.null(covs) && ncol(covs) > 0
+      has_resp    <- resp_type %in% c("binary", "continuous")
+      do_strat    <- resp_type %in% c("binary", "polytomous") && !is.null(resp)
+      resp_levels <- if (do_strat) levels(factor(resp[!is.na(resp)])) else character(0)
+
+      # ── Build category labels from breaks ─────────────────────────────────
+      make_labels <- function(brks) {
+        n <- length(brks)
+        if (n == 0) return(">P0")
+        lbl <- character(n + 1)
+        lbl[1] <- paste0("<P", brks[1])
+        for (i in seq_len(n - 1))
+          lbl[i + 1] <- paste0("P", brks[i], "\u2013P", brks[i + 1])
+        lbl[n + 1] <- paste0(">P", brks[n])
+        lbl
+      }
+
+      cat_labels <- make_labels(breaks_num)
+      n_cats     <- length(cat_labels)
+
+      # ── Pre-compute cuts and cat_idx per mode (shared between both tables) ─
+      mode_data <- lapply(all_scores, function(scores) {
+        cuts    <- quantile(scores, breaks_num / 100, na.rm = TRUE)
+        cat_idx <- findInterval(scores, cuts) + 1L
+        cat_idx <- pmin(pmax(cat_idx, 1L), n_cats)
+        list(scores = scores, cuts = cuts, cat_idx = cat_idx)
+      })
+
+      # ── Reference index ────────────────────────────────────────────────────
+      ref_idx <- switch(ref_opt,
+        lowest  = 1L,
+        highest = n_cats,
+        middle  = {
+          s0  <- all_scores[[1]]
+          med <- median(s0, na.rm = TRUE)
+          idx <- findInterval(med, mode_data[[1]]$cuts) + 1L
+          as.integer(pmin(pmax(idx, 1L), n_cats))
         }
-        tbl$addRow(rowKey = b, values = vals)
+      )
+
+      # ══════════════════════════════════════════════════════════════════════
+      # TABLE 1: Counts  (percentileThreshTable) — shown first
+      # ══════════════════════════════════════════════════════════════════════
+      thr_tbl <- self$results$percentileThreshTable
+      thr_tbl$deleteRows()
+
+      # Dynamic per-level columns (added once, before any rows)
+      if (do_strat) {
+        for (lv in resp_levels)
+          thr_tbl$addColumn(
+            name  = paste0("n_lv_", make.names(lv)),
+            title = as.character(lv),
+            type  = "text")
+      }
+
+      show_mode_col <- length(all_scores) > 1
+
+      for (mode_label in names(mode_data)) {
+        md      <- mode_data[[mode_label]]
+        scores  <- md$scores
+        cat_idx <- md$cat_idx
+        n_total <- sum(!is.na(scores))
+        resp_chr <- if (do_strat) as.character(resp) else NULL
+
+        for (ci in seq_len(n_cats)) {
+          lbl    <- cat_labels[ci]
+          mask   <- cat_idx == ci & !is.na(scores)
+          n_i    <- sum(mask)
+          sc_i   <- scores[mask]
+          rng    <- if (n_i > 0)
+            sprintf("[%.3f, %.3f]", min(sc_i), max(sc_i)) else ""
+
+          overall_str <- sprintf("%d (%.1f%%)",
+                                 n_i,
+                                 if (n_total > 0) 100 * n_i / n_total else 0)
+
+          row_vals <- list(
+            score_type = if (show_mode_col) mode_label else "",
+            category   = lbl,
+            score_range = rng,
+            n_overall  = overall_str
+          )
+
+          # Per-level counts (binary / polytomous)
+          if (do_strat) {
+            for (lv in resp_levels) {
+              n_lv_total <- sum(resp_chr == lv, na.rm = TRUE)
+              n_lv_cat   <- sum(mask & resp_chr == lv, na.rm = TRUE)
+              row_vals[[paste0("n_lv_", make.names(lv))]] <-
+                sprintf("%d (%.1f%%)",
+                        n_lv_cat,
+                        if (n_lv_total > 0) 100 * n_lv_cat / n_lv_total else 0)
+            }
+          }
+
+          thr_tbl$addRow(rowKey = paste0(mode_label, "_cat", ci),
+                         values = row_vals)
+        }
+      }
+
+      # ══════════════════════════════════════════════════════════════════════
+      # TABLE 2: Regression  (percentileTable)
+      # ══════════════════════════════════════════════════════════════════════
+      cat_tbl <- self$results$percentileTable
+      cat_tbl$deleteRows()
+
+      # Dynamic column title mirrors assocTable convention
+      est_title <- if (resp_type == "binary") "OR"
+                   else if (has_resp)         "\u03b2"
+                   else                       "Estimate"
+      cat_tbl$getColumn("estimate")$setTitle(est_title)
+
+      ref_lbl <- cat_labels[ref_idx]
+
+      if (!has_resp) {
+        cat_tbl$setNote("modelNote",
+          if (resp_type == "polytomous")
+            paste0("Polytomous response detected (\u2265 3 levels). ",
+                   "Regression by category is not yet supported for polytomous outcomes. ",
+                   "Counts and score ranges are shown.")
+          else
+            "No response variable selected \u2014 counts and score ranges shown.")
+        cat_tbl$setNote("refNote", NULL)
+        cat_tbl$setNote("covNote", NULL)
+      } else {
+        model_lbl <- if (resp_type == "binary") "Logistic regression (OR, 95% CI)"
+                     else                       "Linear regression (\u03b2, 95% CI)"
+        cat_tbl$setNote("modelNote", model_lbl)
+        cat_tbl$setNote("refNote",
+          paste0("Reference category: ", ref_lbl,
+                 " (estimate = 1 for OR, 0 for \u03b2)"))
+        if (has_covs)
+          cat_tbl$setNote("covNote",
+            paste0("Adjusted for: ", paste(names(covs), collapse = ", ")))
+        else
+          cat_tbl$setNote("covNote", NULL)
+      }
+
+      for (mode_label in names(mode_data)) {
+        md      <- mode_data[[mode_label]]
+        scores  <- md$scores
+        cat_idx <- md$cat_idx
+
+        # ── Fit model ───────────────────────────────────────────────────────
+        cf <- NULL; cis <- NULL
+        if (has_resp) {
+          df <- if (has_covs)
+            data.frame(cat = cat_idx, resp = resp, covs, check.names = FALSE)
+          else
+            data.frame(cat = cat_idx, resp = resp)
+          df <- df[complete.cases(df), ]
+
+          df$cat <- relevel(factor(df$cat, levels = seq_len(n_cats),
+                                   labels = cat_labels),
+                            ref = cat_labels[ref_idx])
+
+          cov_terms <- if (has_covs)
+            paste(paste0("`", names(covs), "`"), collapse = " + ") else ""
+
+          if (resp_type == "binary") {
+            df$resp <- factor(df$resp)
+            frm <- if (has_covs) as.formula(paste("resp ~ cat +", cov_terms))
+                   else resp ~ cat
+            fit <- tryCatch(glm(frm, data = df, family = binomial()),
+                            error = function(e) NULL)
+          } else {
+            df$resp <- as.numeric(df$resp)
+            frm <- if (has_covs) as.formula(paste("resp ~ cat +", cov_terms))
+                   else resp ~ cat
+            fit <- tryCatch(lm(frm, data = df), error = function(e) NULL)
+          }
+
+          if (!is.null(fit)) {
+            cf  <- coef(summary(fit))
+            cis <- tryCatch(
+              if (resp_type == "binary") confint.default(fit) else confint(fit),
+              error = function(e) NULL)
+          }
+        }
+
+        # ── One row per category ────────────────────────────────────────────
+        for (ci in seq_len(n_cats)) {
+          lbl    <- cat_labels[ci]
+          mask   <- cat_idx == ci & !is.na(scores)
+          n_i    <- sum(mask)
+          sc_i   <- scores[mask]
+          rng    <- if (n_i > 0)
+            sprintf("[% .3f, % .3f]", min(sc_i), max(sc_i)) else ""
+          is_ref <- (ci == ref_idx)
+
+          est <- ci_lo <- ci_hi <- p_v <- ''
+
+          if (is_ref && has_resp) {
+            est <- if (resp_type == "binary") 1 else 0
+          } else if (!is_ref && has_resp && !is.null(cf)) {
+            coef_nm <- paste0("cat", lbl)
+            if (coef_nm %in% rownames(cf)) {
+              b   <- cf[coef_nm, 1]
+              se  <- cf[coef_nm, 2]
+              p_v <- cf[coef_nm, 4]
+              if (!is.null(cis) && coef_nm %in% rownames(cis)) {
+                ci_lo <- cis[coef_nm, 1]; ci_hi <- cis[coef_nm, 2]
+              } else {
+                ci_lo <- b - 1.96 * se;   ci_hi <- b + 1.96 * se
+              }
+              if (resp_type == "binary") {
+                est <- exp(b); ci_lo <- exp(ci_lo); ci_hi <- exp(ci_hi)
+              } else {
+                est <- b
+              }
+            }
+          }
+
+          cat_tbl$addRow(rowKey = paste0(mode_label, "_cat", ci), values = list(
+            score_type  = mode_label,
+            category    = if (is_ref) paste0(lbl, " \u25c6") else lbl,
+            n           = n_i,
+            score_range = rng,
+            estimate    = est,
+            ci_low      = ci_lo,
+            ci_high     = ci_hi,
+            p           = p_v
+          ))
+        }
       }
     },
 

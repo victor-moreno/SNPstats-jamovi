@@ -151,9 +151,9 @@ items:
         - normalize
         - standardize
 
-  # ── Percentile thresholds ───────────────────────────────────────────────────
-  - name: percentileTable
-    title: Percentile Thresholds
+  # ── Percentile category counts (N and % overall / by response) ─────────────
+  - name: percentileThreshTable
+    title: PGS Percentile Category Counts
     type: Table
     visible: (showPercentiles)
     clearWith:
@@ -164,10 +164,70 @@ items:
         - normalize
         - standardize
         - percentileBreaks
+        - responseCol
     columns:
-        - name: threshold
-          title: Percentile
+        - name: score_type
+          title: Score type
           type: text
+        - name: category
+          title: Category
+          type: text
+        - name: score_range
+          title: Score range
+          type: text
+        - name: n_overall
+          title: "N (%)"
+          type: text
+
+  # ── Percentile category analysis (regression) ──────────────────────────────
+  - name: percentileTable
+    title: PGS Percentile Category Analysis
+    type: Table
+    visible: (showPercentiles)
+    clearWith:
+        - snpCols
+        - weightsPath
+        - weightingMode
+        - missingStrategy
+        - normalize
+        - standardize
+        - responseCol
+        - covCols
+        - percentileBreaks
+        - pgsRefCategory
+    columns:
+        - name: score_type
+          title: Score type
+          type: text
+        - name: category
+          title: Category
+          type: text
+        - name: n
+          title: N
+          type: integer
+        - name: score_range
+          title: Score range
+          type: text
+        - name: estimate
+          title: Estimate
+          type: number
+          format: zto
+        - name: ci_low
+          title: 95% CI low
+          type: number
+          format: zto
+        - name: ci_high
+          title: 95% CI high
+          type: number
+          format: zto
+        - name: p
+          title: p-value
+          type: number
+          format: zto,pvalue
+    notes:
+        modelNote: ''
+        refNote: ''
+        covNote: ''
 
   # ── PGS–response association ────────────────────────────────────────────────
   - name: assocTable

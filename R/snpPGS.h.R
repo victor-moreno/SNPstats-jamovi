@@ -18,6 +18,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             showDistPlot = FALSE,
             showPercentiles = FALSE,
             percentileBreaks = "20,40,60,80,90,95",
+            pgsRefCategory = "lowest",
             showAssoc = FALSE,
             filterValidSnps = FALSE,
             showInteraction = FALSE, ...) {
@@ -100,6 +101,14 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "percentileBreaks",
                 percentileBreaks,
                 default="20,40,60,80,90,95")
+            private$..pgsRefCategory <- jmvcore::OptionList$new(
+                "pgsRefCategory",
+                pgsRefCategory,
+                options=list(
+                    "lowest",
+                    "middle",
+                    "highest"),
+                default="lowest")
             private$..showAssoc <- jmvcore::OptionBool$new(
                 "showAssoc",
                 showAssoc,
@@ -127,6 +136,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..showDistPlot)
             self$.addOption(private$..showPercentiles)
             self$.addOption(private$..percentileBreaks)
+            self$.addOption(private$..pgsRefCategory)
             self$.addOption(private$..showAssoc)
             self$.addOption(private$..filterValidSnps)
             self$.addOption(private$..showInteraction)
@@ -145,6 +155,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         showDistPlot = function() private$..showDistPlot$value,
         showPercentiles = function() private$..showPercentiles$value,
         percentileBreaks = function() private$..percentileBreaks$value,
+        pgsRefCategory = function() private$..pgsRefCategory$value,
         showAssoc = function() private$..showAssoc$value,
         filterValidSnps = function() private$..filterValidSnps$value,
         showInteraction = function() private$..showInteraction$value,
@@ -162,6 +173,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..showDistPlot = NA,
         ..showPercentiles = NA,
         ..percentileBreaks = NA,
+        ..pgsRefCategory = NA,
         ..showAssoc = NA,
         ..filterValidSnps = NA,
         ..showInteraction = NA,
@@ -177,6 +189,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         coverageTable = function() private$.items[["coverageTable"]],
         summaryTable = function() private$.items[["summaryTable"]],
         saveScores = function() private$.items[["saveScores"]],
+        percentileThreshTable = function() private$.items[["percentileThreshTable"]],
         percentileTable = function() private$.items[["percentileTable"]],
         assocTable = function() private$.items[["assocTable"]],
         interactionTable = function() private$.items[["interactionTable"]],
@@ -357,8 +370,8 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "standardize")))
             self$add(jmvcore::Table$new(
                 options=options,
-                name="percentileTable",
-                title="Percentile Thresholds",
+                name="percentileThreshTable",
+                title="PGS Percentile Category Counts",
                 visible="(showPercentiles)",
                 clearWith=list(
                     "snpCols",
@@ -367,12 +380,82 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "missingStrategy",
                     "normalize",
                     "standardize",
-                    "percentileBreaks"),
+                    "percentileBreaks",
+                    "responseCol"),
                 columns=list(
                     list(
-                        `name`="threshold", 
-                        `title`="Percentile", 
+                        `name`="score_type", 
+                        `title`="Score type", 
+                        `type`="text"),
+                    list(
+                        `name`="category", 
+                        `title`="Category", 
+                        `type`="text"),
+                    list(
+                        `name`="score_range", 
+                        `title`="Score range", 
+                        `type`="text"),
+                    list(
+                        `name`="n_overall", 
+                        `title`="N (%)", 
                         `type`="text"))))
+            self$add(jmvcore::Table$new(
+                options=options,
+                name="percentileTable",
+                title="PGS Percentile Category Analysis",
+                visible="(showPercentiles)",
+                clearWith=list(
+                    "snpCols",
+                    "weightsPath",
+                    "weightingMode",
+                    "missingStrategy",
+                    "normalize",
+                    "standardize",
+                    "responseCol",
+                    "covCols",
+                    "percentileBreaks",
+                    "pgsRefCategory"),
+                columns=list(
+                    list(
+                        `name`="score_type", 
+                        `title`="Score type", 
+                        `type`="text"),
+                    list(
+                        `name`="category", 
+                        `title`="Category", 
+                        `type`="text"),
+                    list(
+                        `name`="n", 
+                        `title`="N", 
+                        `type`="integer"),
+                    list(
+                        `name`="score_range", 
+                        `title`="Score range", 
+                        `type`="text"),
+                    list(
+                        `name`="estimate", 
+                        `title`="Estimate", 
+                        `type`="number", 
+                        `format`="zto"),
+                    list(
+                        `name`="ci_low", 
+                        `title`="95% CI low", 
+                        `type`="number", 
+                        `format`="zto"),
+                    list(
+                        `name`="ci_high", 
+                        `title`="95% CI high", 
+                        `type`="number", 
+                        `format`="zto"),
+                    list(
+                        `name`="p", 
+                        `title`="p-value", 
+                        `type`="number", 
+                        `format`="zto,pvalue")),
+                notes=list(
+                    `modelNote`="", 
+                    `refNote`="", 
+                    `covNote`="")))
             self$add(jmvcore::Table$new(
                 options=options,
                 name="assocTable",
@@ -571,8 +654,14 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param showDistPlot Show the score distribution histogram and density plot.
 #' @param showPercentiles Show percentile ranks for each individual and
 #'   threshold table.
-#' @param percentileBreaks Comma-separated list of percentile thresholds for
-#'   the threshold table.
+#' @param percentileBreaks Comma-separated list of percentile thresholds used
+#'   to partition individuals into categories (e.g. "20,40,60,80" creates five
+#'   bands: <P20, P20–P40, P40–P60, P60–P80, >P80).
+#' @param pgsRefCategory The percentile category used as the reference group
+#'   in logistic (binary response) or linear (continuous response) regression.
+#'   'lowest' uses the bottom band (<lowest threshold), 'highest' uses the top
+#'   band (>highest threshold), and 'middle' uses the band containing the median
+#'   of the score distribution.
 #' @param showAssoc Show the PGS-response association table (requires a
 #'   response variable to be selected).
 #' @param filterValidSnps If TRUE, the SNP Weights table is filtered to show
@@ -590,6 +679,7 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'   \code{results$coverageTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$summaryTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$saveScores} \tab \tab \tab \tab \tab an output \cr
+#'   \code{results$percentileThreshTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$percentileTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$assocTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$interactionTable} \tab \tab \tab \tab \tab a table \cr
@@ -618,6 +708,7 @@ snpPGS <- function(
     showDistPlot = FALSE,
     showPercentiles = FALSE,
     percentileBreaks = "20,40,60,80,90,95",
+    pgsRefCategory = "lowest",
     showAssoc = FALSE,
     filterValidSnps = FALSE,
     showInteraction = FALSE) {
@@ -649,6 +740,7 @@ snpPGS <- function(
         showDistPlot = showDistPlot,
         showPercentiles = showPercentiles,
         percentileBreaks = percentileBreaks,
+        pgsRefCategory = pgsRefCategory,
         showAssoc = showAssoc,
         filterValidSnps = filterValidSnps,
         showInteraction = showInteraction)
