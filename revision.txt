@@ -1,10 +1,7 @@
-9:40 !
+u.yaml !
 
 Revise 
   - Assoc table = weighted/unweighted
-  
-  - Scale weights to sum 2nSNPs
-  - normalize / scale parameters
 
   - SNP QC 
         formats allowed: A/B A|B AB A>B 012
@@ -13,21 +10,14 @@ Revise
         excluded SNPs:
                 N % missing ''
   - MAF effect allele correctly selected
-  - dosage missing value handling to count and report complete cases
+
 
 Enhancements
-  plots 
-    by weighting type
-    more breaks
-
-  standardize per max/r risk alleles ?
 
   allow A1 A2 and other columns
   SNPs from plink ped/tped
 
-  Scale weights to sum 2nSNPs
 
-  Criprev permute status/sex
 
 
 Organize code & clean

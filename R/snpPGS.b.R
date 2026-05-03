@@ -51,6 +51,10 @@ snpPGSClass <- R6::R6Class(
         return()
       }
 
+      # Reset keepMask at the start of each run so a previous 'exclude'
+      # strategy mask is never silently applied if buildDosageMatrix returns early.
+      private$.keepMask <- rep(TRUE, nrow(self$data))
+
       # ── Build weight table from file (or unit weights) ───────────────────
       wtable <- private$.buildWeightTable(snpCols)
       if (is.null(wtable)) return()
@@ -195,15 +199,6 @@ snpPGSClass <- R6::R6Class(
 
 
     # ════════════════════════════════════════════════════════════════════════
-    # .buildWeightTable
-    #
-    # Returns a data.frame with columns:
-    #   rsid, effect_allele, other_allele, effect_weight, chr, pos,
-    #   matched (logical), extra_cols (character — concatenated extra fields)
-    #
-    # If no file is configured, returns unit-weight rows for snpCols.
-    # ════════════════════════════════════════════════════════════════════════
-    # ════════════════════════════════════════════════════════════════════════
     # .scaleLabel
     # Returns a short human-readable description of the active scoring pipeline
     # used in table notes and plot axis labels.
@@ -232,24 +227,13 @@ snpPGSClass <- R6::R6Class(
     },
 
     # ════════════════════════════════════════════════════════════════════════
-    # .computeScores
+    # .buildWeightTable
     #
-    # Pipeline (in order):
-    #   1. Raw score  = dosage %*% wvec  (weighted sum of dosage per individual)
-    #   2. Normalize  = raw / max_possible  where max_possible is computed
-    #                   per individual using only the SNPs they had observed
-    #                   (pre-imputation valid_counts):
-    #                     unweighted: 2 * n_valid_snps
-    #                     weighted:   2 * sum(wvec for valid snps)
-    #                   Result is in [0, 1].
-    #   3. Standardize = score / SD(score across individuals)
-    #                   SD is the empirical SD of the sample scores — this is
-    #                   the standard approach (used by PLINK --score). A
-    #                   theoretical SD from marginal Hardy-Weinberg colMeans
-    #                   would ignore LD between SNPs and give population-expected
-    #                   rather than observed SD, making it inappropriate here.
+    # Returns a data.frame with columns:
+    #   rsid, effect_allele, other_allele, effect_weight, chr, pos,
+    #   matched (logical), extra_cols (character — concatenated extra fields)
     #
-    # is_unweighted: signals unit weights so we use SNP-count denominator.
+    # If no file is configured, returns unit-weight rows for snpCols.
     # ════════════════════════════════════════════════════════════════════════
     .buildWeightTable = function(snpCols) {
       path  <- self$options$weightsPath
@@ -368,7 +352,11 @@ snpPGSClass <- R6::R6Class(
         # If missingCorrection was applied, undo it first so we work on the
         # raw scale, then apply the per-N denominator.
         perNAlleles = {
-          # Reconstruct raw score if correction was already applied
+          # Reconstruct the raw (uncorrected) score so the per-N denominator
+          # is applied to the actual weighted sum, not the proportion.
+          # When missing_corr=TRUE, scores == raw/max_possible, so
+          # raw = scores * max_possible.  NAs propagate correctly because
+          # max_possible is NA wherever the score was already NA.
           raw <- if (missing_corr) scores * max_possible else scores
           if (is_unweighted || scale_wts) {
             raw / scale_factor
@@ -624,8 +612,10 @@ snpPGSClass <- R6::R6Class(
           qc <- "numeric (dosage)"
         } else {
           # infer alleles (best effort, no QC decisions)
-          col_char <- toupper(trimws(as.character(col)))
-          col_char[col_char %in% c("", "NA")] <- NA_character_
+          # Apply the same cleaning as .cleanGenotypeColumn so null-allele
+          # codings (0/0 etc.) don't pollute allele inference.
+          cleaned_inf <- private$.cleanGenotypeColumn(col)
+          col_char    <- cleaned_inf$col_clean
 
           bases_list <- strsplit(col_char[!is.na(col_char)],
                                 "[^ACGT]|(?<=.)(?=.)", perl = TRUE)
@@ -1216,8 +1206,13 @@ snpPGSClass <- R6::R6Class(
       }
       add("SNPs used in score",                length(valid_snps))
       add("Missing genotype strategy",         missing_st)
-      add("Score scale (Weighted)",             private$.scaleLabel("Weighted"))
-      add("Score scale (Unweighted)",           private$.scaleLabel("Unweighted"))
+      has_file_cv <- !is.null(self$options$weightsPath) &&
+                     nchar(trimws(self$options$weightsPath)) > 0 &&
+                     file.exists(self$options$weightsPath)
+      run_w  <- self$options$weightingMode %in% c("weighted", "both") && has_file_cv
+      run_uw <- self$options$weightingMode %in% c("unweighted", "both") || !has_file_cv
+      if (run_w)  add("Score scale (Weighted)",   private$.scaleLabel("Weighted"))
+      if (run_uw) add("Score scale (Unweighted)", private$.scaleLabel("Unweighted"))
       add("Total sample size",   n_total)
       add("Complete cases (no missing SNPs)", paste0(complete, " (", round(complete / n_total * 100, 1), "%)"))
     },
@@ -1308,10 +1303,9 @@ snpPGSClass <- R6::R6Class(
       for (mode_label in names(all_scores)) {
         key    <- paste0("PGS_", mode_label)
         scores <- all_scores[[mode_label]]
-        # Expand to full-data length: NAs for excluded rows
-        full_vals <- rep(NA_real_, n_tot)
-        full_vals[score_rows] <- scores
-        out$setValues(key = key, values = full_vals[score_rows])
+        # setValues receives the score-row values directly; setRowNums already
+        # tells jamovi which original row numbers these correspond to.
+        out$setValues(key = key, values = scores)
       }
     },
 
@@ -1340,7 +1334,7 @@ snpPGSClass <- R6::R6Class(
       has_covs    <- !is.null(covs) && ncol(covs) > 0
       has_resp    <- resp_type %in% c("binary", "continuous")
       do_strat    <- resp_type %in% c("binary", "polytomous") && !is.null(resp)
-      resp_levels <- if (do_strat) levels(factor(resp[!is.na(resp)])) else character(0)
+      resp_levels <- if (do_strat) levels(droplevels(factor(resp[!is.na(resp)]))) else character(0)
 
       # ── Build category labels from breaks ─────────────────────────────────
       make_labels <- function(brks) {
@@ -1576,7 +1570,7 @@ snpPGSClass <- R6::R6Class(
       df <- df[complete.cases(df), ]
       if (nrow(df) < 3) return()
 
-      lvls      <- levels(factor(df$resp))
+      lvls      <- levels(droplevels(factor(df$resp)))
       n_lvls    <- length(lvls)
       resp_type <- if (!is.factor(df$resp) && n_lvls > 5) "continuous"
                    else if (n_lvls == 2)                  "binary"
@@ -1795,7 +1789,7 @@ snpPGSClass <- R6::R6Class(
       df <- df[complete.cases(df), ]
       if (nrow(df) < 5) return()
 
-      lvls      <- levels(factor(df$resp))
+      lvls      <- levels(droplevels(factor(df$resp)))
       n_lvls    <- length(lvls)
       resp_type <- if (!is.factor(df$resp) && n_lvls > 5) "continuous"
                    else if (n_lvls == 2)                   "binary"
@@ -2003,32 +1997,36 @@ snpPGSClass <- R6::R6Class(
       for (mi in seq_along(all_scores)) {
         mode_lbl <- mode_nms[mi]
         scores   <- all_scores[[mi]]
-        scores   <- scores[!is.na(scores)]
-        if (length(scores) < 2) next
+
+        # Build a joint non-missing mask over scores AND resp (when present)
+        # so that group subsetting uses perfectly aligned indices.
+        valid_mask <- !is.na(scores)
+        if (!is.null(resp)) valid_mask <- valid_mask & !is.na(resp)
+        scores_v <- scores[valid_mask]
+        resp_v   <- if (!is.null(resp)) resp[valid_mask] else NULL
+
+        if (length(scores_v) < 2) next
 
         # ── Build per-group score lists ────────────────────────────────────
         if (is_binary) {
-          lvls   <- levels(factor(resp[!is.na(resp)]))
-          n_grps <- length(lvls)
+          lvls    <- levels(factor(resp_v))
+          n_grps  <- length(lvls)
           colours <- grp_pal[seq_len(min(n_grps, length(grp_pal)))]
-
-          # Align resp to scores (keepMask already applied to both)
-          resp_ch <- as.character(resp)
-          grp_sc  <- lapply(lvls, function(lv) {
-            s <- scores[!is.na(resp) & resp_ch == lv]
-            s[!is.na(s)]
-          })
+          resp_ch <- as.character(resp_v)
+          grp_sc  <- lapply(lvls, function(lv) scores_v[resp_ch == lv])
           names(grp_sc) <- lvls
         } else {
           lvls    <- "Overall"
           n_grps  <- 1L
           colours <- "#2980B9"
-          grp_sc  <- list(Overall = scores)
+          grp_sc  <- list(Overall = scores_v)
         }
 
         # ── Compute y-axis limits across all groups ────────────────────────
-        x_range <- range(scores, na.rm = TRUE)
-        # pad slightly so outermost bars aren't clipped
+        x_range <- range(scores_v, na.rm = TRUE)
+        # Ensure a non-degenerate range (guards against all-identical scores)
+        if (diff(x_range) < .Machine$double.eps)
+          x_range <- x_range + c(-0.5, 0.5)
         x_pad   <- diff(x_range) * 0.04
         x_range <- c(x_range[1] - x_pad, x_range[2] + x_pad)
 
@@ -2080,9 +2078,10 @@ snpPGSClass <- R6::R6Class(
           } else {
             # Multiple groups: side-by-side bars within each common break set
             # Use a shared break sequence based on overall data
-            all_br <- hist(scores, plot = FALSE, breaks = breaks)$breaks
-            bw     <- diff(all_br[1:2])
-            sub_bw <- bw / n_grps
+            all_br  <- hist(scores_v, plot = FALSE, breaks = breaks)$breaks
+            bw_vec  <- diff(all_br)          # per-bin widths (may differ)
+            n_bins  <- length(bw_vec)
+            sub_bw  <- bw_vec / n_grps       # per-bin sub-bar width
 
             for (gi in seq_along(lvls)) {
               lv <- lvls[gi]
@@ -2090,10 +2089,10 @@ snpPGSClass <- R6::R6Class(
               if (length(sc) < 1) next
               # Count into shared bins
               cnts  <- tabulate(findInterval(sc, all_br, rightmost.closed = TRUE),
-                                nbins = length(all_br) - 1)
-              dens_vals <- cnts / (length(sc) * bw)
+                                nbins = n_bins)
+              dens_vals <- cnts / (length(sc) * bw_vec)   # density per bin
               x_left  <- all_br[-length(all_br)] + (gi - 1) * sub_bw
-              x_right <- x_left + sub_bw * 0.92   # small gap between bars
+              x_right <- x_left + sub_bw * 0.92   # small gap between sub-bars
               rect(x_left, 0, x_right, dens_vals,
                    col    = adjustcolor(colours[gi], alpha.f = 0.60),
                    border = adjustcolor(colours[gi], alpha.f = 0.85))
