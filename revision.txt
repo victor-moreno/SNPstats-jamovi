@@ -1,6 +1,11 @@
 9:40 !
 
 Revise 
+  - Assoc table = weighted/unweighted
+  
+  - Scale weights to sum 2nSNPs
+  - normalize / scale parameters
+
   - SNP QC 
         formats allowed: A/B A|B AB A>B 012
         coding errors: non-biallelic, monomorphic 

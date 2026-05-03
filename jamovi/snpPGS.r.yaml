@@ -342,15 +342,15 @@ items:
     title: Score Distribution
     type: Image
     visible: (showDistPlot)
-    width: 560
-    height: 390
+    width: 700
+    height: 420
     renderFun: .plotDist
 
-  # ── Stratified plot (visible when response variable is set) ───────────────
+  # ── Scatter plot: continuous response only (binary handled in distPlot) ──
   - name: stratPlot
-    title: PGS by Group
+    title: PGS vs Response
     type: Image
     visible: false
-    width: 560
+    width: 700
     height: 420
     renderFun: .plotStrat

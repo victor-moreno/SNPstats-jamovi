@@ -100,6 +100,17 @@ children:
           - type: CheckBox
             name: showDistPlot
             label: Score distribution plot
+            children:
+              - type: ComboBox
+                name: distPlotType
+                label: 'Plot type:'
+                enable: (showDistPlot)
+              - type: TextBox
+                name: histBreaks
+                label: 'Histogram bins:'
+                format: number
+                width: small
+                enable: (showDistPlot && distPlotType != 'density')
           - type: CheckBox
             name: showPercentiles
             label: Percentile category analysis

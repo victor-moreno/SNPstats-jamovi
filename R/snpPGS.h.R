@@ -20,6 +20,8 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             standardize = FALSE,
             showCoverage = TRUE,
             showDistPlot = FALSE,
+            distPlotType = "density",
+            histBreaks = 20,
             showPercentiles = FALSE,
             percentileBreaks = "20,40,60,80,90,95",
             pgsRefCategory = "middle",
@@ -117,6 +119,20 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "showDistPlot",
                 showDistPlot,
                 default=FALSE)
+            private$..distPlotType <- jmvcore::OptionList$new(
+                "distPlotType",
+                distPlotType,
+                options=list(
+                    "density",
+                    "histogram",
+                    "both"),
+                default="density")
+            private$..histBreaks <- jmvcore::OptionNumber$new(
+                "histBreaks",
+                histBreaks,
+                min=2,
+                max=500,
+                default=20)
             private$..showPercentiles <- jmvcore::OptionBool$new(
                 "showPercentiles",
                 showPercentiles,
@@ -162,6 +178,8 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..standardize)
             self$.addOption(private$..showCoverage)
             self$.addOption(private$..showDistPlot)
+            self$.addOption(private$..distPlotType)
+            self$.addOption(private$..histBreaks)
             self$.addOption(private$..showPercentiles)
             self$.addOption(private$..percentileBreaks)
             self$.addOption(private$..pgsRefCategory)
@@ -185,6 +203,8 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         standardize = function() private$..standardize$value,
         showCoverage = function() private$..showCoverage$value,
         showDistPlot = function() private$..showDistPlot$value,
+        distPlotType = function() private$..distPlotType$value,
+        histBreaks = function() private$..histBreaks$value,
         showPercentiles = function() private$..showPercentiles$value,
         percentileBreaks = function() private$..percentileBreaks$value,
         pgsRefCategory = function() private$..pgsRefCategory$value,
@@ -207,6 +227,8 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..standardize = NA,
         ..showCoverage = NA,
         ..showDistPlot = NA,
+        ..distPlotType = NA,
+        ..histBreaks = NA,
         ..showPercentiles = NA,
         ..percentileBreaks = NA,
         ..pgsRefCategory = NA,
@@ -622,15 +644,15 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 name="distPlot",
                 title="Score Distribution",
                 visible="(showDistPlot)",
-                width=560,
-                height=390,
+                width=700,
+                height=420,
                 renderFun=".plotDist"))
             self$add(jmvcore::Image$new(
                 options=options,
                 name="stratPlot",
-                title="PGS by Group",
+                title="PGS vs Response",
                 visible=FALSE,
-                width=560,
+                width=700,
                 height=420,
                 renderFun=".plotStrat"))}))
 
@@ -707,7 +729,14 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'   standard deviation across all individuals. The resulting score has SD = 1,
 #'   so regression coefficients represent the effect per 1-SD change in PGS.
 #' @param showCoverage Show the SNP coverage summary table.
-#' @param showDistPlot Show the score distribution histogram and density plot.
+#' @param showDistPlot Show the score distribution plot.
+#' @param distPlotType Controls the visual style of the distribution plot.
+#'   'density' shows kernel density curves with filled polygons; 'histogram'
+#'   shows bars (density scale); 'both' overlays density curves on histogram
+#'   bars.
+#' @param histBreaks Approximate number of bins for the histogram (used when
+#'   distPlotType is 'histogram' or 'both'). Passed as the 'breaks' argument to
+#'   hist(); R may adjust the value to produce a pleasing bin width.
 #' @param showPercentiles Show percentile ranks for each individual and
 #'   threshold table.
 #' @param percentileBreaks Comma-separated list of percentile thresholds used
@@ -766,6 +795,8 @@ snpPGS <- function(
     standardize = FALSE,
     showCoverage = TRUE,
     showDistPlot = FALSE,
+    distPlotType = "density",
+    histBreaks = 20,
     showPercentiles = FALSE,
     percentileBreaks = "20,40,60,80,90,95",
     pgsRefCategory = "middle",
@@ -802,6 +833,8 @@ snpPGS <- function(
         standardize = standardize,
         showCoverage = showCoverage,
         showDistPlot = showDistPlot,
+        distPlotType = distPlotType,
+        histBreaks = histBreaks,
         showPercentiles = showPercentiles,
         percentileBreaks = percentileBreaks,
         pgsRefCategory = pgsRefCategory,

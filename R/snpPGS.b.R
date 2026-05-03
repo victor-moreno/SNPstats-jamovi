@@ -182,9 +182,17 @@ snpPGSClass <- R6::R6Class(
         return()
       }
 
-      show_strat <- self$options$showDistPlot && !is.null(resp)
+      # ── Cache everything the plot render functions need ─────────────────
+      if (self$options$showDistPlot) {
+        private$.cache$all_scores <- all_scores
+        private$.cache$resp       <- resp
+        private$.cache$respCol    <- respCol
+      }
+      # stratPlot (continuous scatter) visible only when response is continuous
+      is_binary_resp <- !is.null(resp) && (is.factor(resp) ||
+                        length(unique(resp[!is.na(resp)])) == 2)
+      show_strat <- self$options$showDistPlot && !is.null(resp) && !is_binary_resp
       self$results$stratPlot$setVisible(show_strat)
-      if (show_strat) private$.cache$resp <- resp
 
       if (self$options$showPercentiles)
         private$.fillPercentileTable(all_scores, resp, respCol, covs)
@@ -1843,105 +1851,264 @@ snpPGSClass <- R6::R6Class(
       }
     },
 
+    # ════════════════════════════════════════════════════════════════════════
+    # .plotDist
+    #
+    # Distribution plot — one panel per scoring mode (side-by-side when both
+    # Weighted and Unweighted are active).  Within each panel:
+    #   - No response / continuous response: overall distribution
+    #   - Binary response: one curve/bar-set per group, overlaid
+    #
+    # Plot type controlled by distPlotType option:
+    #   "density"   → kernel density curve(s) with filled polygon(s)
+    #   "histogram" → side-by-side or stacked bars (freq = FALSE)
+    #   "both"      → histogram bars + density overlay
+    # ════════════════════════════════════════════════════════════════════════
     .plotDist = function(image, ...) {
-      scores <- private$.pgsScores
-      if (is.null(scores) || length(scores) < 2) return(FALSE)
+
+      all_scores <- private$.cache$all_scores
+      resp       <- private$.cache$resp
+      respCol    <- private$.cache$respCol
+
+      if (is.null(all_scores) || length(all_scores) == 0) return(FALSE)
+
+      # ── Options ────────────────────────────────────────────────────────────
+      plot_type <- self$options$distPlotType   # "density" | "histogram" | "both"
+      n_breaks  <- self$options$histBreaks     # integer, used when histogram active
+      breaks    <- if (!is.null(n_breaks) && !is.na(n_breaks) && n_breaks >= 2)
+                     as.integer(n_breaks) else "Sturges"
+
+      is_binary <- !is.null(resp) && (is.factor(resp) ||
+                    length(unique(resp[!is.na(resp)])) == 2)
+
+      # Group palette (controls / cases / extra levels)
+      grp_pal <- c("#2980B9", "#C0392B", "#27AE60", "#8E44AD")
+
+      n_modes  <- length(all_scores)
+      mode_nms <- names(all_scores)
 
       opar <- par(no.readonly = TRUE)
       on.exit(par(opar))
-      par(mar = c(4.5, 4.5, 3, 1.5), bg = "white")
 
-      dens  <- density(scores, na.rm = TRUE)
-      h     <- hist(scores, plot = FALSE, breaks = "Sturges")
-      y_max <- max(max(h$density), max(dens$y)) * 1.15
+      # Layout: one column per mode
+      par(mfrow = c(1, n_modes),
+          bg    = "white",
+          oma   = c(0, 0, if (n_modes > 1) 2 else 0, 0))
 
-      hist(scores, freq = FALSE, breaks = "Sturges",
-           col = "#AED6F1", border = "#2980B9",
-           main = "PGS Distribution (Overall)",
-           xlab = "PGS Score", ylab = "Density",
-           ylim = c(0, y_max), las = 1)
-      lines(dens, col = "#C0392B", lwd = 2.5)
-      abline(v = mean(scores, na.rm = TRUE), col = "#27AE60", lwd = 2, lty = 2)
-      legend("topright",
-             legend = c("Density", "Mean"),
-             col    = c("#C0392B", "#27AE60"),
-             lty = c(1, 2), lwd = 2, bty = "n", cex = 0.85)
+      for (mi in seq_along(all_scores)) {
+        mode_lbl <- mode_nms[mi]
+        scores   <- all_scores[[mi]]
+        scores   <- scores[!is.na(scores)]
+        if (length(scores) < 2) next
+
+        # ── Build per-group score lists ────────────────────────────────────
+        if (is_binary) {
+          lvls   <- levels(factor(resp[!is.na(resp)]))
+          n_grps <- length(lvls)
+          colours <- grp_pal[seq_len(min(n_grps, length(grp_pal)))]
+
+          # Align resp to scores (keepMask already applied to both)
+          resp_ch <- as.character(resp)
+          grp_sc  <- lapply(lvls, function(lv) {
+            s <- scores[!is.na(resp) & resp_ch == lv]
+            s[!is.na(s)]
+          })
+          names(grp_sc) <- lvls
+        } else {
+          lvls    <- "Overall"
+          n_grps  <- 1L
+          colours <- "#2980B9"
+          grp_sc  <- list(Overall = scores)
+        }
+
+        # ── Compute y-axis limits across all groups ────────────────────────
+        x_range <- range(scores, na.rm = TRUE)
+        # pad slightly so outermost bars aren't clipped
+        x_pad   <- diff(x_range) * 0.04
+        x_range <- c(x_range[1] - x_pad, x_range[2] + x_pad)
+
+        y_max <- 0
+        hist_list <- list()
+        dens_list <- list()
+
+        for (lv in lvls) {
+          sc <- grp_sc[[lv]]
+          if (length(sc) < 2) next
+          if (plot_type %in% c("histogram", "both")) {
+            h <- hist(sc, plot = FALSE, breaks = breaks)
+            hist_list[[lv]] <- h
+            y_max <- max(y_max, max(h$density, na.rm = TRUE))
+          }
+          if (plot_type %in% c("density", "both")) {
+            d <- density(sc, na.rm = TRUE)
+            dens_list[[lv]] <- d
+            y_max <- max(y_max, max(d$y, na.rm = TRUE))
+          }
+        }
+        y_max <- y_max * 1.20
+
+        # ── Set up panel ───────────────────────────────────────────────────
+        par(mar = c(4.5, 4.5, 3.5, 1.5))
+        panel_title <- if (n_modes > 1) mode_lbl else "PGS Distribution"
+
+        # Determine y-label
+        y_lab <- switch(plot_type,
+          density   = "Density",
+          histogram = "Density",
+          both      = "Density"
+        )
+
+        # Empty plot frame
+        plot(NULL,
+             xlim = x_range, ylim = c(0, y_max),
+             xlab = "PGS Score", ylab = y_lab,
+             main = panel_title, las = 1)
+
+        # ── Draw histogram bars (side-by-side for multiple groups) ─────────
+        if (plot_type %in% c("histogram", "both") && length(hist_list) > 0) {
+          if (n_grps == 1) {
+            # Single group: standard histogram bars
+            h <- hist_list[[lvls[1]]]
+            rect(h$breaks[-length(h$breaks)], 0, h$breaks[-1], h$density,
+                 col    = adjustcolor(colours[1], alpha.f = 0.55),
+                 border = adjustcolor(colours[1], alpha.f = 0.80))
+          } else {
+            # Multiple groups: side-by-side bars within each common break set
+            # Use a shared break sequence based on overall data
+            all_br <- hist(scores, plot = FALSE, breaks = breaks)$breaks
+            bw     <- diff(all_br[1:2])
+            sub_bw <- bw / n_grps
+
+            for (gi in seq_along(lvls)) {
+              lv <- lvls[gi]
+              sc <- grp_sc[[lv]]
+              if (length(sc) < 1) next
+              # Count into shared bins
+              cnts  <- tabulate(findInterval(sc, all_br, rightmost.closed = TRUE),
+                                nbins = length(all_br) - 1)
+              dens_vals <- cnts / (length(sc) * bw)
+              x_left  <- all_br[-length(all_br)] + (gi - 1) * sub_bw
+              x_right <- x_left + sub_bw * 0.92   # small gap between bars
+              rect(x_left, 0, x_right, dens_vals,
+                   col    = adjustcolor(colours[gi], alpha.f = 0.60),
+                   border = adjustcolor(colours[gi], alpha.f = 0.85))
+            }
+          }
+        }
+
+        # ── Draw density curves ────────────────────────────────────────────
+        if (plot_type %in% c("density", "both") && length(dens_list) > 0) {
+          for (gi in seq_along(lvls)) {
+            lv <- lvls[gi]
+            d  <- dens_list[[lv]]
+            if (is.null(d)) next
+            # Filled polygon for density
+            polygon(c(d$x, rev(d$x)),
+                    c(d$y,  rep(0, length(d$y))),
+                    col    = adjustcolor(colours[gi], alpha.f = 0.18),
+                    border = NA)
+            lines(d, col = colours[gi], lwd = 2.2)
+          }
+        }
+
+        # ── Group mean lines ───────────────────────────────────────────────
+        for (gi in seq_along(lvls)) {
+          lv <- lvls[gi]
+          sc <- grp_sc[[lv]]
+          if (length(sc) < 1) next
+          abline(v   = mean(sc, na.rm = TRUE),
+                 col = colours[gi], lwd = 1.6, lty = 2)
+        }
+
+        # ── Legend ─────────────────────────────────────────────────────────
+        leg_labels <- lvls
+        if (!is.null(respCol) && is_binary)
+          leg_labels <- paste0(respCol, "=", lvls)
+        legend("topright",
+               legend = leg_labels,
+               col    = colours,
+               lwd    = 2, lty = 1,
+               bty    = "n", cex = 0.82)
+
+        # ── p-value annotation for binary (Mann-Whitney, two groups only) ──
+        if (is_binary && length(lvls) == 2) {
+          g1  <- grp_sc[[lvls[1]]]
+          g2  <- grp_sc[[lvls[2]]]
+          mw  <- tryCatch(wilcox.test(g2, g1, exact = FALSE), error = function(e) NULL)
+          if (!is.null(mw)) {
+            p_fmt <- if (mw$p.value < 0.001) "p < 0.001"
+                     else paste0("p = ", round(mw$p.value, 3))
+            mtext(paste0("Mann-Whitney ", p_fmt), side = 3, line = 0.25,
+                  cex = 0.80, col = "#555555")
+          }
+        }
+      }
+
+      # Overall title when both modes shown
+      if (n_modes > 1)
+        mtext("PGS Distribution", outer = TRUE, cex = 1.05, font = 2, line = 0.4)
+
       TRUE
     },
 
+    # ════════════════════════════════════════════════════════════════════════
+    # .plotStrat
+    # Scatter plot (continuous response only).  Binary response is now
+    # handled inside .plotDist with per-group curves/bars.
+    # ════════════════════════════════════════════════════════════════════════
     .plotStrat = function(image, ...) {
-      scores <- private$.pgsScores
-      resp   <- private$.cache$resp
-      if (is.null(scores) || length(scores) < 2 || is.null(resp)) return(FALSE)
+
+      all_scores <- private$.cache$all_scores
+      resp       <- private$.cache$resp
+      respCol    <- private$.cache$respCol
+
+      if (is.null(all_scores) || is.null(resp)) return(FALSE)
+
+      # Only continuous response reaches here (binary is in .plotDist)
+      is_binary <- is.factor(resp) || length(unique(resp[!is.na(resp)])) == 2
+      if (is_binary) return(FALSE)
+
+      n_modes  <- length(all_scores)
+      mode_nms <- names(all_scores)
 
       opar <- par(no.readonly = TRUE)
       on.exit(par(opar))
 
-      is_binary <- is.factor(resp) || length(unique(resp[!is.na(resp)])) == 2
+      par(mfrow = c(1, n_modes),
+          bg    = "white",
+          oma   = c(0, 0, if (n_modes > 1) 2 else 0, 0))
 
-      df <- data.frame(pgs = scores, resp = resp)
-      df <- df[complete.cases(df), ]
-      if (nrow(df) < 3) return(FALSE)
+      for (mi in seq_along(all_scores)) {
+        mode_lbl <- mode_nms[mi]
+        scores   <- all_scores[[mi]]
 
-      if (is_binary) {
-        # ── Overlapping density curves + boxplot per group ─────────────────
-        lvls   <- levels(factor(df$resp))
-        grp_colours <- c("#2980B9", "#C0392B", "#27AE60", "#8E44AD")
-        grp_colours <- grp_colours[seq_along(lvls)]
+        df <- data.frame(pgs = scores, resp = as.numeric(resp))
+        df <- df[complete.cases(df), ]
+        if (nrow(df) < 3) next
 
-        # Compute densities per group
-        dens_list <- lapply(lvls, function(lv)
-          density(df$pgs[as.character(df$resp) == lv], na.rm = TRUE))
+        par(mar = c(5, 4.5, 4, 1.5))
+        panel_title <- if (n_modes > 1) mode_lbl else "PGS vs Response"
+        y_lab       <- if (!is.null(respCol) && nchar(respCol) > 0) respCol else "Response"
 
-        y_max <- max(sapply(dens_list, function(d) max(d$y))) * 1.2
+        plot(df$pgs, df$resp,
+             pch = 19, col = adjustcolor("#2980B9", alpha.f = 0.40), cex = 0.70,
+             xlab = "PGS Score", ylab = y_lab,
+             main = panel_title, las = 1)
 
-        par(mar = c(5, 4.5, 4, 1.5), bg = "white")
-        plot(NULL, xlim = range(df$pgs), ylim = c(0, y_max),
-             xlab = "PGS Score", ylab = "Density",
-             main = "PGS Distribution by Group", las = 1)
-
-        for (i in seq_along(lvls)) {
-          polygon(c(dens_list[[i]]$x, rev(dens_list[[i]]$x)),
-                  c(dens_list[[i]]$y, rep(0, length(dens_list[[i]]$y))),
-                  col = adjustcolor(grp_colours[i], alpha.f = 0.25), border = NA)
-          lines(dens_list[[i]], col = grp_colours[i], lwd = 2.5)
-          abline(v = mean(df$pgs[as.character(df$resp) == lvls[i]], na.rm = TRUE),
-                 col = grp_colours[i], lwd = 1.5, lty = 2)
-        }
-
-        legend("topright", legend = lvls,
-               col = grp_colours, lwd = 2, bty = "n", cex = 0.9)
-
-        # Add p-value annotation (Mann-Whitney)
-        g1  <- df$pgs[as.character(df$resp) == lvls[1]]
-        g2  <- df$pgs[as.character(df$resp) == lvls[2]]
-        mw  <- tryCatch(wilcox.test(g2, g1, exact = FALSE), error = function(e) NULL)
-        if (!is.null(mw)) {
-          p_fmt <- if (mw$p.value < 0.001) "p < 0.001"
-                   else paste0("p = ", round(mw$p.value, 3))
-          mtext(paste0("Mann-Whitney ", p_fmt), side = 3, line = 0.3,
-                cex = 0.85, col = "#555555")
-        }
-
-      } else {
-        # ── Scatter plot with regression line ──────────────────────────────
-        par(mar = c(5, 4.5, 4, 1.5), bg = "white")
-        resp_num <- as.numeric(df$resp)
-        plot(df$pgs, resp_num,
-             pch = 19, col = adjustcolor("#2980B9", alpha.f = 0.4), cex = 0.7,
-             xlab = "PGS Score", ylab = "Response",
-             main = "PGS vs Response", las = 1)
-
-        fit <- tryCatch(lm(resp_num ~ pgs, data = df), error = function(e) NULL)
+        fit <- tryCatch(lm(resp ~ pgs, data = df), error = function(e) NULL)
         if (!is.null(fit)) {
           abline(fit, col = "#C0392B", lwd = 2)
           r2    <- summary(fit)$r.squared
           p_val <- coef(summary(fit))[2, 4]
           p_fmt <- if (p_val < 0.001) "p < 0.001" else paste0("p = ", round(p_val, 3))
           mtext(paste0("R² = ", round(r2, 3), "  |  ", p_fmt),
-                side = 3, line = 0.3, cex = 0.85, col = "#555555")
+                side = 3, line = 0.25, cex = 0.82, col = "#555555")
         }
       }
+
+      if (n_modes > 1)
+        mtext("PGS vs Response", outer = TRUE, cex = 1.05, font = 2, line = 0.4)
+
       TRUE
     }
 

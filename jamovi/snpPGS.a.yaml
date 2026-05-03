@@ -204,7 +204,38 @@ options:
       type: Bool
       default: false
       description:
-          R: Show the score distribution histogram and density plot.
+          R: Show the score distribution plot.
+
+    - name: distPlotType
+      title: Plot type
+      type: List
+      options:
+          - name: density
+            title: Density
+          - name: histogram
+            title: Histogram
+          - name: both
+            title: Both (histogram + density)
+      default: density
+      description:
+          R: >
+              Controls the visual style of the distribution plot.
+              'density' shows kernel density curves with filled polygons;
+              'histogram' shows bars (density scale); 'both' overlays
+              density curves on histogram bars.
+
+    - name: histBreaks
+      title: Histogram breaks
+      type: Number
+      min: 2
+      max: 500
+      default: 20
+      description:
+          R: >
+              Approximate number of bins for the histogram (used when
+              distPlotType is 'histogram' or 'both'). Passed as the
+              'breaks' argument to hist(); R may adjust the value to
+              produce a pleasing bin width.
 
     - name: showPercentiles
       title: Show percentile ranks
