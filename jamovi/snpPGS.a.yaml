@@ -118,6 +118,55 @@ options:
               divides by that individual's observed SNP count, keeping
               all individuals regardless of missingness.
 
+    - name: qcFilterMissing
+      title: Filter SNPs by missingness
+      type: Bool
+      default: false
+      description:
+          R: >
+              If TRUE, SNPs whose percentage of missing genotypes exceeds
+              qcMaxMissingPct are excluded from scoring. Missing genotypes
+              include NA values and any null-allele codings (e.g. 0/0)
+              that were cleaned to NA during pre-processing.
+
+    - name: qcMaxMissingPct
+      title: Max missing genotypes (%)
+      type: Number
+      min: 0
+      max: 100
+      default: 10
+      description:
+          R: >
+              Threshold for the SNP missingness filter (requires
+              qcFilterMissing = TRUE). SNPs with percentage of missing
+              genotypes strictly greater than this value are excluded.
+              Default: 10 (i.e. > 10% missing → excluded).
+
+    - name: qcFilterHwe
+      title: Filter SNPs by HWE
+      type: Bool
+      default: false
+      description:
+          R: >
+              If TRUE, SNPs whose Hardy-Weinberg equilibrium exact test
+              p-value is below qcHweP are excluded from scoring.
+
+    - name: qcHweP
+      title: HWE p-value threshold
+      type: Number
+      min: 0
+      max: 1
+      default: 0.001
+      description:
+          R: >
+              Threshold for the HWE filter (requires qcFilterHwe = TRUE).
+              SNPs with HWE p-value strictly below this value are excluded.
+              Default: 0.001. HWE is computed using an exact test on the
+              cleaned (NA-corrected) genotype column. When a binary response
+              variable is selected, HWE is automatically tested in controls
+              only (the lower/first level), following standard GWAS QC practice.
+
+
     - name: normalize
       title: Normalize score (max=1)
       type: Bool

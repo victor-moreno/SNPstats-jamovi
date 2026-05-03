@@ -65,6 +65,9 @@ items:
           title: "HWE p"
           type: number
           format: zto,pvalue
+        - name: qc_excl_reason
+          title: "QC filter"
+          type: text
         - name: extra_cols
           title: Extra fields
           type: text

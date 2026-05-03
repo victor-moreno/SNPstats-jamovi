@@ -57,6 +57,33 @@ children:
             label: Standardize score (SD=1)
   - type: LayoutBox
     margin: large
+    children:
+      - type: Label
+        label: SNP QC Filters
+        children:
+          - type: CheckBox
+            name: qcFilterMissing
+            label: Exclude SNPs with high missingness
+            children:
+              - type: TextBox
+                name: qcMaxMissingPct
+                label: 'Max missing (%)'
+                format: number
+                width: small
+                enable: (qcFilterMissing)
+          - type: CheckBox
+            name: qcFilterHwe
+            label: Exclude SNPs failing HWE test
+            children:
+              - type: TextBox
+                name: qcHweP
+                label: 'HWE p-value threshold'
+                format: number
+                width: small
+                enable: (qcFilterHwe)
+
+  - type: LayoutBox
+    margin: large
     stretchFactor: 1
     children:
       - type: Label

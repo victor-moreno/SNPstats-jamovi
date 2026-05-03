@@ -113,7 +113,11 @@ snpPGSClass <- R6::R6Class(
         }
       }
 
-      private$.fillCoverageTable(snpCols, wtable, missing_st, valid_snps, dosage)
+      private$.fillCoverageTable(snpCols, wtable, missing_st, valid_snps,
+                                  valid_counts = qc$valid_counts,
+                                  n_total      = nrow(self$data),
+                                  n_qc_excl    = qc$n_qc_excl %||% 0L,
+                                  n_flt_excl   = qc$n_flt_excl %||% 0L)
 
       # ── Clear tables before multi-mode fill ─────────────────────────────
       self$results$summaryTable$deleteRows()
@@ -554,9 +558,98 @@ snpPGSClass <- R6::R6Class(
     },
 
     # ════════════════════════════════════════════════════════════════════════
-    # .buildDosageMatrix (Revised)
+    # .cleanGenotypeColumn
+    #
+    # Pre-processes a raw genotype column before any QC or dosage conversion.
+    # Handles the following solvable encoding problems in-place:
+    #
+    #   1. Null-allele patterns  — "0/0", "0|0", "00", "0" — coerced to NA.
+    #      These appear when genotyping pipelines encode missing genotypes as
+    #      zero rather than NA or "./." and are NOT valid biallelic calls.
+    #
+    #   2. Canonical NA strings  — "", "NA", "N/A", ".", "./.", "?/?" — → NA.
+    #
+    #   3. Whitespace trimming and uppercase normalisation.
+    #
+    #   4. Numeric columns are left untouched (handled by the dosage branch).
+    #
+    # Returns a character vector (same length as input) with corrections applied.
+    # A named list is returned:
+    #   $col_clean  : character vector, corrected values
+    #   $n_null     : number of cells fixed from null-allele coding
+    #   $n_na_str   : number of cells fixed from NA-string coding
     # ════════════════════════════════════════════════════════════════════════
+    .cleanGenotypeColumn = function(col_raw) {
 
+      # Numeric columns: return as-is (dosage branch does its own cleaning)
+      if (is.numeric(col_raw)) {
+        return(list(col_clean = col_raw, n_null = 0L, n_na_str = 0L))
+      }
+
+      col_char <- toupper(trimws(as.character(col_raw)))
+
+      # ── Step 1: canonical NA strings ────────────────────────────────────────
+      na_strings <- c("", "NA", "N/A", ".", "./.", "?/?", "?", "-/-", "-")
+      is_na_str  <- col_char %in% na_strings
+      n_na_str   <- sum(is_na_str & !is.na(col_raw))  # only those not already NA
+      col_char[is_na_str] <- NA_character_
+
+      # ── Step 2: null-allele patterns (0/0, 0|0, 00, lone 0) ────────────────
+      # Match strings that contain ONLY zeros and separators (/ | space),
+      # with no ACGT bases whatsoever.
+      is_null_allele <- !is.na(col_char) &
+                        grepl("^[0/|[:space:]]+$", col_char) &
+                        !grepl("[ACGT]", col_char)
+      n_null <- sum(is_null_allele)
+      col_char[is_null_allele] <- NA_character_
+
+      list(col_clean = col_char, n_null = n_null, n_na_str = n_na_str)
+    },
+
+    # ════════════════════════════════════════════════════════════════════════
+    # .isNumericDosage
+    #
+    # Decides whether a column should be treated as numeric dosage (0/1/2)
+    # rather than as allele strings.
+    #
+    # Robustness fix over the old "> 0.5 numeric fraction" heuristic:
+    #   - A column is numeric-dosage ONLY if it is already stored as numeric,
+    #     OR if it is a factor/character whose non-NA values ALL convert to
+    #     a valid dosage integer (0, 1, or 2) with no ACGT characters present.
+    #   - Mixed columns ("A/A", "1", NA) are treated as allele strings so
+    #     that the allele-parsing branch can flag them correctly rather than
+    #     silently dropping the letter genotypes as NA.
+    # ════════════════════════════════════════════════════════════════════════
+    .isNumericDosage = function(col) {
+      if (is.numeric(col)) return(TRUE)
+
+      col_str <- toupper(trimws(as.character(col)))
+      obs     <- col_str[!is.na(col_str) & col_str != "" & col_str != "NA"]
+      if (length(obs) == 0) return(FALSE)
+
+      # Reject if ANY observed value contains an ACGT base character
+      if (any(grepl("[ACGT]", obs))) return(FALSE)
+
+      # Accept only if every observed value is exactly 0, 1, or 2
+      num_try <- suppressWarnings(as.integer(obs))
+      all(!is.na(num_try) & num_try %in% 0:2)
+    },
+
+    # ════════════════════════════════════════════════════════════════════════
+    # .buildDosageMatrix
+    #
+    # Full pipeline:
+    #   1. Per-SNP column cleaning (.cleanGenotypeColumn)
+    #   2. Input-type detection (.isNumericDosage — robust version)
+    #   3. Allele QC: mismatch, multiallelic, monomorphic, no-allele-info
+    #   4. Dosage conversion
+    #   5. Per-SNP statistics: n_missing, pct_missing, effect_af, hwe_p
+    #      (computed on the CLEANED column, before imputation)
+    #   6. Configurable QC filters: missingness threshold, HWE p threshold
+    #      (applied AFTER step 5, so stats are always shown)
+    #   7. Missing-value imputation for keep_snps
+    #   8. Row exclusion if missing_st == "exclude"
+    # ════════════════════════════════════════════════════════════════════════
     .buildDosageMatrix = function(snpCols, wtable, missing_st) {
 
       useCols <- intersect(wtable$rsid, names(self$data))
@@ -568,13 +661,48 @@ snpPGSClass <- R6::R6Class(
         return(NULL)
       }
 
+      # ── Read user QC thresholds ────────────────────────────────────────────
+      miss_thresh <- self$options$qcMaxMissingPct   # numeric, e.g. 10
+      hwe_thresh  <- self$options$qcHweP            # numeric, e.g. 0.001
+      apply_miss  <- isTRUE(self$options$qcFilterMissing) && !is.na(miss_thresh)
+      apply_hwe   <- isTRUE(self$options$qcFilterHwe)    && !is.na(hwe_thresh)
+
+      # ── Resolve HWE control vector ────────────────────────────────────────
+      # When a binary response variable is selected, HWE is automatically
+      # tested in controls only (first/lowest level), the standard approach
+      # in case-control GWAS QC.  No separate column is needed.
+      ctrl_vec  <- NULL
+      ctrl_note <- ""
+      if (apply_hwe) {
+        resp_col_nm <- self$options$responseCol
+        if (!is.null(resp_col_nm) && nchar(trimws(resp_col_nm)) > 0 &&
+            resp_col_nm %in% names(self$data)) {
+          rv      <- self$data[[resp_col_nm]]
+          rv_vals <- unique(rv[!is.na(rv)])
+          if (length(rv_vals) == 2) {
+            ctrl_levels <- if (is.factor(rv)) levels(rv)
+                           else sort(rv_vals)
+            ctrl_ref  <- ctrl_levels[1]   # lower value / first factor level = controls
+            ctrl_vec  <- rv
+            ctrl_note <- paste0(" (controls: ", resp_col_nm, "=", ctrl_ref, ")")
+          }
+        }
+      }
+
+      n_rows <- nrow(self$data)
+
       mat <- matrix(NA_real_,
-                    nrow = nrow(self$data),
+                    nrow = n_rows,
                     ncol = length(useCols),
                     dimnames = list(NULL, useCols))
 
-      exclude <- character(0)
-      snps_excluded <- setNames(rep(FALSE, length(useCols)), useCols)
+      # Track exclusion reasons separately so stats are always computed first
+      qc_exclude    <- character(0)   # SNPs excluded by allele/monomorphic QC
+      filter_exclude <- character(0)  # SNPs excluded by missingness/HWE filters
+
+      # Per-SNP cleaned columns (stored so HWE/AF can use cleaned data)
+      cleaned_cols  <- vector("list", length(useCols))
+      names(cleaned_cols) <- useCols
 
       for (snp in useCols) {
 
@@ -585,63 +713,65 @@ snpPGSClass <- R6::R6Class(
 
         ea_cat <- toupper(as.character(wtable$effect_allele[idx]))
         oa_cat <- toupper(as.character(wtable$other_allele[idx]))
-        has_allele_info <- !is.na(ea_cat) && nchar(trimws(ea_cat)) > 0
+        has_allele_info <- !is.na(ea_cat) && nchar(trimws(ea_cat)) > 0 &&
+                           ea_cat != "0" && oa_cat != "0"
 
-        # ── All missing ─────────────────────────────────────────────────────
-        if (all(is.na(col_raw))) {
-          exclude <- c(exclude, snp)
-          snps_excluded[snp] <- TRUE
-          wtable$allele_status[idx] <- "all missing  \u274c"
+        # ── Step 1: clean the column ─────────────────────────────────────────
+        cleaned     <- private$.cleanGenotypeColumn(col_raw)
+        col_clean   <- cleaned$col_clean
+        n_null_fix  <- cleaned$n_null
+        n_na_fix    <- cleaned$n_na_str
+        cleaned_cols[[snp]] <- col_clean
+
+        # Annotate if null-allele cleaning happened
+        null_note <- if (n_null_fix > 0)
+          paste0(" [", n_null_fix, " '0/0'-coded set to NA]") else ""
+
+        # ── Step 2: all missing after cleaning ───────────────────────────────
+        if (all(is.na(col_clean))) {
+          qc_exclude <- c(qc_exclude, snp)
+          wtable$allele_status[idx] <- paste0("all missing \u274c", null_note)
           next
         }
 
-        # ── Determine input type ─────────────────────────────────────────────
-        is_numeric_like <- is.numeric(col_raw)
-        if (!is_numeric_like && (is.factor(col_raw) || is.character(col_raw))) {
-          tmp <- suppressWarnings(as.numeric(as.character(col_raw)))
-          if (mean(!is.na(tmp)) > 0.5) is_numeric_like <- TRUE
-        }
+        # ── Step 3: determine input type ─────────────────────────────────────
+        # Use the robust detector: numeric ONLY when values are strictly 0/1/2
+        # with no ACGT characters anywhere.
+        if (private$.isNumericDosage(col_clean)) {
 
-        # ── Numeric dosage SNPs (NO allele QC) ───────────────────────────────
-        if (is_numeric_like) {
-
-          col_num <- suppressWarnings(as.numeric(as.character(col_raw)))
+          col_num <- suppressWarnings(as.numeric(as.character(col_clean)))
+          # Out-of-range values (should not exist after cleaning, but guard anyway)
           invalid <- !is.na(col_num) & (col_num < 0 | col_num > 2)
-
-          if (any(invalid)) {
-            col_num[invalid] <- NA_real_
-          }
+          if (any(invalid)) col_num[invalid] <- NA_real_
 
           mat[, snp] <- col_num
 
           obs_vals <- sort(unique(col_num[!is.na(col_num)]))
           obs_str  <- paste0("dosage(", paste(obs_vals, collapse = ","), ")")
 
-          wtable$allele_status[idx] <- paste0("numeric dosage (no allele QC): ", obs_str)
-
           if (length(obs_vals) <= 1) {
-            exclude <- c(exclude, snp)
-            snps_excluded[snp] <- TRUE
+            qc_exclude <- c(qc_exclude, snp)
             wtable$allele_status[idx] <-
-              paste0("constant numeric dosage \u274c: ", obs_str)
+              paste0("constant numeric dosage \u274c: ", obs_str, null_note)
+          } else {
+            wtable$allele_status[idx] <-
+              paste0("numeric dosage (no allele QC): ", obs_str, null_note)
           }
-
           next
         }
 
-        # ── Genotype / character SNPs ────────────────────────────────────────
-        col_char <- toupper(trimws(as.character(col_raw)))
-        col_char[col_char %in% c("", "NA")] <- NA_character_
-
-        bases_list <- strsplit(col_char[!is.na(col_char)],
-                              "[^ACGT]|(?<=.)(?=.)", perl = TRUE)
+        # ── Step 4: allele-string SNPs ────────────────────────────────────────
+        # col_clean is already character, NAs already set above.
+        # Parse observed bases (ACGT only).
+        bases_list <- strsplit(col_clean[!is.na(col_clean)],
+                               "[^ACGT]|(?<=.)(?=.)", perl = TRUE)
         bases_list <- lapply(bases_list, function(b) b[b %in% c("A","C","G","T")])
-        alleles <- sort(unique(unlist(bases_list)))
+        alleles    <- sort(unique(unlist(bases_list)))
 
         if (length(alleles) == 0) {
-          exclude <- c(exclude, snp)
-          snps_excluded[snp] <- TRUE
-          wtable$allele_status[idx] <- "no valid alleles observed \u274c "
+          qc_exclude <- c(qc_exclude, snp)
+          wtable$allele_status[idx] <-
+            paste0("no valid alleles observed \u274c", null_note)
           next
         }
 
@@ -649,19 +779,17 @@ snpPGSClass <- R6::R6Class(
 
         # ── Multiallelic ─────────────────────────────────────────────────────
         if (length(alleles) > 2) {
-          exclude <- c(exclude, snp)
-          snps_excluded[snp] <- TRUE
+          qc_exclude <- c(qc_exclude, snp)
           wtable$allele_status[idx] <-
-            paste0("multiallelic \u274c : ", obs_str)
+            paste0("multiallelic \u274c: ", obs_str, null_note)
           next
         }
 
-        # ── No allele info ───────────────────────────────────────────────────
+        # ── No allele info in weights file ───────────────────────────────────
         if (!has_allele_info) {
-          exclude <- c(exclude, snp)
-          snps_excluded[snp] <- TRUE
+          qc_exclude <- c(qc_exclude, snp)
           wtable$allele_status[idx] <-
-            paste0("no allele info \u274c : ", obs_str)
+            paste0("no allele info in weights file \u274c: obs=", obs_str, null_note)
           next
         }
 
@@ -671,17 +799,14 @@ snpPGSClass <- R6::R6Class(
 
         matches_direct <-
           length(alleles) == 2 && all(alleles %in% c(ea_cat, oa_cat))
-
         matches_complement <-
           length(alleles) == 2 && all(alleles %in% c(ea_comp, oa_comp))
 
         if (!matches_direct && !matches_complement) {
-          allele_ok <- FALSE
-          exclude <- c(exclude, snp)
-          snps_excluded[snp] <- TRUE
+          qc_exclude <- c(qc_exclude, snp)
           wtable$allele_status[idx] <-
             paste0("allele mismatch \u274c obs: ", obs_str,
-                  "; exp: ", ea_cat, "/", oa_cat)
+                   "; exp: ", ea_cat, "/", oa_cat, null_note)
           next
         }
 
@@ -702,7 +827,9 @@ snpPGSClass <- R6::R6Class(
         }
 
         # ── Dosage computation ───────────────────────────────────────────────
-        dos <- vapply(col_char, function(g) {
+        # Each genotype string is split on non-ACGT separators.
+        # Genotypes with != 2 alleles → NA (handles residual oddities).
+        dos <- vapply(col_clean, function(g) {
           if (is.na(g)) return(NA_real_)
           b <- strsplit(g, "[^ACGT]|(?<=.)(?=.)", perl = TRUE)[[1]]
           b <- b[b %in% c("A","C","G","T")]
@@ -712,82 +839,138 @@ snpPGSClass <- R6::R6Class(
 
         mat[, snp] <- dos
 
-        base_status <- paste0(status, ": ", obs_str)
-
-        # ── Monomorphism ONLY if allele_ok == TRUE ───────────────────────────
-        if (isTRUE(allele_ok)) {
-          if (length(unique(dos[!is.na(dos)])) <= 1) {
-            exclude <- c(exclude, snp)
-            snps_excluded[snp] <- TRUE
-            wtable$allele_status[idx] <-
-              paste0("monomorphic \u274c : ", obs_str)
-          } else {
-            wtable$allele_status[idx] <- base_status
-          }
+        # ── Monomorphism check ───────────────────────────────────────────────
+        if (length(unique(dos[!is.na(dos)])) <= 1) {
+          qc_exclude <- c(qc_exclude, snp)
+          wtable$allele_status[idx] <-
+            paste0("monomorphic \u274c: ", obs_str, null_note)
+        } else {
+          wtable$allele_status[idx] <-
+            paste0(status, ": ", obs_str, null_note)
         }
-      }
+      }  # end per-SNP loop
 
-      # ── Post‑QC summary ────────────────────────────────────────────────────
-      keep_snps <- setdiff(colnames(mat), exclude)
-
-      if (length(keep_snps) == 0) {
-        self$results$validationMsg$setContent(
-          "<p style='color:#c0392b;'>No SNPs passed QC filters.</p>")
-        self$results$validationMsg$setVisible(TRUE)
-        return(NULL)
-      }
-
-      valid_counts <- !is.na(mat[, keep_snps, drop = FALSE])
-
+      # ── Step 5: per-SNP statistics (on cleaned data, before imputation) ────
+      # Computed for ALL SNPs (including qc_exclude) so the table always shows
+      # complete statistics even for excluded SNPs.
       for (snp in colnames(mat)) {
-        idx <- which(wtable$rsid == snp)[1]
+        idx  <- which(wtable$rsid == snp)[1]
         n_na <- sum(is.na(mat[, snp]))
         wtable$n_missing[idx]   <- n_na
-        wtable$pct_missing[idx] <- round(n_na / nrow(mat) * 100, 1)
-      }
+        wtable$pct_missing[idx] <- round(n_na / n_rows * 100, 1)
 
-      # ── Allele frequency + HWE for all matched SNPs ─────────────────────────
-      # Uses snp_af_hwe() from snp_helpers.R — same parse_genotype / HWE.exact
-      # pipeline as snpDesc, ensuring consistency across modules.
-      for (snp in intersect(wtable$rsid, names(self$data))) {
-        idx <- which(wtable$rsid == snp)[1]
-        ea  <- as.character(wtable$effect_allele[idx])
-        res <- snp_af_hwe(self$data[[snp]], effect_allele = ea)
+        # AF and HWE from the cleaned column.
+        # For HWE in controls: subset cleaned column to control individuals.
+        ea <- as.character(wtable$effect_allele[idx])
+        col_for_stats <- cleaned_cols[[snp]]
+
+        # ctrl_vec and ctrl_note were resolved above from the binary response variable.
+        # When a binary response is present, HWE is computed in controls only.
+        if (!is.null(ctrl_vec) && length(ctrl_vec) == n_rows) {
+          ctrl_levels <- if (is.factor(ctrl_vec)) levels(ctrl_vec)
+                         else sort(unique(ctrl_vec[!is.na(ctrl_vec)]))
+          ctrl_ref    <- ctrl_levels[1]
+          ctrl_mask   <- !is.na(ctrl_vec) & as.character(ctrl_vec) == as.character(ctrl_ref)
+          col_hwe     <- col_for_stats
+          col_hwe[!ctrl_mask] <- NA
+        } else {
+          col_hwe <- col_for_stats
+        }
+
+        res <- tryCatch(
+          snp_af_hwe(col_hwe, effect_allele = ea),
+          error = function(e) list(effect_af = NA_real_, hwe_p = NA_real_)
+        )
         wtable$effect_af[idx] <- res$effect_af
         wtable$hwe_p[idx]     <- res$hwe_p
       }
 
+      # ── Step 6: configurable QC filters ───────────────────────────────────
+      # Applied after statistics are computed, so stats remain visible.
+      # Only SNPs that passed allele QC are eligible for these filters.
+      candidate_snps <- setdiff(colnames(mat), qc_exclude)
+
+      for (snp in candidate_snps) {
+        idx <- which(wtable$rsid == snp)[1]
+
+        # Missingness filter
+        if (apply_miss) {
+          pct_miss <- wtable$pct_missing[idx]
+          if (!is.na(pct_miss) && pct_miss > miss_thresh) {
+            filter_exclude <- c(filter_exclude, snp)
+            wtable$allele_status[idx] <- paste0(
+              wtable$allele_status[idx],
+              sprintf(" \u274c excl: missing %.1f%% > %.1f%%",
+                      pct_miss, miss_thresh))
+            next  # no need to check HWE
+          }
+        }
+
+        # HWE filter
+        if (apply_hwe) {
+          hwe_p_val <- wtable$hwe_p[idx]
+          if (!is.na(hwe_p_val) && hwe_p_val < hwe_thresh) {
+            filter_exclude <- c(filter_exclude, snp)
+            wtable$allele_status[idx] <- paste0(
+              wtable$allele_status[idx],
+              sprintf(" \u274c excl: HWE p=%.2e < %.2e%s",
+                      hwe_p_val, hwe_thresh, ctrl_note))
+          }
+        }
+      }
+
+      all_exclude <- unique(c(qc_exclude, filter_exclude))
+      keep_snps   <- setdiff(colnames(mat), all_exclude)
+
+      if (length(keep_snps) == 0) {
+        n_qc  <- length(qc_exclude)
+        n_flt <- length(filter_exclude)
+        msg   <- paste0(
+          "<p style='color:#c0392b;'>No SNPs passed QC filters.</p>",
+          if (n_qc  > 0) paste0("<p>", n_qc,  " SNP(s) excluded by allele/monomorphic QC.</p>") else "",
+          if (n_flt > 0) paste0("<p>", n_flt, " SNP(s) excluded by missingness/HWE thresholds.</p>") else ""
+        )
+        self$results$validationMsg$setContent(msg)
+        self$results$validationMsg$setVisible(TRUE)
+        return(NULL)
+      }
+
+      # valid_counts: logical matrix — TRUE where dosage was observed (pre-imputation)
+      valid_counts <- !is.na(mat[, keep_snps, drop = FALSE])
+
+      # ── Step 7: missing imputation for kept SNPs ───────────────────────────
       for (snp in keep_snps) {
         na_mask <- is.na(mat[, snp])
         if (any(na_mask)) {
           mat[na_mask, snp] <- switch(missing_st,
-            mean     = { m <- mean(mat[, snp], na.rm = TRUE); if (is.nan(m)) 0 else m },
-            zero     = 0,
+            mean       = { m <- mean(mat[, snp], na.rm = TRUE); if (is.nan(m)) 0 else m },
+            zero       = 0,
             "SNP-wise" = 0,
-            exclude  = NA_real_
+            exclude    = NA_real_
           )
         }
       }
-      for (snp in exclude) {
-        idx <- which(wtable$rsid == snp)[1]
-        if (!is.na(idx)) {
-          wtable$n_missing[idx] <- NA_integer_
-          wtable$pct_missing[idx] <- NA_real_
-        }
-      }
 
+      # ── Step 8: row exclusion for missing_st == "exclude" ─────────────────
       if (missing_st == "exclude") {
-        keep_rows <- complete.cases(mat[, keep_snps, drop = FALSE])
-        mat <- mat[keep_rows, , drop = FALSE]
+        keep_rows    <- complete.cases(mat[, keep_snps, drop = FALSE])
+        mat          <- mat[keep_rows, , drop = FALSE]
         valid_counts <- valid_counts[keep_rows, , drop = FALSE]
         private$.keepMask <- keep_rows
       } else {
-        private$.keepMask <- rep(TRUE, nrow(self$data))
+        private$.keepMask <- rep(TRUE, n_rows)
       }
 
       mat <- mat[, keep_snps, drop = FALSE]
 
-      list(mat = mat, wtable = wtable, valid_counts = valid_counts, valid_snps = keep_snps)
+      list(
+        mat          = mat,
+        wtable       = wtable,
+        valid_counts = valid_counts,
+        valid_snps   = keep_snps,
+        n_qc_excl    = length(qc_exclude),
+        n_flt_excl   = length(filter_exclude)
+      )
     },
 
     # ════════════════════════════════════════════════════════════════════════
@@ -812,6 +995,9 @@ snpPGSClass <- R6::R6Class(
       has_miss  <- any(!is.na(wtable$n_missing))
       has_af    <- any(!is.na(wtable$effect_af))
       has_hwe   <- any(!is.na(wtable$hwe_p))
+      # Show QC filter column only when at least one filter is active
+      has_qc_flt <- isTRUE(self$options$qcFilterMissing) ||
+                    isTRUE(self$options$qcFilterHwe)
 
       tbl$getColumn("chr")$setVisible(has_chr)
       tbl$getColumn("pos")$setVisible(has_pos)
@@ -822,31 +1008,47 @@ snpPGSClass <- R6::R6Class(
       tbl$getColumn("pct_missing")$setVisible(has_miss)
       tbl$getColumn("effect_af")$setVisible(has_af)
       tbl$getColumn("hwe_p")$setVisible(has_hwe)
+      tbl$getColumn("qc_excl_reason")$setVisible(has_qc_flt)
 
       for (i in seq_len(nrow(wtable))) {
         r      <- wtable[i, ]
         status <- as.character(r$allele_status)
         in_ds  <- r$rsid %in% inData
 
+        # Derive QC filter reason from allele_status annotation
+        qc_flt_reason <- ""
+        if (grepl("excl: missing", status, fixed = TRUE)) {
+          m <- regmatches(status, regexpr("missing [0-9.]+%[^;]*", status))
+          qc_flt_reason <- if (length(m)) paste0("Excluded: ", m) else "Excluded: high missingness"
+        } else if (grepl("excl: HWE", status, fixed = TRUE)) {
+          m <- regmatches(status, regexpr("HWE p=[^;]+", status))
+          qc_flt_reason <- if (length(m)) paste0("Excluded: ", m) else "Excluded: HWE fail"
+        } else if (r$rsid %in% valid_snps) {
+          qc_flt_reason <- "\u2705 pass"
+        }
+
         tbl$addRow(rowKey = i, values = list(
-          rsid          = as.character(r$rsid),
-          chr           = as.character(r$chr),
-          pos           = as.character(r$pos),
-          effect_allele = as.character(r$effect_allele),
-          other_allele  = as.character(r$other_allele),
-          effect_weight = if (is.na(r$effect_weight)) '' else r$effect_weight,
-          matched       = if (in_ds) "\u2713" else "\u2717",
-          allele_status = status,
-          extra_cols    = as.character(r$extra_cols),
-          n_missing     = if (is.na(r$n_missing))   '' else as.integer(r$n_missing),
-          pct_missing   = if (is.na(r$pct_missing)) '' else r$pct_missing,
-          effect_af     = if (is.na(r$effect_af))   '' else r$effect_af,
-          hwe_p         = if (is.na(r$hwe_p))       '' else r$hwe_p
+          rsid           = as.character(r$rsid),
+          chr            = as.character(r$chr),
+          pos            = as.character(r$pos),
+          effect_allele  = as.character(r$effect_allele),
+          other_allele   = as.character(r$other_allele),
+          effect_weight  = if (is.na(r$effect_weight)) '' else r$effect_weight,
+          matched        = if (in_ds) "\u2713" else "\u2717",
+          allele_status  = status,
+          extra_cols     = as.character(r$extra_cols),
+          n_missing      = if (is.na(r$n_missing))   '' else as.integer(r$n_missing),
+          pct_missing    = if (is.na(r$pct_missing)) '' else r$pct_missing,
+          effect_af      = if (is.na(r$effect_af))   '' else r$effect_af,
+          hwe_p          = if (is.na(r$hwe_p))       '' else r$hwe_p,
+          qc_excl_reason = qc_flt_reason
         ))
       }
     },
 
-    .fillCoverageTable = function(snpCols, wtable, missing_st, valid_snps, dosage) {
+    .fillCoverageTable = function(snpCols, wtable, missing_st, valid_snps,
+                                   valid_counts, n_total,
+                                   n_qc_excl = 0L, n_flt_excl = 0L) {
       inData    <- names(self$data)
       matched   <- intersect(wtable$rsid[wtable$matched], inData)
       n_weights <- sum(wtable$matched)
@@ -856,7 +1058,14 @@ snpPGSClass <- R6::R6Class(
       ambiguous <- sum(private$.isAmbiguous(wtable$effect_allele, wtable$other_allele))
       flipped   <- sum(wtable$strand_flipped == TRUE, na.rm = TRUE)
       mismatch  <- sum(grepl("mismatch", wtable$allele_status, ignore.case = TRUE))
-      complete  <- sum(complete.cases(dosage))
+      null_fix  <- sum(grepl("coded set to NA", wtable$allele_status, fixed = TRUE))
+      # Complete cases: individuals with observed genotypes for ALL kept SNPs,
+      # computed from valid_counts (pre-imputation observation flags) before
+      # any row-exclusion.  valid_counts may already be row-filtered when
+      # missing_st == "exclude"; n_total is the original full-data row count.
+      complete  <- if (!is.null(valid_counts) && ncol(valid_counts) > 0)
+                     sum(rowSums(!valid_counts) == 0)
+                   else n_total
 
 
       meta <- attr(wtable, "pgs_meta") %||%
@@ -884,13 +1093,20 @@ snpPGSClass <- R6::R6Class(
       add("SNPs in weights file",       n_weights)
       add("SNPs in dataset",            n_indata)
       add("SNPs matched",               paste0(n_matched, " (", pct, "%)"))
-      add("Ambiguous SNPs (AT/CG)",     ambiguous)
-      add("Strand flipped (corrected)", flipped)
-      add("Allele mismatch (excluded)", mismatch)
-      add("SNPs used in score",         length(valid_snps))
-      add("Missing genotype strategy",  missing_st)
-      add("Total sample size", NROW(dosage))
-      add("Complete cases", paste0(complete, " (", round(complete / NROW(dosage) * 100, 1), "%)"))    
+      add("Ambiguous SNPs (AT/CG)",            ambiguous)
+      add("Strand flipped (corrected)",        flipped)
+      add("Allele mismatch (excluded)",        mismatch)
+      if (null_fix > 0)
+        add("Null-allele genotypes fixed (0/0 \u2192 NA)", null_fix)
+      add("Excluded by allele/monomorphic QC", n_qc_excl)
+      if (n_flt_excl > 0) {
+        add("Excluded by missingness filter",  sum(grepl("excl: missing", wtable$allele_status)))
+        add("Excluded by HWE filter",          sum(grepl("excl: HWE",     wtable$allele_status)))
+      }
+      add("SNPs used in score",                length(valid_snps))
+      add("Missing genotype strategy",         missing_st)
+      add("Total sample size",   n_total)
+      add("Complete cases (no missing SNPs)", paste0(complete, " (", round(complete / n_total * 100, 1), "%)"))
     },
 
     .isAmbiguous = function(ea, oa) {

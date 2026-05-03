@@ -12,6 +12,10 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             weightingMode = "both",
             weightsPath = "",
             missingStrategy = "SNP-wise",
+            qcFilterMissing = FALSE,
+            qcMaxMissingPct = 10,
+            qcFilterHwe = FALSE,
+            qcHweP = 0.001,
             normalize = TRUE,
             standardize = FALSE,
             showCoverage = TRUE,
@@ -77,6 +81,26 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "mean",
                     "exclude"),
                 default="SNP-wise")
+            private$..qcFilterMissing <- jmvcore::OptionBool$new(
+                "qcFilterMissing",
+                qcFilterMissing,
+                default=FALSE)
+            private$..qcMaxMissingPct <- jmvcore::OptionNumber$new(
+                "qcMaxMissingPct",
+                qcMaxMissingPct,
+                min=0,
+                max=100,
+                default=10)
+            private$..qcFilterHwe <- jmvcore::OptionBool$new(
+                "qcFilterHwe",
+                qcFilterHwe,
+                default=FALSE)
+            private$..qcHweP <- jmvcore::OptionNumber$new(
+                "qcHweP",
+                qcHweP,
+                min=0,
+                max=1,
+                default=0.001)
             private$..normalize <- jmvcore::OptionBool$new(
                 "normalize",
                 normalize,
@@ -130,6 +154,10 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..weightingMode)
             self$.addOption(private$..weightsPath)
             self$.addOption(private$..missingStrategy)
+            self$.addOption(private$..qcFilterMissing)
+            self$.addOption(private$..qcMaxMissingPct)
+            self$.addOption(private$..qcFilterHwe)
+            self$.addOption(private$..qcHweP)
             self$.addOption(private$..normalize)
             self$.addOption(private$..standardize)
             self$.addOption(private$..showCoverage)
@@ -149,6 +177,10 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         weightingMode = function() private$..weightingMode$value,
         weightsPath = function() private$..weightsPath$value,
         missingStrategy = function() private$..missingStrategy$value,
+        qcFilterMissing = function() private$..qcFilterMissing$value,
+        qcMaxMissingPct = function() private$..qcMaxMissingPct$value,
+        qcFilterHwe = function() private$..qcFilterHwe$value,
+        qcHweP = function() private$..qcHweP$value,
         normalize = function() private$..normalize$value,
         standardize = function() private$..standardize$value,
         showCoverage = function() private$..showCoverage$value,
@@ -167,6 +199,10 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..weightingMode = NA,
         ..weightsPath = NA,
         ..missingStrategy = NA,
+        ..qcFilterMissing = NA,
+        ..qcMaxMissingPct = NA,
+        ..qcFilterHwe = NA,
+        ..qcHweP = NA,
         ..normalize = NA,
         ..standardize = NA,
         ..showCoverage = NA,
@@ -273,6 +309,10 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                         `title`="HWE p", 
                         `type`="number", 
                         `format`="zto,pvalue"),
+                    list(
+                        `name`="qc_excl_reason", 
+                        `title`="QC filter", 
+                        `type`="text"),
                     list(
                         `name`="extra_cols", 
                         `title`="Extra fields", 
@@ -641,6 +681,22 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'   'SNP-wise' scores each individual using only their observed SNPs and
 #'   divides by that individual's observed SNP count, keeping all individuals
 #'   regardless of missingness.
+#' @param qcFilterMissing If TRUE, SNPs whose percentage of missing genotypes
+#'   exceeds qcMaxMissingPct are excluded from scoring. Missing genotypes
+#'   include NA values and any null-allele codings (e.g. 0/0) that were cleaned
+#'   to NA during pre-processing.
+#' @param qcMaxMissingPct Threshold for the SNP missingness filter (requires
+#'   qcFilterMissing = TRUE). SNPs with percentage of missing genotypes strictly
+#'   greater than this value are excluded. Default: 10 (i.e. > 10\% missing →
+#'   excluded).
+#' @param qcFilterHwe If TRUE, SNPs whose Hardy-Weinberg equilibrium exact
+#'   test p-value is below qcHweP are excluded from scoring.
+#' @param qcHweP Threshold for the HWE filter (requires qcFilterHwe = TRUE).
+#'   SNPs with HWE p-value strictly below this value are excluded. Default:
+#'   0.001. HWE is computed using an exact test on the cleaned (NA-corrected)
+#'   genotype column. When a binary response variable is selected, HWE is
+#'   automatically tested in controls only (the lower/first level), following
+#'   standard GWAS QC practice.
 #' @param normalize If TRUE, divides each individual's raw score by the
 #'   maximum score they could have achieved given their observed SNPs. For
 #'   unweighted scoring: max = 2 × observed SNP count. For weighted scoring:
@@ -702,6 +758,10 @@ snpPGS <- function(
     weightingMode = "both",
     weightsPath = "",
     missingStrategy = "SNP-wise",
+    qcFilterMissing = FALSE,
+    qcMaxMissingPct = 10,
+    qcFilterHwe = FALSE,
+    qcHweP = 0.001,
     normalize = TRUE,
     standardize = FALSE,
     showCoverage = TRUE,
@@ -734,6 +794,10 @@ snpPGS <- function(
         weightingMode = weightingMode,
         weightsPath = weightsPath,
         missingStrategy = missingStrategy,
+        qcFilterMissing = qcFilterMissing,
+        qcMaxMissingPct = qcMaxMissingPct,
+        qcFilterHwe = qcFilterHwe,
+        qcHweP = qcHweP,
         normalize = normalize,
         standardize = standardize,
         showCoverage = showCoverage,
