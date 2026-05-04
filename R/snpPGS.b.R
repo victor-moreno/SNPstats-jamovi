@@ -1435,36 +1435,46 @@ snpPGSClass <- R6::R6Class(
       cat_tbl <- self$results$percentileTable
       cat_tbl$deleteRows()
 
-      # Dynamic column title mirrors assocTable convention
-      est_title <- if (resp_type == "binary") "OR"
-                   else if (has_resp)         "\u03b2"
-                   else                       "Estimate"
-      cat_tbl$getColumn("estimate")$setTitle(est_title)
+      # has_resp now includes polytomous — all three response types get a model
+      has_resp <- resp_type %in% c("binary", "continuous", "polytomous")
 
+      # Column title and notes
       ref_lbl <- cat_labels[ref_idx]
 
       if (!has_resp) {
+        cat_tbl$getColumn("estimate")$setTitle("Estimate")
         cat_tbl$setNote("modelNote",
-          if (resp_type == "polytomous")
-            paste0("Polytomous response detected (\u2265 3 levels). ",
-                   "Regression by category is not yet supported for polytomous outcomes. ",
-                   "Counts and score ranges are shown.")
-          else
-            "No response variable selected \u2014 counts and score ranges shown.")
+          "No response variable selected \u2014 counts and score ranges shown.")
         cat_tbl$setNote("refNote", NULL)
         cat_tbl$setNote("covNote", NULL)
-      } else {
-        model_lbl <- if (resp_type == "binary") "Logistic regression (OR, 95% CI)"
-                     else                       "Linear regression (\u03b2, 95% CI)"
-        cat_tbl$setNote("modelNote", model_lbl)
+      } else if (resp_type == "binary") {
+        cat_tbl$getColumn("estimate")$setTitle("OR")
+        cat_tbl$setNote("modelNote", "Logistic regression (OR, 95% CI)")
         cat_tbl$setNote("refNote",
-          paste0("Reference category: ", ref_lbl,
-                 " (estimate = 1 for OR, 0 for \u03b2)"))
-        if (has_covs)
-          cat_tbl$setNote("covNote",
-            paste0("Adjusted for: ", paste(names(covs), collapse = ", ")))
-        else
-          cat_tbl$setNote("covNote", NULL)
+          paste0("Reference category: ", ref_lbl, " (OR = 1)"))
+        cat_tbl$setNote("covNote",
+          if (has_covs) paste0("Adjusted for: ", paste(names(covs), collapse = ", "))
+          else NULL)
+      } else if (resp_type == "continuous") {
+        cat_tbl$getColumn("estimate")$setTitle("\u03b2")
+        cat_tbl$setNote("modelNote", "Linear regression (\u03b2, 95% CI)")
+        cat_tbl$setNote("refNote",
+          paste0("Reference category: ", ref_lbl, " (\u03b2 = 0)"))
+        cat_tbl$setNote("covNote",
+          if (has_covs) paste0("Adjusted for: ", paste(names(covs), collapse = ", "))
+          else NULL)
+      } else {
+        # polytomous
+        cat_tbl$getColumn("estimate")$setTitle("OR")
+        cat_tbl$setNote("modelNote",
+          paste0("Polytomous logistic regression (nnet::multinom); ",
+                 "ORs relative to outcome reference level: ",
+                 resp_levels[1]))
+        cat_tbl$setNote("refNote",
+          paste0("Reference score category: ", ref_lbl, " (OR = 1 per contrast)"))
+        cat_tbl$setNote("covNote",
+          if (has_covs) paste0("Adjusted for: ", paste(names(covs), collapse = ", "))
+          else NULL)
       }
 
       for (mode_label in names(mode_data)) {
@@ -1472,86 +1482,173 @@ snpPGSClass <- R6::R6Class(
         scores  <- md$scores
         cat_idx <- md$cat_idx
 
-        # ── Fit model ───────────────────────────────────────────────────────
-        cf <- NULL; cis <- NULL
-        if (has_resp) {
-          df <- if (has_covs)
-            data.frame(cat = cat_idx, resp = resp, covs, check.names = FALSE)
-          else
-            data.frame(cat = cat_idx, resp = resp)
-          df <- df[complete.cases(df), ]
+        # ── Pre-compute per-category display values (shared across contrasts) ──
+        cat_display <- lapply(seq_len(n_cats), function(ci) {
+          mask <- cat_idx == ci & !is.na(scores)
+          sc_i <- scores[mask]
+          list(
+            n   = sum(mask),
+            rng = if (sum(mask) > 0)
+                    sprintf("[% .3f, % .3f]", min(sc_i), max(sc_i))
+                  else ""
+          )
+        })
 
-          df$cat <- relevel(factor(df$cat, levels = seq_len(n_cats),
-                                   labels = cat_labels),
-                            ref = cat_labels[ref_idx])
+        # ── Build the analysis data frame (common to all response types) ──────
+        df <- if (has_covs)
+          data.frame(cat = cat_idx, resp = resp, covs, check.names = FALSE)
+        else
+          data.frame(cat = cat_idx, resp = resp)
+        df <- df[complete.cases(df), ]
 
-          cov_terms <- if (has_covs)
-            paste(paste0("`", names(covs), "`"), collapse = " + ") else ""
+        df$cat <- relevel(factor(df$cat, levels = seq_len(n_cats),
+                                 labels = cat_labels),
+                          ref = cat_labels[ref_idx])
 
-          if (resp_type == "binary") {
-            df$resp <- factor(df$resp)
-            frm <- if (has_covs) as.formula(paste("resp ~ cat +", cov_terms))
-                   else resp ~ cat
-            fit <- tryCatch(glm(frm, data = df, family = binomial()),
-                            error = function(e) NULL)
-          } else {
-            df$resp <- as.numeric(df$resp)
-            frm <- if (has_covs) as.formula(paste("resp ~ cat +", cov_terms))
-                   else resp ~ cat
-            fit <- tryCatch(lm(frm, data = df), error = function(e) NULL)
-          }
+        cov_terms <- if (has_covs)
+          paste(paste0("`", names(covs), "`"), collapse = " + ") else ""
 
-          if (!is.null(fit)) {
-            cf  <- coef(summary(fit))
-            cis <- tryCatch(
-              if (resp_type == "binary") confint.default(fit) else confint(fit),
-              error = function(e) NULL)
+        # ── Fit model and emit rows ──────────────────────────────────────────
+
+        # helper: emit one block of n_cats rows for a given contrast label,
+        # coefficient matrix row name, and value extractor function.
+        emit_rows <- function(contrast_lbl, get_est_ci_p) {
+          for (ci in seq_len(n_cats)) {
+            lbl    <- cat_labels[ci]
+            is_ref <- (ci == ref_idx)
+            disp   <- cat_display[[ci]]
+
+            if (is_ref) {
+              est <- if (resp_type == "continuous") 0 else 1
+              ci_lo <- ''; ci_hi <- ''; p_v <- ''
+            } else {
+              res <- get_est_ci_p(lbl)   # returns list(est, ci_lo, ci_hi, p)
+              est   <- res$est
+              ci_lo <- res$ci_lo
+              ci_hi <- res$ci_hi
+              p_v   <- res$p
+            }
+
+            cat_tbl$addRow(
+              rowKey = paste0(mode_label, "_", make.names(contrast_lbl), "_cat", ci),
+              values = list(
+                score_type  = mode_label,
+                contrast    = contrast_lbl,
+                category    = if (is_ref) paste0(lbl, " \u25c6") else lbl,
+                n           = disp$n,
+                score_range = disp$rng,
+                estimate    = est,
+                ci_low      = ci_lo,
+                ci_high     = ci_hi,
+                p           = p_v
+              ))
           }
         }
 
-        # ── One row per category ────────────────────────────────────────────
-        for (ci in seq_len(n_cats)) {
-          lbl    <- cat_labels[ci]
-          mask   <- cat_idx == ci & !is.na(scores)
-          n_i    <- sum(mask)
-          sc_i   <- scores[mask]
-          rng    <- if (n_i > 0)
-            sprintf("[% .3f, % .3f]", min(sc_i), max(sc_i)) else ""
-          is_ref <- (ci == ref_idx)
+        # ── Binary ──────────────────────────────────────────────────────────
+        if (resp_type == "binary") {
+          df$resp <- factor(df$resp)
+          frm <- if (has_covs) as.formula(paste("resp ~ cat +", cov_terms))
+                 else resp ~ cat
+          fit <- tryCatch(glm(frm, data = df, family = binomial()),
+                          error = function(e) NULL)
 
-          est <- ci_lo <- ci_hi <- p_v <- ''
+          cf  <- if (!is.null(fit)) coef(summary(fit))          else NULL
+          cis <- if (!is.null(fit)) tryCatch(confint.default(fit),
+                                             error = function(e) NULL) else NULL
 
-          if (is_ref && has_resp) {
-            est <- if (resp_type == "binary") 1 else 0
-          } else if (!is_ref && has_resp && !is.null(cf)) {
+          get_binary <- function(lbl) {
             coef_nm <- paste0("cat", lbl)
-            if (coef_nm %in% rownames(cf)) {
-              b   <- cf[coef_nm, 1]
-              se  <- cf[coef_nm, 2]
-              p_v <- cf[coef_nm, 4]
-              if (!is.null(cis) && coef_nm %in% rownames(cis)) {
-                ci_lo <- cis[coef_nm, 1]; ci_hi <- cis[coef_nm, 2]
-              } else {
-                ci_lo <- b - 1.96 * se;   ci_hi <- b + 1.96 * se
-              }
-              if (resp_type == "binary") {
-                est <- exp(b); ci_lo <- exp(ci_lo); ci_hi <- exp(ci_hi)
-              } else {
-                est <- b
-              }
-            }
+            if (is.null(cf) || !coef_nm %in% rownames(cf))
+              return(list(est = '', ci_lo = '', ci_hi = '', p = ''))
+            b  <- cf[coef_nm, 1]; se <- cf[coef_nm, 2]; p_v <- cf[coef_nm, 4]
+            ci <- if (!is.null(cis) && coef_nm %in% rownames(cis))
+                    cis[coef_nm, ] else c(b - 1.96*se, b + 1.96*se)
+            list(est = exp(b), ci_lo = exp(ci[1]), ci_hi = exp(ci[2]), p = p_v)
           }
 
-          cat_tbl$addRow(rowKey = paste0(mode_label, "_cat", ci), values = list(
-            score_type  = mode_label,
-            category    = if (is_ref) paste0(lbl, " \u25c6") else lbl,
-            n           = n_i,
-            score_range = rng,
-            estimate    = est,
-            ci_low      = ci_lo,
-            ci_high     = ci_hi,
-            p           = p_v
-          ))
+          emit_rows("", get_binary)
+
+        # ── Continuous ───────────────────────────────────────────────────────
+        } else if (resp_type == "continuous") {
+          df$resp <- as.numeric(df$resp)
+          frm <- if (has_covs) as.formula(paste("resp ~ cat +", cov_terms))
+                 else resp ~ cat
+          fit <- tryCatch(lm(frm, data = df), error = function(e) NULL)
+
+          cf  <- if (!is.null(fit)) coef(summary(fit))     else NULL
+          cis <- if (!is.null(fit)) tryCatch(confint(fit),
+                                             error = function(e) NULL) else NULL
+
+          get_linear <- function(lbl) {
+            coef_nm <- paste0("cat", lbl)
+            if (is.null(cf) || !coef_nm %in% rownames(cf))
+              return(list(est = '', ci_lo = '', ci_hi = '', p = ''))
+            b  <- cf[coef_nm, 1]; se <- cf[coef_nm, 2]; p_v <- cf[coef_nm, 4]
+            ci <- if (!is.null(cis) && coef_nm %in% rownames(cis))
+                    cis[coef_nm, ] else c(b - 1.96*se, b + 1.96*se)
+            list(est = b, ci_lo = ci[1], ci_hi = ci[2], p = p_v)
+          }
+
+          emit_rows("", get_linear)
+
+        # ── Polytomous ───────────────────────────────────────────────────────
+        } else if (resp_type == "polytomous") {
+          df$resp <- factor(df$resp)
+          frm <- if (has_covs) as.formula(paste("resp ~ cat +", cov_terms))
+                 else resp ~ cat
+          fit <- tryCatch(nnet::multinom(frm, data = df, trace = FALSE),
+                          error = function(e) NULL)
+
+          cf_mat <- if (!is.null(fit)) coef(fit) else NULL        # (K-1) × p
+          vc_mat <- if (!is.null(fit))
+                      tryCatch(vcov(fit), error = function(e) NULL)
+                    else NULL
+
+          for (lv in resp_levels[-1]) {
+            local({
+              lv_row       <- as.character(lv)
+              contrast_lbl <- paste0(lv_row, " vs ", resp_levels[1])
+
+              get_poly <- function(lbl) {
+                coef_nm <- paste0("cat", lbl)
+                if (is.null(cf_mat) || !lv_row %in% rownames(cf_mat) ||
+                    !coef_nm %in% colnames(cf_mat))
+                  return(list(est = '', ci_lo = '', ci_hi = '', p = ''))
+                b     <- cf_mat[lv_row, coef_nm]
+                vc_nm <- paste0(lv_row, ":", coef_nm)
+                se    <- if (!is.null(vc_mat) && vc_nm %in% rownames(vc_mat))
+                           sqrt(vc_mat[vc_nm, vc_nm]) else NA_real_
+                p_v   <- if (!is.na(se) && se > 0) 2 * pnorm(-abs(b / se)) else NA_real_
+                ci    <- if (!is.na(se)) c(b - 1.96*se, b + 1.96*se)
+                         else            c(NA_real_, NA_real_)
+                list(est = exp(b), ci_lo = exp(ci[1]), ci_hi = exp(ci[2]), p = p_v)
+              }
+
+              emit_rows(contrast_lbl, get_poly)
+            })
+          }
+        }
+
+        # ── No response: counts-only rows ────────────────────────────────────
+        if (!has_resp) {
+          for (ci in seq_len(n_cats)) {
+            lbl  <- cat_labels[ci]
+            disp <- cat_display[[ci]]
+            cat_tbl$addRow(
+              rowKey = paste0(mode_label, "_cat", ci),
+              values = list(
+                score_type  = mode_label,
+                contrast    = "",
+                category    = lbl,
+                n           = disp$n,
+                score_range = disp$rng,
+                estimate    = '',
+                ci_low      = '',
+                ci_high     = '',
+                p           = ''
+              ))
+          }
         }
       }
     },
@@ -1834,23 +1931,17 @@ snpPGSClass <- R6::R6Class(
       if (resp_type == "polytomous") {
         df$resp <- factor(df$resp)
 
-        frm_int  <- as.formula(frm_int_str)
-        frm_main <- as.formula(frm_main_str)
-
         fit_int  <- tryCatch(
-          nnet::multinom(frm_int,  data = df, trace = FALSE),
+          nnet::multinom(as.formula(frm_int_str),  data = df, trace = FALSE),
           error = function(e) NULL)
         fit_main <- tryCatch(
-          nnet::multinom(frm_main, data = df, trace = FALSE),
+          nnet::multinom(as.formula(frm_main_str), data = df, trace = FALSE),
           error = function(e) NULL)
-
         if (is.null(fit_int)) return()
 
-        # coef(multinom) → (K-1) × p matrix; vcov → (K-1)*p × (K-1)*p block
-        cf_mat <- coef(fit_int)                    # rows = non-ref levels, cols = terms
+        cf_mat <- coef(fit_int)          # (K-1) × p matrix
         vc_mat <- tryCatch(vcov(fit_int), error = function(e) NULL)
 
-        # Wald CIs: b ± 1.96 * SE (same as confint.default for glm)
         se_from_vc <- function(lv_row, coef_nm) {
           nm <- paste0(lv_row, ":", coef_nm)
           if (!is.null(vc_mat) && nm %in% rownames(vc_mat))
@@ -1859,56 +1950,53 @@ snpPGSClass <- R6::R6Class(
         }
 
         for (lv in lvls[-1]) {
-          lv_row    <- as.character(lv)
-          model_lbl <- paste0("Polytomous logistic (", lv_row, " vs ", lvls[1], ")")
+          local({
+            lv_row    <- as.character(lv)
+            model_lbl <- paste0("Polytomous logistic (", lv_row,
+                                " vs ", lvls[1], ")")
 
-          if (!lv_row %in% rownames(cf_mat)) next
+            if (!lv_row %in% rownames(cf_mat)) return()
 
-          report_term <- function(coef_nm, display_nm) {
-            if (!coef_nm %in% colnames(cf_mat)) return()
-            b  <- cf_mat[lv_row, coef_nm]
-            se <- se_from_vc(lv_row, coef_nm)
-            p  <- if (!is.na(se) && se > 0) 2 * pnorm(-abs(b / se)) else NA_real_
-            ci <- if (!is.na(se)) c(b - 1.96 * se, b + 1.96 * se)
-                  else            c(NA_real_, NA_real_)
-            add_row(model_lbl, display_nm,
-                    exp(b), exp(ci[1]), exp(ci[2]), p)
-          }
+            report_term <- function(coef_nm, display_nm) {
+              if (!coef_nm %in% colnames(cf_mat)) return()
+              b  <- cf_mat[lv_row, coef_nm]
+              se <- se_from_vc(lv_row, coef_nm)
+              p  <- if (!is.na(se) && se > 0) 2 * pnorm(-abs(b / se)) else NA_real_
+              ci <- if (!is.na(se)) c(b - 1.96 * se, b + 1.96 * se)
+                    else            c(NA_real_, NA_real_)
+              add_row(model_lbl, display_nm,
+                      exp(b), exp(ci[1]), exp(ci[2]), p)
+            }
 
-          report_term("pgs", "PGS (main)")
+            report_term("pgs", "PGS (main)")
 
-          # cov1 main effect(s): column names in cf_mat starting with "cov1"
-          # but NOT interaction terms (those start with "pgs:cov1")
-          cov1_main_nms <- colnames(cf_mat)[startsWith(colnames(cf_mat), "cov1") &
-                                            !startsWith(colnames(cf_mat), "pgs:")]
-          for (cnm in cov1_main_nms) {
-            lbl <- if (cnm == "cov1") paste0(cov1_nm, " (main)")
-                   else paste0(cov1_nm, " (", sub("^cov1", "", cnm), ")")
-            report_term(cnm, lbl)
-          }
+            cov1_main_nms <- colnames(cf_mat)[startsWith(colnames(cf_mat), "cov1") &
+                                              !startsWith(colnames(cf_mat), "pgs:")]
+            for (cnm in cov1_main_nms) {
+              lbl <- if (cnm == "cov1") paste0(cov1_nm, " (main)")
+                     else paste0(cov1_nm, " (", sub("^cov1", "", cnm), ")")
+              report_term(cnm, lbl)
+            }
 
-          # PGS × cov1 interaction term(s)
-          cov1_int_nms <- colnames(cf_mat)[startsWith(colnames(cf_mat), "pgs:cov1")]
-          for (cnm in cov1_int_nms) {
-            lbl <- if (cnm == "pgs:cov1") paste0("PGS \u00d7 ", cov1_nm, " (int)")
-                   else paste0("PGS \u00d7 ", cov1_nm,
-                               " (", sub("^pgs:cov1", "", cnm), ")")
-            report_term(cnm, lbl)
-          }
+            cov1_int_nms <- colnames(cf_mat)[startsWith(colnames(cf_mat), "pgs:cov1")]
+            for (cnm in cov1_int_nms) {
+              lbl <- if (cnm == "pgs:cov1") paste0("PGS \u00d7 ", cov1_nm, " (int)")
+                     else paste0("PGS \u00d7 ", cov1_nm,
+                                 " (", sub("^pgs:cov1", "", cnm), ")")
+              report_term(cnm, lbl)
+            }
+          })
         }
 
-        # LRT for the interaction block (joint across all contrasts) — one row
+        # LRT for the interaction block — one row shared across all contrasts
         if (!is.null(fit_main)) {
-          lrt <- tryCatch(
-            anova(fit_main, fit_int, test = "Chisq"),
-            error = function(e) NULL)
+          lrt <- tryCatch(anova(fit_main, fit_int, test = "Chisq"),
+                          error = function(e) NULL)
           if (!is.null(lrt) && nrow(lrt) >= 2) {
-            p_l <- lrt[2, "Pr(Chi)"]
-            # anova.multinom column name varies by nnet version; fall back
-            if (is.null(p_l) || all(is.na(p_l)))
-              p_l <- lrt[2, grep("Pr", colnames(lrt), value = TRUE)[1]]
+            p_col <- grep("^Pr", colnames(lrt), value = TRUE)[1]
+            p_l   <- if (!is.null(p_col)) as.numeric(lrt[2, p_col]) else NA_real_
             add_row("Polytomous logistic (int, LRT)", "LRT (interaction)",
-                    '', '', '', as.numeric(p_l))
+                    '', '', '', p_l)
           }
         }
 

@@ -214,6 +214,9 @@ items:
         - name: score_type
           title: Score type
           type: text
+        - name: contrast
+          title: Contrast
+          type: text
         - name: category
           title: Category
           type: text

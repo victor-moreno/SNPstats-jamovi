@@ -525,6 +525,10 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                         `title`="Score type", 
                         `type`="text"),
                     list(
+                        `name`="contrast", 
+                        `title`="Contrast", 
+                        `type`="text"),
+                    list(
                         `name`="category", 
                         `title`="Category", 
                         `type`="text"),

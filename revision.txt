@@ -1,7 +1,3 @@
-18:30
-
-continue percentile table with polytomous LR
-revise interaction table empty
 
 analysisui-B-rQCaEn.js:12 WARNING: Cannot bind to 'scaleMethod == 'multiply''. It does not exist.
 analysisui-B-rQCaEn.js:12 WARNING: Cannot bind to 'scaleMethod == 'perNAlleles''. It does not exist.
