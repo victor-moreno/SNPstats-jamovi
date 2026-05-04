@@ -1830,10 +1830,88 @@ snpPGSClass <- R6::R6Class(
         ))
       }
 
-      # ── Polytomous: not supported ─────────────────────────────────────────
+      # ── Polytomous: multinomial logistic regression ───────────────────────
       if (resp_type == "polytomous") {
-        add_row("(not yet supported for polytomous response)", "",
-                '', '', '', '')
+        df$resp <- factor(df$resp)
+
+        frm_int  <- as.formula(frm_int_str)
+        frm_main <- as.formula(frm_main_str)
+
+        fit_int  <- tryCatch(
+          nnet::multinom(frm_int,  data = df, trace = FALSE),
+          error = function(e) NULL)
+        fit_main <- tryCatch(
+          nnet::multinom(frm_main, data = df, trace = FALSE),
+          error = function(e) NULL)
+
+        if (is.null(fit_int)) return()
+
+        # coef(multinom) → (K-1) × p matrix; vcov → (K-1)*p × (K-1)*p block
+        cf_mat <- coef(fit_int)                    # rows = non-ref levels, cols = terms
+        vc_mat <- tryCatch(vcov(fit_int), error = function(e) NULL)
+
+        # Wald CIs: b ± 1.96 * SE (same as confint.default for glm)
+        se_from_vc <- function(lv_row, coef_nm) {
+          nm <- paste0(lv_row, ":", coef_nm)
+          if (!is.null(vc_mat) && nm %in% rownames(vc_mat))
+            sqrt(vc_mat[nm, nm])
+          else NA_real_
+        }
+
+        for (lv in lvls[-1]) {
+          lv_row    <- as.character(lv)
+          model_lbl <- paste0("Polytomous logistic (", lv_row, " vs ", lvls[1], ")")
+
+          if (!lv_row %in% rownames(cf_mat)) next
+
+          report_term <- function(coef_nm, display_nm) {
+            if (!coef_nm %in% colnames(cf_mat)) return()
+            b  <- cf_mat[lv_row, coef_nm]
+            se <- se_from_vc(lv_row, coef_nm)
+            p  <- if (!is.na(se) && se > 0) 2 * pnorm(-abs(b / se)) else NA_real_
+            ci <- if (!is.na(se)) c(b - 1.96 * se, b + 1.96 * se)
+                  else            c(NA_real_, NA_real_)
+            add_row(model_lbl, display_nm,
+                    exp(b), exp(ci[1]), exp(ci[2]), p)
+          }
+
+          report_term("pgs", "PGS (main)")
+
+          # cov1 main effect(s): column names in cf_mat starting with "cov1"
+          # but NOT interaction terms (those start with "pgs:cov1")
+          cov1_main_nms <- colnames(cf_mat)[startsWith(colnames(cf_mat), "cov1") &
+                                            !startsWith(colnames(cf_mat), "pgs:")]
+          for (cnm in cov1_main_nms) {
+            lbl <- if (cnm == "cov1") paste0(cov1_nm, " (main)")
+                   else paste0(cov1_nm, " (", sub("^cov1", "", cnm), ")")
+            report_term(cnm, lbl)
+          }
+
+          # PGS × cov1 interaction term(s)
+          cov1_int_nms <- colnames(cf_mat)[startsWith(colnames(cf_mat), "pgs:cov1")]
+          for (cnm in cov1_int_nms) {
+            lbl <- if (cnm == "pgs:cov1") paste0("PGS \u00d7 ", cov1_nm, " (int)")
+                   else paste0("PGS \u00d7 ", cov1_nm,
+                               " (", sub("^pgs:cov1", "", cnm), ")")
+            report_term(cnm, lbl)
+          }
+        }
+
+        # LRT for the interaction block (joint across all contrasts) — one row
+        if (!is.null(fit_main)) {
+          lrt <- tryCatch(
+            anova(fit_main, fit_int, test = "Chisq"),
+            error = function(e) NULL)
+          if (!is.null(lrt) && nrow(lrt) >= 2) {
+            p_l <- lrt[2, "Pr(Chi)"]
+            # anova.multinom column name varies by nnet version; fall back
+            if (is.null(p_l) || all(is.na(p_l)))
+              p_l <- lrt[2, grep("Pr", colnames(lrt), value = TRUE)[1]]
+            add_row("Polytomous logistic (int, LRT)", "LRT (interaction)",
+                    '', '', '', as.numeric(p_l))
+          }
+        }
+
         return()
       }
 
