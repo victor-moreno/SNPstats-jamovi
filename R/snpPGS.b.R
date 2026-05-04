@@ -9,14 +9,14 @@
 # or editing weightsPath always picks up the latest file contents.
 # ─────────────────────────────────────────────────────────────────────────────
 
+`%||%` <- function(a, b) if (!is.null(a)) a else b
+
 snpPGSClass <- R6::R6Class(
   "snpPGSClass",
   inherit = snpPGSBase,
 
   private = list(
 
-    .pgsScores = NULL,
-    .idLabels  = NULL,
     .keepMask  = NULL,
     .cache     = new.env(parent = emptyenv()),
 
@@ -116,18 +116,18 @@ snpPGSClass <- R6::R6Class(
       }
 
       private$.fillCoverageTable(snpCols, wtable, missing_st, valid_snps,
-                                  valid_counts = qc$valid_counts,
-                                  n_total      = nrow(self$data),
-                                  n_qc_excl    = qc$n_qc_excl %||% 0L,
-                                  n_flt_excl   = qc$n_flt_excl %||% 0L)
+                                  valid_counts  = qc$valid_counts,
+                                  n_total       = nrow(self$data),
+                                  has_file      = has_file,
+                                  n_qc_excl     = qc$n_qc_excl %||% 0L,
+                                  n_flt_excl    = qc$n_flt_excl %||% 0L)
 
       # ── Clear tables before multi-mode fill ─────────────────────────────
       self$results$summaryTable$deleteRows()
       self$results$assocTable$deleteRows()
       self$results$interactionTable$deleteRows()
 
-      first_scores <- NULL
-      all_scores   <- list()   # named by mode_label, for saveScores output
+      all_scores <- list()   # named by mode_label, for saveScores output
 
       for (mode_label in names(modes)) {
         wvec <- modes[[mode_label]]
@@ -144,22 +144,16 @@ snpPGSClass <- R6::R6Class(
         if (length(wvec) == 0) next
 
         # Slice valid_counts to exactly the SNPs in dos_m (weighted mode may
-        # have dropped NA-weight SNPs, so dos_m can have fewer columns than
-        # qc$valid_counts). This ensures the missingness-correction denominator
-        # is computed over the same SNP set as the raw score.
-        qc_mode <- qc
-        qc_mode$valid_counts <- qc$valid_counts[,
-          intersect(colnames(qc$valid_counts), colnames(dos_m)), drop = FALSE]
-
-        scores <- private$.computeScores(dos_m, wvec, qc_mode,
+        # have dropped NA-weight SNPs). Pass as a lightweight list rather than
+        # copying the full qc object.
+        vc_sliced <- list(
+          valid_counts = qc$valid_counts[,
+            intersect(colnames(qc$valid_counts), colnames(dos_m)), drop = FALSE]
+        )
+        scores <- private$.computeScores(dos_m, wvec, vc_sliced,
                                           is_unweighted = (mode_label == "Unweighted"))
         all_scores[[mode_label]] <- scores
 
-        if (is.null(first_scores)) {
-          first_scores       <- scores
-          private$.pgsScores <- scores
-          private$.idLabels  <- as.character(seq_len(nrow(dosage)))
-        }
 
         private$.fillSummaryTable(scores, resp, mode_label)
 
@@ -171,7 +165,7 @@ snpPGSClass <- R6::R6Class(
           private$.fillInteractionTable(scores, resp, respCol, covs, mode_label)
       }
 
-      if (is.null(first_scores)) {
+      if (length(all_scores) == 0) {
         self$results$validationMsg$setContent(
           "<p style='color:#c0392b;'>No SNPs with valid weights — cannot compute PGS.</p>")
         self$results$validationMsg$setVisible(TRUE)
@@ -245,8 +239,6 @@ snpPGSClass <- R6::R6Class(
       
       private$.unitWeightTableFromData(snpCols)
     },
-
-
 
     # ════════════════════════════════════════════════════════════════════════
     # .computeScores
@@ -485,20 +477,6 @@ snpPGSClass <- R6::R6Class(
         stringsAsFactors = FALSE
       )
 
-      # Scope to selected SNPs; unmatched SNPs get placeholder rows
-      # result       <- catalog[catalog$rsid %in% snpCols, , drop = FALSE]
-      # missing_snps <- setdiff(snpCols, result$rsid)
-      # if (length(missing_snps) > 0) {
-      #   extra_rows <- data.frame(
-      #     rsid = missing_snps, effect_allele = "", other_allele = "",
-      #     effect_weight = NA_real_, chr = "", pos = "",
-      #     matched = FALSE, allele_status = "not in weights file \u274c",
-      #     strand_flipped = FALSE, extra_cols = "",
-      #     n_missing = NA_integer_, pct_missing = NA_real_,
-      #     stringsAsFactors = FALSE
-      #   )
-      #   result <- rbind(result, extra_rows)
-      # }
 
       # Keep ALL catalog SNPs, plus add placeholder for any selected SNPs not in catalog
       result <- catalog
@@ -807,8 +785,6 @@ snpPGSClass <- R6::R6Class(
 
       for (snp in useCols) {
 
-        allele_ok <- NA
-
         col_raw <- self$data[[snp]]
         idx     <- which(wtable$rsid == snp)[1]
 
@@ -821,7 +797,6 @@ snpPGSClass <- R6::R6Class(
         cleaned     <- private$.cleanGenotypeColumn(col_raw)
         col_clean   <- cleaned$col_clean
         n_null_fix  <- cleaned$n_null
-        n_na_fix    <- cleaned$n_na_str
         cleaned_cols[[snp]] <- col_clean
 
         # Annotate if null-allele cleaning happened
@@ -910,8 +885,6 @@ snpPGSClass <- R6::R6Class(
                    "; exp: ", ea_cat, "/", oa_cat, null_note)
           next
         }
-
-        allele_ok <- TRUE
 
         # ── Strand handling ──────────────────────────────────────────────────
         if (matches_direct) {
@@ -1148,7 +1121,7 @@ snpPGSClass <- R6::R6Class(
     },
 
     .fillCoverageTable = function(snpCols, wtable, missing_st, valid_snps,
-                                   valid_counts, n_total,
+                                   valid_counts, n_total, has_file = FALSE,
                                    n_qc_excl = 0L, n_flt_excl = 0L) {
       inData    <- names(self$data)
       matched   <- intersect(wtable$rsid[wtable$matched], inData)
@@ -1206,11 +1179,8 @@ snpPGSClass <- R6::R6Class(
       }
       add("SNPs used in score",                length(valid_snps))
       add("Missing genotype strategy",         missing_st)
-      has_file_cv <- !is.null(self$options$weightsPath) &&
-                     nchar(trimws(self$options$weightsPath)) > 0 &&
-                     file.exists(self$options$weightsPath)
-      run_w  <- self$options$weightingMode %in% c("weighted", "both") && has_file_cv
-      run_uw <- self$options$weightingMode %in% c("unweighted", "both") || !has_file_cv
+      run_w  <- self$options$weightingMode %in% c("weighted", "both") && has_file
+      run_uw <- self$options$weightingMode %in% c("unweighted", "both") || !has_file
       if (run_w)  add("Score scale (Weighted)",   private$.scaleLabel("Weighted"))
       if (run_uw) add("Score scale (Unweighted)", private$.scaleLabel("Unweighted"))
       add("Total sample size",   n_total)
@@ -1262,7 +1232,7 @@ snpPGSClass <- R6::R6Class(
                     length(unique(resp[!is.na(resp)])) == 2)
 
       if (is_binary) {
-        lvls <- levels(factor(resp[!is.na(resp)]))
+        lvls <- levels(droplevels(factor(resp[!is.na(resp)])))
         for (lv in lvls)
           add_row(as.character(lv),
                   scores[!is.na(resp) & as.character(resp) == lv])
@@ -2054,12 +2024,7 @@ snpPGSClass <- R6::R6Class(
         par(mar = c(4.5, 4.5, 3.5, 1.5))
         panel_title <- if (n_modes > 1) mode_lbl else "PGS Distribution"
 
-        # Determine y-label
-        y_lab <- switch(plot_type,
-          density   = "Density",
-          histogram = "Density",
-          both      = "Density"
-        )
+        y_lab <- "Density"
 
         # Empty plot frame
         plot(NULL,
@@ -2219,4 +2184,3 @@ snpPGSClass <- R6::R6Class(
   )  # end private
 )
 
-`%||%` <- function(a, b) if (!is.null(a)) a else b
