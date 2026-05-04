@@ -495,7 +495,7 @@ snpPGSClass <- R6::R6Class(
           chr = "", 
           pos = "",
           matched = FALSE, 
-          allele_status = "not in weights file \u274c",
+          allele_status = "\u274c not in weights file",
           strand_flipped = FALSE, 
           extra_cols = "",
           n_missing = NA_integer_, 
@@ -554,7 +554,7 @@ snpPGSClass <- R6::R6Class(
         chr            = "",
         pos            = "",
         matched        = FALSE,
-        allele_status  = "no weights file",
+        allele_status  = "\u2705 no weights file (unit weights)",
         strand_flipped = FALSE,
         extra_cols     = "",
         n_missing      = NA_integer_,
@@ -580,14 +580,10 @@ snpPGSClass <- R6::R6Class(
         col <- dat[[snp]]
         ea  <- ""
         oa  <- ""
-        qc  <- "unweighted"
 
-        # SNP data must be factor or dosage
-        # numeric → no allele inference
         if (is.numeric(col)) {
-          ea <- ""
-          oa <- ""
-          qc <- "numeric (dosage)"
+          # Numeric dosage: allele inference not possible
+          qc <- "\u26A0 numeric dosage: no allele QC possible"
         } else {
           # infer alleles (best effort, no QC decisions)
           # Apply the same cleaning as .cleanGenotypeColumn so null-allele
@@ -605,7 +601,7 @@ snpPGSClass <- R6::R6Class(
             ea <- if (length(alleles) >= 2) alleles[2] else alleles[1]
           }
 
-          qc <- "unweighted"
+          qc <- "\u2705 ok (unit weight)"
         }        
         data.frame(
           rsid           = snp,
@@ -806,7 +802,9 @@ snpPGSClass <- R6::R6Class(
         # ── Step 2: all missing after cleaning ───────────────────────────────
         if (all(is.na(col_clean))) {
           qc_exclude <- c(qc_exclude, snp)
-          wtable$allele_status[idx] <- paste0("all missing \u274c", null_note)
+          wtable$allele_status[idx] <- paste0(
+            "\u274c all missing",
+            if (n_null_fix > 0) paste0(" (", n_null_fix, " null-allele genotypes set to NA)") else "")
           next
         }
 
@@ -827,11 +825,21 @@ snpPGSClass <- R6::R6Class(
 
           if (length(obs_vals) <= 1) {
             qc_exclude <- c(qc_exclude, snp)
-            wtable$allele_status[idx] <-
-              paste0("constant numeric dosage \u274c: ", obs_str, null_note)
+            wtable$allele_status[idx] <- paste0(
+              "\u274c monomorphic numeric dosage: ", obs_str,
+              if (n_null_fix > 0) paste0("; ", n_null_fix, " null-allele genotypes set to NA") else "")
           } else {
-            wtable$allele_status[idx] <-
-              paste0("numeric dosage (no allele QC): ", obs_str, null_note)
+            # Always \u26A0: allele QC cannot be performed on numeric dosage columns
+            num_actions <- c(
+              "no allele QC possible (numeric dosage)",
+              if (n_null_fix > 0)
+                paste0(n_null_fix, " null-allele genotypes set to NA") else NULL,
+              if (any(!is.na(col_num) & (col_num < 0 | col_num > 2)))
+                paste0(sum(!is.na(col_num) & (col_num < 0 | col_num > 2)),
+                       " out-of-range values set to NA") else NULL
+            )
+            wtable$allele_status[idx] <- paste0(
+              "\u26A0 ", obs_str, ": ", paste(num_actions, collapse = "; "))
           }
           next
         }
@@ -846,8 +854,9 @@ snpPGSClass <- R6::R6Class(
 
         if (length(alleles) == 0) {
           qc_exclude <- c(qc_exclude, snp)
-          wtable$allele_status[idx] <-
-            paste0("no valid alleles observed \u274c", null_note)
+          wtable$allele_status[idx] <- paste0(
+            "\u274c no valid alleles observed",
+            if (n_null_fix > 0) paste0(" (", n_null_fix, " null-allele genotypes set to NA)") else "")
           next
         }
 
@@ -856,16 +865,18 @@ snpPGSClass <- R6::R6Class(
         # ── Multiallelic ─────────────────────────────────────────────────────
         if (length(alleles) > 2) {
           qc_exclude <- c(qc_exclude, snp)
-          wtable$allele_status[idx] <-
-            paste0("multiallelic \u274c: ", obs_str, null_note)
+          wtable$allele_status[idx] <- paste0(
+            "\u274c multiallelic: ", obs_str,
+            if (n_null_fix > 0) paste0("; ", n_null_fix, " null-allele genotypes set to NA") else "")
           next
         }
 
         # ── No allele info in weights file ───────────────────────────────────
         if (!has_allele_info) {
           qc_exclude <- c(qc_exclude, snp)
-          wtable$allele_status[idx] <-
-            paste0("no allele info in weights file \u274c: obs=", obs_str, null_note)
+          wtable$allele_status[idx] <- paste0(
+            "\u274c no allele info in weights file: obs=", obs_str,
+            if (n_null_fix > 0) paste0("; ", n_null_fix, " null-allele genotypes set to NA") else "")
           next
         }
 
@@ -880,25 +891,28 @@ snpPGSClass <- R6::R6Class(
 
         if (!matches_direct && !matches_complement) {
           qc_exclude <- c(qc_exclude, snp)
-          wtable$allele_status[idx] <-
-            paste0("allele mismatch \u274c obs: ", obs_str,
-                   "; exp: ", ea_cat, "/", oa_cat, null_note)
+          wtable$allele_status[idx] <- paste0(
+            "\u274c allele mismatch: obs=", obs_str,
+            ", exp=", ea_cat, "/", oa_cat,
+            if (n_null_fix > 0) paste0("; ", n_null_fix, " null-allele genotypes set to NA") else "")
           next
         }
 
         # ── Strand handling ──────────────────────────────────────────────────
+        # Collect action flags; icon decided after all checks on this SNP.
+        strand_flipped_snp <- FALSE
+        is_ambiguous_snp   <- FALSE
+
         if (matches_direct) {
           ea_use <- ea_cat
-          status <- "\u2705 ok"
         } else {
           ea_use <- ea_comp
-          status <- "\u2705 strand flip \u2757"
+          strand_flipped_snp <- TRUE
           wtable$strand_flipped[idx] <- TRUE
         }
 
-        if (private$.isAmbiguous(ea_cat, oa_cat)) {
-          status <- paste0(status, "; ambiguous AT/CG \u2757")
-        }
+        if (private$.isAmbiguous(ea_cat, oa_cat))
+          is_ambiguous_snp <- TRUE
 
         # ── Dosage computation ───────────────────────────────────────────────
         # Each genotype string is split on non-ACGT separators.
@@ -917,10 +931,24 @@ snpPGSClass <- R6::R6Class(
         if (length(unique(dos[!is.na(dos)])) <= 1) {
           qc_exclude <- c(qc_exclude, snp)
           wtable$allele_status[idx] <-
-            paste0("monomorphic \u274c: ", obs_str, null_note)
+            paste0("\u274c monomorphic: ", obs_str,
+                   if (n_null_fix > 0) paste0("; ", n_null_fix, " null-allele genotypes set to NA") else "")
         } else {
-          wtable$allele_status[idx] <-
-            paste0(status, ": ", obs_str, null_note)
+          # Icon:
+          #   \u2705  no actions taken at all — clean pass
+          #   \u26A0  kept but at least one action was taken
+          actions_snp <- c(
+            if (strand_flipped_snp) "strand flipped"  else NULL,
+            if (is_ambiguous_snp)   "ambiguous AT/CG"  else NULL,
+            if (n_null_fix > 0)
+              paste0(n_null_fix, " null-allele genotypes set to NA") else NULL
+          )
+          if (length(actions_snp) > 0) {
+            wtable$allele_status[idx] <- paste0(
+              "\u26A0 ", obs_str, ": ", paste(actions_snp, collapse = "; "))
+          } else {
+            wtable$allele_status[idx] <- paste0("\u2705 ", obs_str)
+          }
         }
       }  # end per-SNP loop
 
@@ -972,10 +1000,11 @@ snpPGSClass <- R6::R6Class(
           pct_miss <- wtable$pct_missing[idx]
           if (!is.na(pct_miss) && pct_miss > miss_thresh) {
             filter_exclude <- c(filter_exclude, snp)
+            # Replace leading icon with \u274c; preserve the existing detail after it
+            prev <- sub("^\\\\u[0-9a-f]{4}\\s*", "", wtable$allele_status[idx])
             wtable$allele_status[idx] <- paste0(
-              wtable$allele_status[idx],
-              sprintf(" \u274c excl: missing %.1f%% > %.1f%%",
-                      pct_miss, miss_thresh))
+              sprintf("\u274c excl (missing %.1f%% > %.1f%%): ", pct_miss, miss_thresh),
+              prev)
             next  # no need to check HWE
           }
         }
@@ -985,10 +1014,10 @@ snpPGSClass <- R6::R6Class(
           hwe_p_val <- wtable$hwe_p[idx]
           if (!is.na(hwe_p_val) && hwe_p_val < hwe_thresh) {
             filter_exclude <- c(filter_exclude, snp)
+            prev <- sub("^\\\\u[0-9a-f]{4}\\s*", "", wtable$allele_status[idx])
             wtable$allele_status[idx] <- paste0(
-              wtable$allele_status[idx],
-              sprintf(" \u274c excl: HWE p=%.2e < %.2e%s",
-                      hwe_p_val, hwe_thresh, ctrl_note))
+              sprintf("\u274c excl (HWE p=%.2e < %.2e%s): ", hwe_p_val, hwe_thresh, ctrl_note),
+              prev)
           }
         }
       }
@@ -1089,16 +1118,15 @@ snpPGSClass <- R6::R6Class(
         status <- as.character(r$allele_status)
         in_ds  <- r$rsid %in% inData
 
-        # Derive QC filter reason from allele_status annotation
-        qc_flt_reason <- ""
-        if (grepl("excl: missing", status, fixed = TRUE)) {
-          m <- regmatches(status, regexpr("missing [0-9.]+%[^;]*", status))
-          qc_flt_reason <- if (length(m)) paste0("Excluded: ", m) else "Excluded: high missingness"
-        } else if (grepl("excl: HWE", status, fixed = TRUE)) {
-          m <- regmatches(status, regexpr("HWE p=[^;]+", status))
-          qc_flt_reason <- if (length(m)) paste0("Excluded: ", m) else "Excluded: HWE fail"
+        # QC filter column: derive from the leading icon in allele_status.
+        # \u2705 = clean pass, \u26A0 = kept with actions, \u274c = excluded.
+        qc_flt_reason <- if (grepl("^\\u274c excl", status, fixed = FALSE)) {
+          sub("^\\u274c excl ([^:]+):.*", "\\u274c excl \\1", status)
         } else if (r$rsid %in% valid_snps) {
-          qc_flt_reason <- "\u2705 pass"
+          if (startsWith(status, "\\u26A0")) "\\u26A0 pass (with actions)"
+          else "\u2705 pass"
+        } else {
+          ""   # not in dataset or excluded before filter stage
         }
 
         tbl$addRow(rowKey = i, values = list(
@@ -1174,8 +1202,8 @@ snpPGSClass <- R6::R6Class(
         add("Null-allele genotypes fixed (0/0 \u2192 NA)", null_fix)
       add("Excluded by allele/monomorphic QC", n_qc_excl)
       if (n_flt_excl > 0) {
-        add("Excluded by missingness filter",  sum(grepl("excl: missing", wtable$allele_status)))
-        add("Excluded by HWE filter",          sum(grepl("excl: HWE",     wtable$allele_status)))
+        add("Excluded by missingness filter",  sum(grepl("\u274c excl (missing", wtable$allele_status, fixed = TRUE)))
+        add("Excluded by HWE filter",          sum(grepl("\u274c excl (HWE", wtable$allele_status, fixed = TRUE)))
       }
       add("SNPs used in score",                length(valid_snps))
       add("Missing genotype strategy",         missing_st)

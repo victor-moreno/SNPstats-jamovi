@@ -1,23 +1,12 @@
-u.yaml !
-
 Revise 
-  - Assoc table = weighted/unweighted
-
   - SNP QC 
         formats allowed: A/B A|B AB A>B 012
         coding errors: non-biallelic, monomorphic 
         dosage errors [0,2]
-        excluded SNPs:
-                N % missing ''
   - MAF effect allele correctly selected
 
 
 Enhancements
-
-  allow A1 A2 and other columns
-  SNPs from plink ped/tped
-
-
 
 
 Organize code & clean
@@ -25,8 +14,6 @@ Organize code & clean
 
 ---
 
-Test in criprev
-                  
 SNPs 
 assoc/haplotypes
 if value > 1000 : Inf
