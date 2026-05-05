@@ -8,6 +8,7 @@
 # The weights file is re-read on every .run() call, so toggling reloadWeights
 # or editing weightsPath always picks up the latest file contents.
 # ─────────────────────────────────────────────────────────────────────────────
+
 source("R/snp_helpers.R")
 
 snpPGSClass <- R6::R6Class(
@@ -1221,14 +1222,6 @@ snpPGSClass <- R6::R6Class(
 
     .fillSummaryTable = function(scores, resp = NULL, score_type = "") {
       tbl <- self$results$summaryTable
-
-      skewness <- function(x) {
-        x <- x[!is.na(x)]; n <- length(x)
-        if (n < 3) return(NA_real_)
-        x <- x - mean(x)
-        y <- sqrt(n) * sum(x ^ 3) / (sum(x ^ 2) ^ (3/2))      
-        y * ((1 - 1 / n)) ^ (3/2)
-      }
 
       add_row <- function(grp_label, sc) {
         sc <- sc[!is.na(sc)]

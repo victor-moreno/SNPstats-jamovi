@@ -452,6 +452,15 @@ fmt_cont <- function(x) {
 }
 
 
+#' Sample skewness (bias-corrected).
+skewness <- function(x) {
+  x <- x[!is.na(x)]; n <- length(x)
+  if (n < 3) return(NA_real_)
+  x <- x - mean(x)
+  y <- sqrt(n) * sum(x ^ 3) / (sum(x ^ 2) ^ (3/2))
+  y * ((1 - 1 / n)) ^ (3/2)
+}
+
 # ── Inline helper required by haplo.stats ───────────────────────────────
 na.geno.keep <- function(m) {
   mf.gindx <- function(m) {
