@@ -8,8 +8,7 @@
 # The weights file is re-read on every .run() call, so toggling reloadWeights
 # or editing weightsPath always picks up the latest file contents.
 # ─────────────────────────────────────────────────────────────────────────────
-
-`%||%` <- function(a, b) if (!is.null(a)) a else b
+source("R/snp_helpers.R")
 
 snpPGSClass <- R6::R6Class(
   "snpPGSClass",
@@ -1564,7 +1563,7 @@ snpPGSClass <- R6::R6Class(
             b  <- cf[coef_nm, 1]; se <- cf[coef_nm, 2]; p_v <- cf[coef_nm, 4]
             ci <- if (!is.null(cis) && coef_nm %in% rownames(cis))
                     cis[coef_nm, ] else c(b - 1.96*se, b + 1.96*se)
-            list(est = exp(b), ci_lo = exp(ci[1]), ci_hi = exp(ci[2]), p = p_v)
+            list(est = .exp_or(b), ci_lo = .exp_or(ci[1]), ci_hi = .exp_or(ci[2]), p = p_v)
           }
 
           emit_rows("", get_binary)
@@ -1622,7 +1621,7 @@ snpPGSClass <- R6::R6Class(
                 p_v   <- if (!is.na(se) && se > 0) 2 * pnorm(-abs(b / se)) else NA_real_
                 ci    <- if (!is.na(se)) c(b - 1.96*se, b + 1.96*se)
                          else            c(NA_real_, NA_real_)
-                list(est = exp(b), ci_lo = exp(ci[1]), ci_hi = exp(ci[2]), p = p_v)
+                list(est = .exp_or(b), ci_lo = .exp_or(ci[1]), ci_hi = .exp_or(ci[2]), p = p_v)
               }
 
               emit_rows(contrast_lbl, get_poly)
@@ -1726,8 +1725,8 @@ snpPGSClass <- R6::R6Class(
                          error = function(e) c('', ''))
           if ("pgs" %in% rownames(cf))
             add_row("Logistic regression", "OR",
-                    exp(cf["pgs", 1]), '',
-                    exp(ci[1]), exp(ci[2]),
+                                        .exp_or(cf["pgs", 1]), '',
+                    .exp_or(ci[1]), .exp_or(ci[2]),
                     cf["pgs", 3], "", cf["pgs", 4])
         }
 
@@ -1778,7 +1777,7 @@ snpPGSClass <- R6::R6Class(
             ci_hi <- b + 1.96 * se_b
             lbl   <- paste0("Polytomous logistic (", lv_row, " vs ", lvls[1], ")")
             add_row(lbl, "OR",
-                    exp(b), NA_real_, exp(ci_lo), exp(ci_hi),
+                    .exp_or(b), NA_real_, .exp_or(ci_lo), .exp_or(ci_hi),
                     z, "", p_z)
           }
 
@@ -1965,7 +1964,7 @@ snpPGSClass <- R6::R6Class(
               ci <- if (!is.na(se)) c(b - 1.96 * se, b + 1.96 * se)
                     else            c(NA_real_, NA_real_)
               add_row(model_lbl, display_nm,
-                      exp(b), exp(ci[1]), exp(ci[2]), p)
+                      .exp_or(b), .exp_or(ci[1]), .exp_or(ci[2]), p)
             }
 
             report_term("pgs", "PGS (main)")
@@ -2026,7 +2025,7 @@ snpPGSClass <- R6::R6Class(
           ci <- if (!is.null(cis) && coef_nm %in% rownames(cis))
                   cis[coef_nm, ] else c(NA_real_, NA_real_)
           add_row("Logistic (int)", display_nm,
-                  exp(b), exp(ci[1]), exp(ci[2]), p)
+                  .exp_or(b), .exp_or(ci[1]), .exp_or(ci[2]), p)
         }
 
         report_term("pgs", "PGS (main)")

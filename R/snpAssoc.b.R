@@ -48,7 +48,7 @@ fit_model <- function(snp_enc, response, covariates_df, model_name,
       pval <- coefs[row, pval_col]
       ci_lo <- ci[i, 1]; ci_hi <- ci[i, 2]
       if (response_type == "binary")
-        list(effect = exp(beta), ci_low = exp(ci_lo), ci_high = exp(ci_hi),
+        list(effect = .exp_or(beta), ci_low = .exp_or(ci_lo), ci_high = .exp_or(ci_hi),
              pval = pval, global_p = global_p, aic = aic_val,
              comparison = sub("^snp", "", rownames(coefs)[row]))
       else
@@ -140,7 +140,7 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
       if (attach_p) first_inter_done <<- TRUE
 
       if (response_type == "binary")
-        list(term = term, effect = exp(beta), ci_low = exp(ci_lo), ci_high = exp(ci_hi),
+        list(term = term, effect = .exp_or(beta), ci_low = .exp_or(ci_lo), ci_high = .exp_or(ci_hi),
              pval = pval, pval_interaction = if (attach_p) p_inter else NA_real_,
              aic = aic_val, row_type = row_type)
       else
@@ -195,7 +195,7 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
                     else if (r %in% covar_rows)  "covariate"
                     else                         "adjustment"
         if (response_type == "binary")
-          list(term = all_rows[r], effect = exp(beta), ci_low = exp(ci_lo), ci_high = exp(ci_hi),
+          list(term = all_rows[r], effect = .exp_or(beta), ci_low = .exp_or(ci_lo), ci_high = .exp_or(ci_hi),
                pval = pval, pval_interaction = if (is_inter) p_inter else NA_real_,
                aic = aic_val, is_first = (r == keep_rows[1]), row_type = row_type)
         else
@@ -1020,9 +1020,9 @@ snpAssocClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
             tbl$addRow(rowKey = paste0(mdl, i), values = list(
               genotype = gl, stat0 = st$s0[i], stat1 = st$s1[i],
-              effect = if (response_type == "binary") exp(combined_beta) else combined_beta,
-              ciLow  = if (response_type == "binary") exp(lo_beta) else lo_beta,
-              ciHigh = if (response_type == "binary") exp(hi_beta) else hi_beta,
+              effect = if (response_type == "binary") .exp_or(combined_beta) else combined_beta,
+              ciLow  = if (response_type == "binary") .exp_or(lo_beta) else lo_beta,
+              ciHigh = if (response_type == "binary") .exp_or(hi_beta) else hi_beta,
               pval   = p_val
             ))
           }

@@ -518,9 +518,9 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             list(
               haplotype = label,
               freq      = round(freq, 4),
-              effect    = if (response_type == "binary") exp(b)  else b,
-              ciLow     = if (response_type == "binary") exp(lo) else lo,
-              ciHigh    = if (response_type == "binary") exp(hi) else hi,
+              effect    = if (response_type == "binary") .exp_or(b)  else b,
+              ciLow     = if (response_type == "binary") .exp_or(lo) else lo,
+              ciHigh    = if (response_type == "binary") .exp_or(hi) else hi,
               pval      = stats$pval
             )
           }
@@ -854,9 +854,9 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
               rowKey = paste0("hi", r),
               values = list(
                 term   = label,
-                effect = if (response_type == "binary") exp(st$beta)  else st$beta,
-                ciLow  = if (response_type == "binary") exp(st$ci_lo) else st$ci_lo,
-                ciHigh = if (response_type == "binary") exp(st$ci_hi) else st$ci_hi,
+                effect = if (response_type == "binary") .exp_or(st$beta)  else st$beta,
+                ciLow  = if (response_type == "binary") .exp_or(st$ci_lo) else st$ci_lo,
+                ciHigh = if (response_type == "binary") .exp_or(st$ci_hi) else st$ci_hi,
                 pval   = st$pval
               )
             )
@@ -1034,9 +1034,9 @@ snpLDHaploClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       # Helper: format OR (95% CI) as a single string for jamovi
       fmt_or_ci <- function(beta, se) {
         if (is.na(beta) || is.na(se)) return(NA_character_)
-        or    <- exp(beta)
-        ci_lo <- exp(beta - z_crit * se)
-        ci_hi <- exp(beta + z_crit * se)
+        or    <- .exp_or(beta)
+        ci_lo <- .exp_or(beta - z_crit * se)
+        ci_hi <- .exp_or(beta + z_crit * se)
         sprintf("%.2f (%.2f\u2013%.2f)", or, ci_lo, ci_hi)
       }
 

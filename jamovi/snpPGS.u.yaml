@@ -101,7 +101,7 @@ children:
             label: 'Scale factor / N alleles:'
             format: number
             width: small
-            enable: (scaleMethod == 'multiply' || scaleMethod == 'perNAlleles')
+            enable: (scaleMethod:multiply || scaleMethod:perNAlleles)
           - type: CheckBox
             name: standardize
             label: Standardize score (SD = 1)
@@ -157,7 +157,7 @@ children:
                 label: 'Histogram bins:'
                 format: number
                 width: small
-                enable: (showDistPlot && distPlotType != 'density')
+                enable: (showDistPlot && (distPlotType:histogram || distPlotType:both))
   - type: CollapseBox
     label: Save
     collapsed: true

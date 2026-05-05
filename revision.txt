@@ -1,12 +1,4 @@
-
-analysisui-B-rQCaEn.js:12 WARNING: Cannot bind to 'scaleMethod == 'multiply''. It does not exist.
-analysisui-B-rQCaEn.js:12 WARNING: Cannot bind to 'scaleMethod == 'perNAlleles''. It does not exist.
-analysisui-B-rQCaEn.js:12 WARNING: Cannot bind to 'distPlotType != 'density''. It does not exist.
-
 Tutorial screenshots
-
-in OR tables
-  capture numerical instabilities (Inf) 
 
 Revise 
   - SNP QC 

@@ -20,6 +20,18 @@
 #' @importFrom R6 R6Class
 #' @import jmvcore
 
+`%||%` <- function(a, b) if (!is.null(a)) a else b
+
+# Exponentiate a log-OR and clamp extreme values for display.
+# ORs > 1e4 are collapsed to Inf; ORs < 1e-4 are collapsed to 0.
+# This prevents tables from displaying astronomically large or tiny
+# numbers that arise from complete/quasi-separation in small samples.
+.exp_or <- function(x) {
+  v <- exp(x)
+  v[!is.na(v) & v > 1e4]  <- Inf
+  v[!is.na(v) & v < 1e-4] <- 0
+  v
+}
 
 # ── Allele / genotype string utilities ────────────────────────────────────────
 
