@@ -23,6 +23,9 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             standardize = FALSE,
             showCoverage = TRUE,
             showDistPlot = FALSE,
+            showForestPlot = FALSE,
+            showRocPlot = FALSE,
+            showCalibPlot = FALSE,
             distPlotType = "density",
             histBreaks = 20,
             showPercentiles = FALSE,
@@ -140,6 +143,18 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "showDistPlot",
                 showDistPlot,
                 default=FALSE)
+            private$..showForestPlot <- jmvcore::OptionBool$new(
+                "showForestPlot",
+                showForestPlot,
+                default=FALSE)
+            private$..showRocPlot <- jmvcore::OptionBool$new(
+                "showRocPlot",
+                showRocPlot,
+                default=FALSE)
+            private$..showCalibPlot <- jmvcore::OptionBool$new(
+                "showCalibPlot",
+                showCalibPlot,
+                default=FALSE)
             private$..distPlotType <- jmvcore::OptionList$new(
                 "distPlotType",
                 distPlotType,
@@ -202,6 +217,9 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..standardize)
             self$.addOption(private$..showCoverage)
             self$.addOption(private$..showDistPlot)
+            self$.addOption(private$..showForestPlot)
+            self$.addOption(private$..showRocPlot)
+            self$.addOption(private$..showCalibPlot)
             self$.addOption(private$..distPlotType)
             self$.addOption(private$..histBreaks)
             self$.addOption(private$..showPercentiles)
@@ -230,6 +248,9 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         standardize = function() private$..standardize$value,
         showCoverage = function() private$..showCoverage$value,
         showDistPlot = function() private$..showDistPlot$value,
+        showForestPlot = function() private$..showForestPlot$value,
+        showRocPlot = function() private$..showRocPlot$value,
+        showCalibPlot = function() private$..showCalibPlot$value,
         distPlotType = function() private$..distPlotType$value,
         histBreaks = function() private$..histBreaks$value,
         showPercentiles = function() private$..showPercentiles$value,
@@ -257,6 +278,9 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..standardize = NA,
         ..showCoverage = NA,
         ..showDistPlot = NA,
+        ..showForestPlot = NA,
+        ..showRocPlot = NA,
+        ..showCalibPlot = NA,
         ..distPlotType = NA,
         ..histBreaks = NA,
         ..showPercentiles = NA,
@@ -282,7 +306,10 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         assocTable = function() private$.items[["assocTable"]],
         interactionTable = function() private$.items[["interactionTable"]],
         distPlot = function() private$.items[["distPlot"]],
-        stratPlot = function() private$.items[["stratPlot"]]),
+        stratPlot = function() private$.items[["stratPlot"]],
+        forestPlot = function() private$.items[["forestPlot"]],
+        rocPlot = function() private$.items[["rocPlot"]],
+        calibPlot = function() private$.items[["calibPlot"]]),
     private = list(),
     public=list(
         initialize=function(options) {
@@ -706,7 +733,69 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 visible=FALSE,
                 width=700,
                 height=420,
-                renderFun=".plotStrat"))}))
+                renderFun=".plotStrat"))
+            self$add(jmvcore::Image$new(
+                options=options,
+                name="forestPlot",
+                title="PGS Percentile Forest Plot",
+                visible=FALSE,
+                width=600,
+                height=480,
+                renderFun=".plotForest",
+                clearWith=list(
+                    "snpCols",
+                    "weightsPath",
+                    "weightingMode",
+                    "missingStrategy",
+                    "missingCorrection",
+                    "scaleMethod",
+                    "scaleFactor",
+                    "scaleWeights",
+                    "standardize",
+                    "responseCol",
+                    "covCols",
+                    "percentileBreaks",
+                    "pgsRefCategory")))
+            self$add(jmvcore::Image$new(
+                options=options,
+                name="rocPlot",
+                title="ROC Curve",
+                visible=FALSE,
+                width=500,
+                height=500,
+                renderFun=".plotROC",
+                clearWith=list(
+                    "snpCols",
+                    "weightsPath",
+                    "weightingMode",
+                    "missingStrategy",
+                    "missingCorrection",
+                    "scaleMethod",
+                    "scaleFactor",
+                    "scaleWeights",
+                    "standardize",
+                    "responseCol",
+                    "covCols")))
+            self$add(jmvcore::Image$new(
+                options=options,
+                name="calibPlot",
+                title="Calibration Plot",
+                visible=FALSE,
+                width=500,
+                height=500,
+                renderFun=".plotCalibration",
+                clearWith=list(
+                    "snpCols",
+                    "weightsPath",
+                    "weightingMode",
+                    "missingStrategy",
+                    "missingCorrection",
+                    "scaleMethod",
+                    "scaleFactor",
+                    "scaleWeights",
+                    "standardize",
+                    "responseCol",
+                    "covCols")))}))
 
 snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
     "snpPGSBase",
@@ -811,6 +900,20 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'   before dividing.
 #' @param showCoverage Show the SNP coverage summary table.
 #' @param showDistPlot Show the score distribution plot.
+#' @param showForestPlot Show a forest plot of OR (binary response) or β
+#'   (continuous response) per percentile category, using the same logistic /
+#'   linear model as the percentile category analysis. Requires a response
+#'   variable. Uses the same percentile breaks and reference category settings
+#'   as the percentile analysis.
+#' @param showRocPlot Show a Receiver Operating Characteristic (ROC) curve
+#'   with AUC for binary responses. When covariates are selected, a second curve
+#'   for the covariate-adjusted logistic model is overlaid. AUC is computed via
+#'   the trapezoidal rule. Requires a binary response variable.
+#' @param showCalibPlot Show a calibration plot for binary responses.
+#'   Individuals are binned into deciles of predicted probability from the
+#'   logistic model; observed event rate per decile is plotted against mean
+#'   predicted probability. A Hosmer-Lemeshow chi-square statistic is annotated.
+#'   Requires a binary response variable.
 #' @param distPlotType Controls the visual style of the distribution plot.
 #'   'density' shows kernel density curves with filled polygons; 'histogram'
 #'   shows bars (density scale); 'both' overlays density curves on histogram
@@ -851,6 +954,9 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'   \code{results$interactionTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$distPlot} \tab \tab \tab \tab \tab an image \cr
 #'   \code{results$stratPlot} \tab \tab \tab \tab \tab an image \cr
+#'   \code{results$forestPlot} \tab \tab \tab \tab \tab an image \cr
+#'   \code{results$rocPlot} \tab \tab \tab \tab \tab an image \cr
+#'   \code{results$calibPlot} \tab \tab \tab \tab \tab an image \cr
 #' }
 #'
 #' Tables can be converted to data frames with \code{asDF} or \code{\link{as.data.frame}}. For example:
@@ -879,6 +985,9 @@ snpPGS <- function(
     standardize = FALSE,
     showCoverage = TRUE,
     showDistPlot = FALSE,
+    showForestPlot = FALSE,
+    showRocPlot = FALSE,
+    showCalibPlot = FALSE,
     distPlotType = "density",
     histBreaks = 20,
     showPercentiles = FALSE,
@@ -920,6 +1029,9 @@ snpPGS <- function(
         standardize = standardize,
         showCoverage = showCoverage,
         showDistPlot = showDistPlot,
+        showForestPlot = showForestPlot,
+        showRocPlot = showRocPlot,
+        showCalibPlot = showCalibPlot,
         distPlotType = distPlotType,
         histBreaks = histBreaks,
         showPercentiles = showPercentiles,

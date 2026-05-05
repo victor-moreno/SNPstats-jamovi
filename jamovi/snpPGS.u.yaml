@@ -158,6 +158,18 @@ children:
                 format: number
                 width: small
                 enable: (showDistPlot && (distPlotType:histogram || distPlotType:both))
+          - type: CheckBox
+            name: showForestPlot
+            label: Percentile forest plot (OR / β per category)
+            enable: (responseCol)
+          - type: CheckBox
+            name: showRocPlot
+            label: ROC curve
+            enable: (responseCol)
+          - type: CheckBox
+            name: showCalibPlot
+            label: Calibration plot
+            enable: (responseCol)
   - type: CollapseBox
     label: Save
     collapsed: true

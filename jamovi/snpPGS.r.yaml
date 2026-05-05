@@ -375,3 +375,68 @@ items:
     width: 700
     height: 420
     renderFun: .plotStrat
+
+  # ── Forest plot: OR / β per percentile category ───────────────────────────
+  - name: forestPlot
+    title: PGS Percentile Forest Plot
+    type: Image
+    visible: false
+    width: 600
+    height: 480
+    renderFun: .plotForest
+    clearWith:
+        - snpCols
+        - weightsPath
+        - weightingMode
+        - missingStrategy
+        - missingCorrection
+        - scaleMethod
+        - scaleFactor
+        - scaleWeights
+        - standardize
+        - responseCol
+        - covCols
+        - percentileBreaks
+        - pgsRefCategory
+
+  # ── ROC curve (binary response only) ──────────────────────────────────────
+  - name: rocPlot
+    title: ROC Curve
+    type: Image
+    visible: false
+    width: 500
+    height: 500
+    renderFun: .plotROC
+    clearWith:
+        - snpCols
+        - weightsPath
+        - weightingMode
+        - missingStrategy
+        - missingCorrection
+        - scaleMethod
+        - scaleFactor
+        - scaleWeights
+        - standardize
+        - responseCol
+        - covCols
+
+  # ── Calibration plot (binary response only) ───────────────────────────────
+  - name: calibPlot
+    title: Calibration Plot
+    type: Image
+    visible: false
+    width: 500
+    height: 500
+    renderFun: .plotCalibration
+    clearWith:
+        - snpCols
+        - weightsPath
+        - weightingMode
+        - missingStrategy
+        - missingCorrection
+        - scaleMethod
+        - scaleFactor
+        - scaleWeights
+        - standardize
+        - responseCol
+        - covCols

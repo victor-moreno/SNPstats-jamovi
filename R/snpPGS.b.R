@@ -173,16 +173,27 @@ snpPGSClass <- R6::R6Class(
       }
 
       # ── Cache everything the plot render functions need ─────────────────
-      if (self$options$showDistPlot) {
-        private$.cache$all_scores <- all_scores
-        private$.cache$resp       <- resp
-        private$.cache$respCol    <- respCol
-      }
+      # Always populated so any plot can render independently of the others.
+      private$.cache$all_scores <- all_scores
+      private$.cache$resp       <- resp
+      private$.cache$respCol    <- respCol
+      private$.cache$covs       <- covs
+
       # stratPlot (continuous scatter) visible only when response is continuous
       is_binary_resp <- !is.null(resp) && (is.factor(resp) ||
                         length(unique(resp[!is.na(resp)])) == 2)
       show_strat <- self$options$showDistPlot && !is.null(resp) && !is_binary_resp
       self$results$stratPlot$setVisible(show_strat)
+
+      # Forest plot: requires a response variable
+      self$results$forestPlot$setVisible(
+        isTRUE(self$options$showForestPlot) && !is.null(resp))
+
+      # ROC and calibration: binary response only
+      self$results$rocPlot$setVisible(
+        isTRUE(self$options$showRocPlot) && is_binary_resp)
+      self$results$calibPlot$setVisible(
+        isTRUE(self$options$showCalibPlot) && is_binary_resp)
 
       if (self$options$showPercentiles)
         private$.fillPercentileTable(all_scores, resp, respCol, covs)
@@ -2350,6 +2361,451 @@ snpPGSClass <- R6::R6Class(
 
       if (n_modes > 1)
         mtext("PGS vs Response", outer = TRUE, cex = 1.05, font = 2, line = 0.4)
+
+      TRUE
+    },
+
+    # ════════════════════════════════════════════════════════════════════════
+    # .plotForest
+    #
+    # Forest plot of OR (binary) or β (continuous) per percentile category,
+    # using the same logistic / linear fits as .fillPercentileTable.
+    # One panel per scoring mode; reference category shown as a diamond.
+    # ════════════════════════════════════════════════════════════════════════
+    .plotForest = function(image, ...) {
+
+      all_scores <- private$.cache$all_scores
+      resp       <- private$.cache$resp
+      respCol    <- private$.cache$respCol
+      covs       <- private$.cache$covs
+
+      if (is.null(all_scores) || is.null(resp)) return(FALSE)
+
+      # ── Determine response type ───────────────────────────────────────────
+      n_lvls    <- length(unique(resp[!is.na(resp)]))
+      resp_type <- if (!is.factor(resp) && n_lvls > 5) "continuous"
+                   else if (n_lvls == 2)               "binary"
+                   else                                return(FALSE)   # polytomous: skip
+
+      # ── Percentile breaks (mirrors .fillPercentileTable) ─────────────────
+      breaks_str <- trimws(self$options$percentileBreaks)
+      breaks_num <- suppressWarnings(as.numeric(strsplit(breaks_str, ",")[[1]]))
+      breaks_num <- sort(unique(breaks_num[!is.na(breaks_num) &
+                                           breaks_num > 0 & breaks_num < 100]))
+      if (length(breaks_num) == 0) breaks_num <- c(20, 40, 60, 80, 90, 95)
+
+      ref_opt  <- self$options$pgsRefCategory
+      has_covs <- !is.null(covs) && ncol(covs) > 0
+
+      make_labels <- function(brks) {
+        n <- length(brks)
+        lbl <- character(n + 1)
+        lbl[1] <- paste0("<P", brks[1])
+        for (i in seq_len(n - 1))
+          lbl[i + 1] <- paste0("P", brks[i], "\u2013P", brks[i + 1])
+        lbl[n + 1] <- paste0(">P", brks[n])
+        lbl
+      }
+      cat_labels <- make_labels(breaks_num)
+      n_cats     <- length(cat_labels)
+
+      n_modes  <- length(all_scores)
+      mode_nms <- names(all_scores)
+
+      opar <- par(no.readonly = TRUE)
+      on.exit(par(opar))
+
+      par(mfrow  = c(1, n_modes),
+          bg     = "white",
+          oma    = c(0, 0, if (n_modes > 1) 2 else 0, 0))
+
+      for (mi in seq_along(all_scores)) {
+        mode_lbl <- mode_nms[mi]
+        scores   <- all_scores[[mi]]
+
+        # ── Build category index ────────────────────────────────────────────
+        cuts    <- quantile(scores, breaks_num / 100, na.rm = TRUE)
+        cat_idx <- pmin(pmax(findInterval(scores, cuts) + 1L, 1L), n_cats)
+
+        ref_idx <- switch(ref_opt,
+          lowest  = 1L,
+          highest = n_cats,
+          middle  = {
+            med <- median(scores, na.rm = TRUE)
+            as.integer(pmin(pmax(findInterval(med, cuts) + 1L, 1L), n_cats))
+          })
+
+        # ── Fit model ───────────────────────────────────────────────────────
+        df <- if (has_covs)
+          data.frame(cat = cat_idx, resp = resp, covs, check.names = FALSE)
+        else
+          data.frame(cat = cat_idx, resp = resp)
+        df <- df[complete.cases(df), ]
+        if (nrow(df) < n_cats) { plot.new(); next }
+
+        df$cat <- relevel(factor(df$cat, levels = seq_len(n_cats),
+                                 labels = cat_labels),
+                          ref = cat_labels[ref_idx])
+        cov_terms <- if (has_covs)
+          paste(paste0("`", names(covs), "`"), collapse = " + ") else ""
+
+        ests <- rep(NA_real_, n_cats)
+        lo   <- rep(NA_real_, n_cats)
+        hi   <- rep(NA_real_, n_cats)
+
+        if (resp_type == "binary") {
+          df$resp <- factor(df$resp)
+          frm <- if (has_covs) as.formula(paste("resp ~ cat +", cov_terms))
+                 else resp ~ cat
+          fit <- tryCatch(glm(frm, data = df, family = binomial()),
+                          error = function(e) NULL)
+          if (is.null(fit)) { plot.new(); next }
+          cf  <- coef(summary(fit))
+          cis <- tryCatch(confint.default(fit), error = function(e) NULL)
+
+          ests[ref_idx] <- 1
+          lo[ref_idx]   <- 1
+          hi[ref_idx]   <- 1
+          for (ci in seq_len(n_cats)) {
+            if (ci == ref_idx) next
+            nm <- paste0("cat", cat_labels[ci])
+            if (!nm %in% rownames(cf)) next
+            b     <- cf[nm, 1]
+            ests[ci] <- exp(b)
+            ci_v  <- if (!is.null(cis) && nm %in% rownames(cis))
+                       cis[nm, ] else c(b - 1.96 * cf[nm, 2], b + 1.96 * cf[nm, 2])
+            lo[ci] <- exp(ci_v[1])
+            hi[ci] <- exp(ci_v[2])
+          }
+          x_lab  <- "Odds Ratio (95% CI)"
+          null_v <- 1
+        } else {
+          df$resp <- as.numeric(df$resp)
+          frm <- if (has_covs) as.formula(paste("resp ~ cat +", cov_terms))
+                 else resp ~ cat
+          fit <- tryCatch(lm(frm, data = df), error = function(e) NULL)
+          if (is.null(fit)) { plot.new(); next }
+          cf  <- coef(summary(fit))
+          cis <- tryCatch(confint(fit), error = function(e) NULL)
+
+          ests[ref_idx] <- 0
+          lo[ref_idx]   <- 0
+          hi[ref_idx]   <- 0
+          for (ci in seq_len(n_cats)) {
+            if (ci == ref_idx) next
+            nm <- paste0("cat", cat_labels[ci])
+            if (!nm %in% rownames(cf)) next
+            b     <- cf[nm, 1]
+            ests[ci] <- b
+            ci_v  <- if (!is.null(cis) && nm %in% rownames(cis))
+                       cis[nm, ] else c(b - 1.96 * cf[nm, 2], b + 1.96 * cf[nm, 2])
+            lo[ci]   <- ci_v[1]
+            hi[ci]   <- ci_v[2]
+          }
+          x_lab  <- paste0("\u03b2 vs ", cat_labels[ref_idx], " (95% CI)")
+          null_v <- 0
+        }
+
+        # ── Draw forest panel ───────────────────────────────────────────────
+        par(mar = c(4.5, 7, 3.5, 2))
+
+        finite_lo <- lo[is.finite(lo)]
+        finite_hi <- hi[is.finite(hi)]
+        x_range <- if (length(finite_lo) > 0 && length(finite_hi) > 0)
+          range(c(finite_lo, finite_hi, null_v), na.rm = TRUE)
+        else c(null_v - 1, null_v + 1)
+        x_pad   <- diff(x_range) * 0.12
+        x_range <- c(x_range[1] - x_pad, x_range[2] + x_pad)
+
+        panel_title <- if (n_modes > 1) mode_lbl else "PGS Percentile Forest Plot"
+
+        plot(NULL,
+             xlim = x_range, ylim = c(0.5, n_cats + 0.5),
+             xlab = x_lab, ylab = "",
+             main = panel_title, yaxt = "n", las = 1, bty = "l")
+
+        # Category labels on y-axis
+        axis(2, at = seq_len(n_cats), labels = rev(cat_labels),
+             las = 1, tick = FALSE, cex.axis = 0.82)
+
+        # Null reference line
+        abline(v = null_v, lty = 2, col = "#888888", lwd = 1.2)
+
+        # Per-category rows (plotted bottom-to-top = highest cat at top)
+        point_col <- "#2C3E50"
+        ci_col    <- "#2980B9"
+
+        for (ci in seq_len(n_cats)) {
+          y_pos <- n_cats - ci + 1   # invert so highest percentile is at top
+          e <- ests[ci]; l <- lo[ci]; h <- hi[ci]
+
+          if (ci == ref_idx) {
+            # Reference: diamond
+            diamond_w <- diff(x_range) * 0.015
+            diamond_h <- 0.28
+            polygon(c(null_v, null_v + diamond_w, null_v, null_v - diamond_w),
+                    c(y_pos - diamond_h, y_pos, y_pos + diamond_h, y_pos),
+                    col = "#E74C3C", border = "#C0392B", lwd = 1.2)
+          } else if (!is.na(e)) {
+            # CI line
+            if (is.finite(l) && is.finite(h))
+              lines(c(l, h), c(y_pos, y_pos), col = ci_col, lwd = 1.8)
+            # Point estimate
+            points(e, y_pos, pch = 15, col = point_col, cex = 1.1)
+          }
+        }
+
+        # ── Covariate note ──────────────────────────────────────────────────
+        if (has_covs)
+          mtext(paste0("Adjusted for: ", paste(names(covs), collapse = ", ")),
+                side = 1, line = 3.2, cex = 0.72, col = "#555555")
+      }
+
+      if (n_modes > 1)
+        mtext("PGS Percentile Forest Plot", outer = TRUE,
+              cex = 1.05, font = 2, line = 0.4)
+
+      TRUE
+    },
+
+    # ════════════════════════════════════════════════════════════════════════
+    # .plotROC
+    #
+    # ROC curve for binary response. One panel per scoring mode.
+    # AUC computed via trapezoidal rule (no external packages).
+    # ════════════════════════════════════════════════════════════════════════
+    .plotROC = function(image, ...) {
+
+      all_scores <- private$.cache$all_scores
+      resp       <- private$.cache$resp
+      covs       <- private$.cache$covs
+
+      if (is.null(all_scores) || is.null(resp)) return(FALSE)
+
+      is_binary <- is.factor(resp) || length(unique(resp[!is.na(resp)])) == 2
+      if (!is_binary) return(FALSE)
+
+      has_covs <- !is.null(covs) && ncol(covs) > 0
+      n_modes  <- length(all_scores)
+      mode_nms <- names(all_scores)
+
+      # ── Trapezoidal AUC helper ────────────────────────────────────────────
+      roc_curve <- function(score, label) {
+        # label must be 0/1
+        thresholds <- sort(unique(score), decreasing = TRUE)
+        tpr <- vapply(thresholds, function(t) mean(score[label == 1] >= t), numeric(1))
+        fpr <- vapply(thresholds, function(t) mean(score[label == 0] >= t), numeric(1))
+        # close the curve at (0,0) and (1,1)
+        tpr <- c(0, tpr, 1)
+        fpr <- c(0, fpr, 1)
+        auc <- sum(diff(fpr) * (tpr[-1] + tpr[-length(tpr)]) / 2)
+        list(tpr = tpr, fpr = fpr, auc = auc)
+      }
+
+      opar <- par(no.readonly = TRUE)
+      on.exit(par(opar))
+
+      par(mfrow = c(1, n_modes),
+          bg    = "white",
+          oma   = c(0, 0, if (n_modes > 1) 2 else 0, 0))
+
+      pal <- c("#2980B9", "#C0392B", "#27AE60")
+
+      for (mi in seq_along(all_scores)) {
+        mode_lbl <- mode_nms[mi]
+        scores   <- all_scores[[mi]]
+
+        df <- data.frame(pgs = scores, resp = resp)
+        if (has_covs) df <- cbind(df, covs)
+        df <- df[complete.cases(df), ]
+        if (nrow(df) < 10) { plot.new(); next }
+
+        lvls    <- levels(droplevels(factor(df$resp)))
+        label01 <- as.integer(df$resp == lvls[2])   # second level = case
+
+        par(mar = c(4.5, 4.5, 3.5, 1.5))
+        panel_title <- if (n_modes > 1) mode_lbl else "ROC Curve"
+
+        plot(NULL, xlim = c(0, 1), ylim = c(0, 1),
+             xlab = "1 \u2212 Specificity (FPR)",
+             ylab = "Sensitivity (TPR)",
+             main = panel_title, las = 1, asp = 1)
+        abline(0, 1, lty = 2, col = "#AAAAAA", lwd = 1.2)
+
+        # ── PGS score ROC ───────────────────────────────────────────────────
+        roc1 <- tryCatch(roc_curve(df$pgs, label01), error = function(e) NULL)
+        if (!is.null(roc1)) {
+          lines(roc1$fpr, roc1$tpr, col = pal[1], lwd = 2.2)
+          auc_lbl <- sprintf("PGS  AUC = %.3f", roc1$auc)
+        } else {
+          auc_lbl <- "PGS  AUC = NA"
+        }
+
+        # ── Adjusted ROC: predicted probabilities from logistic fit ─────────
+        adj_lbl <- NULL
+        if (has_covs) {
+          df$resp_fac <- factor(df$resp)
+          cov_terms <- paste(paste0("`", names(covs), "`"), collapse = " + ")
+          fit_adj <- tryCatch(
+            glm(as.formula(paste("resp_fac ~ pgs +", cov_terms)),
+                data = df, family = binomial()),
+            error = function(e) NULL)
+          if (!is.null(fit_adj)) {
+            pred_adj <- predict(fit_adj, type = "response")
+            roc2 <- tryCatch(roc_curve(pred_adj, label01), error = function(e) NULL)
+            if (!is.null(roc2)) {
+              lines(roc2$fpr, roc2$tpr, col = pal[2], lwd = 2.2, lty = 2)
+              adj_lbl <- sprintf("PGS + covariates  AUC = %.3f", roc2$auc)
+            }
+          }
+        }
+
+        # ── Legend ──────────────────────────────────────────────────────────
+        leg_txt <- c(auc_lbl, if (!is.null(adj_lbl)) adj_lbl)
+        leg_col <- c(pal[1],  if (!is.null(adj_lbl)) pal[2])
+        leg_lty <- c(1,       if (!is.null(adj_lbl)) 2)
+        legend("bottomright",
+               legend = leg_txt, col = leg_col, lty = leg_lty,
+               lwd = 2, bty = "n", cex = 0.82)
+      }
+
+      if (n_modes > 1)
+        mtext("ROC Curves", outer = TRUE, cex = 1.05, font = 2, line = 0.4)
+
+      TRUE
+    },
+
+    # ════════════════════════════════════════════════════════════════════════
+    # .plotCalibration
+    #
+    # Calibration plot for binary response. Individuals are split into
+    # deciles of predicted probability from a logistic fit; observed event
+    # rate per decile is plotted against mean predicted probability.
+    # A perfect-calibration diagonal and a loess smooth are overlaid.
+    # ════════════════════════════════════════════════════════════════════════
+    .plotCalibration = function(image, ...) {
+
+      all_scores <- private$.cache$all_scores
+      resp       <- private$.cache$resp
+      covs       <- private$.cache$covs
+
+      if (is.null(all_scores) || is.null(resp)) return(FALSE)
+
+      is_binary <- is.factor(resp) || length(unique(resp[!is.na(resp)])) == 2
+      if (!is_binary) return(FALSE)
+
+      has_covs <- !is.null(covs) && ncol(covs) > 0
+      n_modes  <- length(all_scores)
+      mode_nms <- names(all_scores)
+
+      opar <- par(no.readonly = TRUE)
+      on.exit(par(opar))
+
+      par(mfrow = c(1, n_modes),
+          bg    = "white",
+          oma   = c(0, 0, if (n_modes > 1) 2 else 0, 0))
+
+      for (mi in seq_along(all_scores)) {
+        mode_lbl <- mode_nms[mi]
+        scores   <- all_scores[[mi]]
+
+        df <- data.frame(pgs = scores, resp = resp)
+        if (has_covs) df <- cbind(df, covs)
+        df <- df[complete.cases(df), ]
+        if (nrow(df) < 20) { plot.new(); next }
+
+        lvls    <- levels(droplevels(factor(df$resp)))
+        label01 <- as.integer(df$resp == lvls[2])
+
+        # ── Logistic fit → predicted probabilities ───────────────────────────
+        df$resp_fac <- factor(df$resp)
+        cov_terms   <- if (has_covs)
+          paste(paste0("`", names(covs), "`"), collapse = " + ") else ""
+        frm <- if (has_covs) as.formula(paste("resp_fac ~ pgs +", cov_terms))
+               else resp_fac ~ pgs
+        fit <- tryCatch(glm(frm, data = df, family = binomial()),
+                        error = function(e) NULL)
+        if (is.null(fit)) { plot.new(); next }
+
+        pred <- predict(fit, type = "response")
+
+        # ── Decile binning ───────────────────────────────────────────────────
+        n_bins  <- min(10L, floor(nrow(df) / 15L))   # fewer bins for small N
+        n_bins  <- max(n_bins, 3L)
+        bin_idx <- cut(pred, breaks = quantile(pred, seq(0, 1, 1 / n_bins),
+                                               na.rm = TRUE),
+                       include.lowest = TRUE, labels = FALSE)
+
+        obs_rate  <- tapply(label01, bin_idx, mean,  na.rm = TRUE)
+        mean_pred <- tapply(pred,    bin_idx, mean,  na.rm = TRUE)
+        bin_n     <- tapply(label01, bin_idx, length)
+
+        # ── Draw panel ───────────────────────────────────────────────────────
+        par(mar = c(4.5, 4.5, 3.5, 1.5))
+        panel_title <- if (n_modes > 1) mode_lbl else "Calibration Plot"
+
+        plot(NULL, xlim = c(0, 1), ylim = c(0, 1),
+             xlab = "Mean predicted probability",
+             ylab = "Observed event rate",
+             main = panel_title, las = 1, asp = 1)
+
+        # Perfect calibration diagonal
+        abline(0, 1, lty = 2, col = "#AAAAAA", lwd = 1.2)
+
+        # Loess smooth through bin centres (if enough bins)
+        if (length(mean_pred) >= 5) {
+          lo_fit <- tryCatch(
+            loess(obs_rate ~ mean_pred, weights = as.numeric(bin_n),
+                  span = 0.9),
+            error = function(e) NULL)
+          if (!is.null(lo_fit)) {
+            x_seq  <- seq(min(mean_pred, na.rm = TRUE),
+                          max(mean_pred, na.rm = TRUE), length.out = 100)
+            y_pred <- tryCatch(predict(lo_fit, x_seq), error = function(e) NULL)
+            if (!is.null(y_pred))
+              lines(x_seq, y_pred, col = "#2980B9", lwd = 2, lty = 1)
+          }
+        }
+
+        # Bin points, sized by N
+        cex_pts <- sqrt(as.numeric(bin_n) / max(as.numeric(bin_n))) * 2.0 + 0.4
+        points(mean_pred, obs_rate,
+               pch = 21, bg = adjustcolor("#2C3E50", 0.65),
+               col = "#2C3E50", cex = cex_pts, lwd = 0.8)
+
+        # ── Hosmer-Lemeshow stat annotation ──────────────────────────────────
+        # Chi-square on observed vs expected counts per bin
+        exp_events  <- tapply(pred, bin_idx, sum, na.rm = TRUE)
+        obs_events  <- tapply(label01, bin_idx, sum, na.rm = TRUE)
+        exp_nonevt  <- as.numeric(bin_n) - exp_events
+        obs_nonevt  <- as.numeric(bin_n) - obs_events
+        # Guard against zero expected counts
+        valid_bins <- exp_events > 0 & exp_nonevt > 0
+        if (sum(valid_bins) >= 2) {
+          hl_chi <- sum(
+            (obs_events[valid_bins] - exp_events[valid_bins])^2 / exp_events[valid_bins] +
+            (obs_nonevt[valid_bins] - exp_nonevt[valid_bins])^2 / exp_nonevt[valid_bins]
+          )
+          hl_df  <- sum(valid_bins) - 2
+          hl_p   <- pchisq(hl_chi, df = hl_df, lower.tail = FALSE)
+          p_fmt  <- if (hl_p < 0.001) "p < 0.001" else paste0("p = ", round(hl_p, 3))
+          mtext(paste0("Hosmer-Lemeshow  \u03c7\u00b2(", hl_df, ") = ",
+                        round(hl_chi, 2), "  ", p_fmt),
+                side = 3, line = 0.25, cex = 0.78, col = "#555555")
+        }
+
+        legend("topleft",
+               legend = c("Observed (decile)", "Loess smooth", "Perfect calibration"),
+               pch    = c(21, NA, NA),
+               lty    = c(NA, 1, 2),
+               lwd    = c(NA, 2, 1.2),
+               pt.bg  = c(adjustcolor("#2C3E50", 0.65), NA, NA),
+               col    = c("#2C3E50", "#2980B9", "#AAAAAA"),
+               bty    = "n", cex = 0.78)
+      }
+
+      if (n_modes > 1)
+        mtext("Calibration Plots", outer = TRUE, cex = 1.05, font = 2, line = 0.4)
 
       TRUE
     }

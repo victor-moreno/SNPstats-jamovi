@@ -268,6 +268,42 @@ options:
       description:
           R: Show the score distribution plot.
 
+    - name: showForestPlot
+      title: Show percentile forest plot
+      type: Bool
+      default: false
+      description:
+          R: >
+              Show a forest plot of OR (binary response) or β (continuous
+              response) per percentile category, using the same logistic /
+              linear model as the percentile category analysis. Requires a
+              response variable. Uses the same percentile breaks and reference
+              category settings as the percentile analysis.
+
+    - name: showRocPlot
+      title: Show ROC curve
+      type: Bool
+      default: false
+      description:
+          R: >
+              Show a Receiver Operating Characteristic (ROC) curve with AUC
+              for binary responses. When covariates are selected, a second
+              curve for the covariate-adjusted logistic model is overlaid.
+              AUC is computed via the trapezoidal rule. Requires a binary
+              response variable.
+
+    - name: showCalibPlot
+      title: Show calibration plot
+      type: Bool
+      default: false
+      description:
+          R: >
+              Show a calibration plot for binary responses. Individuals are
+              binned into deciles of predicted probability from the logistic
+              model; observed event rate per decile is plotted against mean
+              predicted probability. A Hosmer-Lemeshow chi-square statistic
+              is annotated. Requires a binary response variable.
+
     - name: distPlotType
       title: Plot type
       type: List
