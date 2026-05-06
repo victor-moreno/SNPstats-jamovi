@@ -27,13 +27,13 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       snp_vars       <- opts$snps
       covariate_vars <- opts$covariates
 
-      run_snpSummary  <- isTRUE(opts$snpSummary)
-      run_allFreq     <- isTRUE(opts$allFreq)
-      run_genoFreq    <- isTRUE(opts$genoFreq)
-      run_hweTest     <- isTRUE(opts$hweTest)
-      run_subpop      <- isTRUE(opts$subpop)
-      run_covDesc     <- isTRUE(opts$covDesc)
-      run_showMissing <- isTRUE(opts$showMissing)
+      run_snpSummary   <- isTRUE(opts$snpSummary)
+      run_allFreq      <- isTRUE(opts$allFreq)
+      run_genoFreq     <- isTRUE(opts$genoFreq)
+      run_hweTest      <- isTRUE(opts$hweTest)
+      run_subpop       <- isTRUE(opts$subpop)
+      run_covDesc      <- isTRUE(opts$covDesc)
+      run_showMissing  <- isTRUE(opts$showMissing)
       run_rmSnpMissing <- isTRUE(opts$rmSnpMissing)
 
       private$.miss_cache <- list()   # reset for this run
@@ -97,13 +97,35 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         complete_mask <- complete_mask & complete.cases(cov_df)
 
       # ── Per-SNP descriptives ─────────────────────────────────────
+      null_pat          <- "^0[/|>]0$|^00$"
+      total_null_across_snps <- 0L   # accumulates across all SNPs for the note
+
       arr <- self$results$snpResults
       for (snp_nm in snp_vars) {
-        snp_raw     <- data[[snp_nm]]
+        snp_raw_chr  <- as.character(data[[snp_nm]])
+
+        # Silently convert null-allele codings to NA.
+        n_null_replaced <- sum(!is.na(snp_raw_chr) &
+                                 grepl(null_pat, snp_raw_chr, ignore.case = TRUE))
+        total_null_across_snps <- total_null_across_snps + n_null_replaced
+        snp_raw <- clean_null_alleles(snp_raw_chr)
 
         user_levels <- get_snp_level_order(snp_raw)
         geno_obj    <- parse_genotype(snp_raw, user_levels)
-        if (is.null(geno_obj)) next
+
+        # If parse_genotype returns NULL the column is unparseable. The one
+        # legitimate exception is an all-NA column produced by null cleaning —
+        # report it as 100% missing rather than silently skipping it.
+        if (is.null(geno_obj)) {
+          if (all(is.na(snp_raw))) {
+            item <- arr$get(key = snp_nm)
+            n_total_eligible <- sum(complete_mask)
+            item$typingRate$setContent(sprintf(
+              "<b>Typed samples:</b> 0 / %d (0.0%%) &nbsp;&mdash;&nbsp; <span style='color:orange;'>all genotypes missing</span>",
+              n_total_eligible))
+          }
+          next
+        }
 
         # complete_mask: rows with non-missing response + covariates (built above).
         # snp_complete_mask: additionally non-missing for this SNP.
@@ -182,6 +204,17 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       # Show missingness plot when option is ticked and SNPs were processed
       self$results$missingnessPlot$setVisible(
         isTRUE(opts$showMissingnessPlot) && length(private$.miss_cache) > 0)
+
+      # Add a note to the SNP summary table if any 0/0 values were replaced
+      if (run_snpSummary) {
+        tbl <- self$results$snpSummaryTablesGroup$snpSummaryTable
+        tbl$setNote(
+          key  = "null_allele",
+          note = if (total_null_across_snps > 0)
+            paste0(total_null_across_snps,
+                   " genotype(s) coded as 0/0 were treated as missing (NA).")
+          else NULL)
+      }
     },
 
   .run_cov_desc = function(cov_df, response_raw, response_type,
@@ -195,7 +228,13 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
       n_removed_snp <- 0L
       if (isTRUE(rm_snp_missing) && !is.null(data) && !is.null(snp_vars) && length(snp_vars) > 0) {
-        snp_cc <- complete.cases(data[, snp_vars, drop=FALSE])
+        # Build a cleaned SNP matrix (null-alleles → NA) before complete.cases
+        # so that 0/0 values are treated as missing, not as present observations.
+        snp_mat <- as.data.frame(
+          lapply(data[, snp_vars, drop = FALSE], function(col)
+            clean_null_alleles(as.character(col))),
+          stringsAsFactors = FALSE)
+        snp_cc <- complete.cases(snp_mat)
         n_removed_snp <- sum(!snp_cc)
         if (n_removed_snp > 0) {
           cov_df <- cov_df[snp_cc, , drop=FALSE]
@@ -425,7 +464,7 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
       for (snp_nm in snp_vars) {
 
-        snp_raw <- data[[snp_nm]]
+        snp_raw <- clean_null_alleles(as.character(data[[snp_nm]]))
         user_levels_sum <- get_snp_level_order(snp_raw)
         geno_obj <- parse_genotype(snp_raw, user_levels_sum)
         if (is.null(geno_obj)) next

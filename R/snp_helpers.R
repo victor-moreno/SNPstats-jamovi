@@ -73,6 +73,11 @@ get_snp_level_order <- function(x) {
   lvls <- levels(x)
   if (length(lvls) == 0) return(NULL)
 
+  # Strip null-allele levels (0/0, 0|0, etc.) — they are never real genotypes.
+  null_pat <- "^0[/|>]0$|^00$"
+  lvls <- lvls[!grepl(null_pat, lvls, ignore.case = TRUE)]
+  if (length(lvls) == 0) return(NULL)
+
   norm <- lvls
   for (sep in c("|", ">")) {
     pat <- paste0("^.+", if (sep == "|") "\\|" else sep, ".+$")
@@ -123,9 +128,35 @@ get_snp_level_order <- function(x) {
   norm
 }
 
+#' Replace null-allele coded genotypes with NA.
+#'
+#' Null-allele genotypes arise when an amplification failure is recorded as
+#' "0/0" (or "0|0", "0>0", "00") rather than as a true missing value.
+#' If left in the column they will appear as a third allele and cause
+#' check_biallelic() / detect_snp_sep() to reject the entire SNP.
+#'
+#' This function should be called on the *raw* column *before* any parsing.
+#' It returns a copy of x with every null-allele entry set to NA_character_;
+#' non-null-allele values and existing NAs are unchanged.
+#'
+#' Recognised null-allele patterns (case-insensitive):
+#'   "0/0"  "0|0"  "0>0"  "00"   (i.e. both alleles are "0")
+#'
+#' @param x  A vector (factor or character).  Returns a character vector.
+#' @return   Character vector, same length as x.
+clean_null_alleles <- function(x) {
+  x_chr <- as.character(x)
+  null_pat <- "^0[/|>]0$|^00$"
+  is_null  <- !is.na(x_chr) & grepl(null_pat, x_chr, ignore.case = TRUE)
+  x_chr[is_null] <- NA_character_
+  x_chr
+}
+
 #' Detect genotype separator; returns NULL if column is not valid biallelic SNP.
+#' Null-allele codings (0/0 etc.) are always stripped before detection so they
+#' never appear as a spurious third allele.
 detect_snp_sep <- function(x) {
-  vals <- unique(na.omit(as.character(x)))
+  vals <- unique(na.omit(clean_null_alleles(as.character(x))))
   if (length(vals) == 0 || length(vals) > 10) return(NULL)
 
   for (sep in c("/", "|", ">")) {
@@ -145,8 +176,9 @@ detect_snp_sep <- function(x) {
 }
 
 #' Full biallelic check (returns reason); used for validation messages.
+#' Null-allele codings are stripped before checking.
 snp_biallelic_check <- function(x) {
-  vals <- unique(na.omit(as.character(x)))
+  vals <- unique(na.omit(clean_null_alleles(as.character(x))))
   sep  <- NULL
   for (s in c("/", "|", ">")) {
     pat <- paste0("^.+", if (s == "|") "\\|" else s, ".+$")
@@ -164,11 +196,12 @@ snp_biallelic_check <- function(x) {
 is_snp_column <- function(x) !is.null(detect_snp_sep(x))
 
 #' Normalise and parse a raw genotype vector via genetics::genotype().
+#' Null-allele codings are always stripped to NA before parsing.
 parse_genotype <- function(x, user_levels = NULL) {
-  sep <- detect_snp_sep(x)
+  x_chr <- clean_null_alleles(as.character(x))
+  sep <- detect_snp_sep(x_chr)
   if (is.null(sep)) return(NULL)
 
-  x_chr <- as.character(x)
   if (sep == "") {
     x_norm <- ifelse(is.na(x_chr), NA_character_,
                      paste0(substr(x_chr,1,1), "/", substr(x_chr,2,2)))
@@ -268,10 +301,17 @@ reorder_geno <- function(gf, ref, user_levels = NULL) {
 #' Validate SNP variables and return a list:
 #'   $valid_snps  – character vector of SNP names passing validation
 #'   $bad_html    – HTML string for the validation message (empty string if none)
-validate_snp_vars <- function(snp_vars, data) {
+#'
+#' @param null_as_na  Retained for API compatibility; null-allele cleaning is
+#'   now unconditional inside snp_biallelic_check / detect_snp_sep.
+validate_snp_vars <- function(snp_vars, data, null_as_na = FALSE) {
   bad_snps <- character(0); bad_msgs <- character(0)
   for (v in snp_vars) {
-    chk <- snp_biallelic_check(data[[v]])
+    col <- data[[v]]
+    # If every non-NA value is a null-allele coding the column becomes all-NA
+    # after cleaning; treat it as valid (100% missing) rather than rejecting it.
+    if (all(is.na(clean_null_alleles(as.character(col))))) next
+    chk <- snp_biallelic_check(col)
     if (!isTRUE(chk$ok)) {
       bad_snps <- c(bad_snps, v)
       bad_msgs <- c(bad_msgs, paste0("<b>", v, "</b>: ", chk$reason))

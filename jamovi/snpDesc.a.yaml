@@ -68,10 +68,10 @@ options:
     default: false
 
   - name: rmSnpMissing
-    title: Remove obesrvations with missing values in SNPs
+    title: Remove observations with missing values in SNPs
     type: Bool
     default: false
-    
+
     # ── SNP descriptives ──────────────────────────────────────────
   - name: snpSummary
     title: SNP summary table

@@ -1,7 +1,7 @@
 Plots
 reverse Y forest
 histogram, overlap cases/controls with shade
-
+missing plot: show all SNPs
 
 Tutorial screenshots
 
