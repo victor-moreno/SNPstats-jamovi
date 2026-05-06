@@ -2188,11 +2188,16 @@ snpPGSClass <- R6::R6Class(
         hist_list <- list()
         dens_list <- list()
 
+        # Pre-compute shared break sequence so all groups use aligned bins.
+        # This is used for y_max estimation and for drawing overlapping histograms.
+        shared_breaks_pre <- if (plot_type %in% c("histogram", "both"))
+          hist(scores_v, plot = FALSE, breaks = breaks)$breaks else NULL
+
         for (lv in lvls) {
           sc <- grp_sc[[lv]]
           if (length(sc) < 2) next
           if (plot_type %in% c("histogram", "both")) {
-            h <- hist(sc, plot = FALSE, breaks = breaks)
+            h <- hist(sc, plot = FALSE, breaks = shared_breaks_pre)
             hist_list[[lv]] <- h
             y_max <- max(y_max, max(h$density, na.rm = TRUE))
           }
@@ -2216,36 +2221,20 @@ snpPGSClass <- R6::R6Class(
              xlab = "PGS Score", ylab = y_lab,
              main = panel_title, las = 1)
 
-        # ── Draw histogram bars (side-by-side for multiple groups) ─────────
+        # ── Draw histogram bars — overlapping transparent histograms per group
+        # Each group gets its own full-width histogram (using a shared break
+        # sequence derived from all scores) so bars overlap naturally with
+        # transparency, mirroring the density-polygon style.
         if (plot_type %in% c("histogram", "both") && length(hist_list) > 0) {
-          if (n_grps == 1) {
-            # Single group: standard histogram bars
-            h <- hist_list[[lvls[1]]]
-            rect(h$breaks[-length(h$breaks)], 0, h$breaks[-1], h$density,
-                 col    = adjustcolor(colours[1], alpha.f = 0.55),
-                 border = adjustcolor(colours[1], alpha.f = 0.80))
-          } else {
-            # Multiple groups: side-by-side bars within each common break set
-            # Use a shared break sequence based on overall data
-            all_br  <- hist(scores_v, plot = FALSE, breaks = breaks)$breaks
-            bw_vec  <- diff(all_br)          # per-bin widths (may differ)
-            n_bins  <- length(bw_vec)
-            sub_bw  <- bw_vec / n_grps       # per-bin sub-bar width
-
-            for (gi in seq_along(lvls)) {
-              lv <- lvls[gi]
-              sc <- grp_sc[[lv]]
-              if (length(sc) < 1) next
-              # Count into shared bins
-              cnts  <- tabulate(findInterval(sc, all_br, rightmost.closed = TRUE),
-                                nbins = n_bins)
-              dens_vals <- cnts / (length(sc) * bw_vec)   # density per bin
-              x_left  <- all_br[-length(all_br)] + (gi - 1) * sub_bw
-              x_right <- x_left + sub_bw * 0.92   # small gap between sub-bars
-              rect(x_left, 0, x_right, dens_vals,
-                   col    = adjustcolor(colours[gi], alpha.f = 0.60),
-                   border = adjustcolor(colours[gi], alpha.f = 0.85))
-            }
+          for (gi in seq_along(lvls)) {
+            lv    <- lvls[gi]
+            h_grp <- hist_list[[lv]]
+            if (is.null(h_grp)) next
+            rect(h_grp$breaks[-length(h_grp$breaks)], 0,
+                 h_grp$breaks[-1], h_grp$density,
+                 col    = adjustcolor(colours[gi], alpha.f = 0.40),
+                 border = adjustcolor(colours[gi], alpha.f = 0.75),
+                 lwd    = 0.8)
           }
         }
 
@@ -2524,19 +2513,20 @@ snpPGSClass <- R6::R6Class(
              xlab = x_lab, ylab = "",
              main = panel_title, yaxt = "n", las = 1, bty = "l")
 
-        # Category labels on y-axis
-        axis(2, at = seq_len(n_cats), labels = rev(cat_labels),
+        # Category labels on y-axis — lowest percentile at bottom (pos 1),
+        # highest at top (pos n_cats), matching natural reading order.
+        axis(2, at = seq_len(n_cats), labels = cat_labels,
              las = 1, tick = FALSE, cex.axis = 0.82)
 
         # Null reference line
         abline(v = null_v, lty = 2, col = "#888888", lwd = 1.2)
 
-        # Per-category rows (plotted bottom-to-top = highest cat at top)
+        # Per-category rows: ci == 1 → bottom, ci == n_cats → top
         point_col <- "#2C3E50"
         ci_col    <- "#2980B9"
 
         for (ci in seq_len(n_cats)) {
-          y_pos <- n_cats - ci + 1   # invert so highest percentile is at top
+          y_pos <- ci   # higher percentile index → higher y position
           e <- ests[ci]; l <- lo[ci]; h <- hi[ci]
 
           if (ci == ref_idx) {
