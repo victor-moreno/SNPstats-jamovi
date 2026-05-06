@@ -109,10 +109,11 @@ items:
     type: Image
     visible: false
     width: 560
-    height: 400
+    height: 500
     renderFun: .plotMissingness
     clearWith:
         - snps
         - response
         - covariates
         - subpop
+        - missingnessThreshold

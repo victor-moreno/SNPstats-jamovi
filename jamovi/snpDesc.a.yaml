@@ -105,7 +105,18 @@ options:
     description:
         R: >
             If TRUE, displays a horizontal bar chart of missing genotype
-            percentage per SNP. The denominator is the number of individuals
-            with complete response and covariate data (the eligible pool).
-            When stratification is active, group-specific missing rates are
-            overlaid as coloured dots.
+            percentage per SNP. Only SNPs with missingness above the threshold
+            are shown; all others are summarised in a note.
+
+  - name: missingnessThreshold
+    title: Show SNPs with missingness above (%)
+    type: Number
+    min: 0
+    max: 100
+    default: 0.1
+    description:
+        R: >
+            Only SNPs whose missing genotype percentage exceeds this value
+            are displayed in the missingness plot. SNPs at or below the
+            threshold are omitted and counted in a note below the plot.
+            Default is 0.1%. Set to 0 to show all SNPs.

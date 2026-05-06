@@ -782,70 +782,87 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
     # ════════════════════════════════════════════════════════════════════════
     # .plotMissingness
     #
-    # Horizontal dot/bar plot of SNP missingness rate per SNP.
-    # - One bar per SNP showing % missing within the eligible pool
-    #   (individuals with complete response + covariate data).
-    # - When stratified (subpop = TRUE), coloured dots per group are
-    #   overlaid so group-specific patterns are visible.
-    # - A vertical reference line at 0% anchors the plot.
+    # Horizontal bar plot of SNP missingness rate.
+    # Only SNPs above missingnessThreshold (%) are shown; the rest are
+    # counted in a note.  When stratified, per-group rates are overlaid.
     # ════════════════════════════════════════════════════════════════════════
     .plotMissingness = function(image, ...) {
 
-      cache    <- private$.miss_cache
+      cache <- private$.miss_cache
       if (is.null(cache) || length(cache) == 0) return(FALSE)
 
       run_subpop <- isTRUE(self$options$subpop)
+      threshold  <- self$options$missingnessThreshold
+      if (!is.numeric(threshold) || is.na(threshold)) threshold <- 0.1
 
-      snp_nms  <- names(cache)
-      n_snps   <- length(snp_nms)
+      all_nms <- names(cache)
 
-      # ── Overall missingness rates ───────────────────────────────────────
-      pct_overall <- vapply(snp_nms, function(nm) {
+      # ── Compute overall rates for all SNPs ─────────────────────────────
+      pct_all <- vapply(all_nms, function(nm) {
         d <- cache[[nm]]
         if (d$n_total_eligible == 0) return(0)
         d$total_missing / d$n_total_eligible * 100
       }, numeric(1))
 
+      # ── Filter to SNPs above threshold ─────────────────────────────────
+      keep      <- pct_all > threshold
+      n_hidden  <- sum(!keep)
+      snp_nms   <- all_nms[keep]
+      pct_overall <- pct_all[keep]
+      n_snps    <- length(snp_nms)
+
+      # If nothing passes the threshold, draw an empty plot with a message
+      if (n_snps == 0) {
+        opar <- par(no.readonly = TRUE); on.exit(par(opar))
+        par(bg = "white", mar = c(1, 1, 3, 1))
+        plot.new()
+        title(main = "SNP Missingness")
+        text(0.5, 0.5,
+             sprintf("No SNPs have missingness > %.1f%%\n(threshold: %.1f%%)",
+                     threshold, threshold),
+             cex = 1.1, col = "#555555")
+        image$setState(list(
+          note = sprintf("All %d SNP(s) have missingness \u2264 %.1f%% and are not shown.",
+                         length(all_nms), threshold)))
+        return(TRUE)
+      }
+
       # ── Group-level rates (if stratified) ──────────────────────────────
       grp_data <- NULL
       if (run_subpop) {
-        # Collect all group names present across SNPs
-        all_grps <- unique(unlist(lapply(cache, function(d) names(d$n_miss_by_level))))
+        all_grps <- unique(unlist(lapply(cache[snp_nms],
+                                        function(d) names(d$n_miss_by_level))))
         if (length(all_grps) > 0) {
           grp_data <- lapply(all_grps, function(g) {
             vapply(snp_nms, function(nm) {
               d <- cache[[nm]]
               if (is.null(d$n_miss_by_level) || !g %in% names(d$n_miss_by_level))
                 return(NA_real_)
-              n_elig <- d$n_total_eligible   # use overall eligible as denominator
-              if (n_elig == 0) return(0)
-              d$n_miss_by_level[[g]] / n_elig * 100
+              if (d$n_total_eligible == 0) return(0)
+              d$n_miss_by_level[[g]] / d$n_total_eligible * 100
             }, numeric(1))
           })
           names(grp_data) <- all_grps
         }
       }
-
       n_grps <- if (!is.null(grp_data)) length(grp_data) else 0
 
       # ── Layout ─────────────────────────────────────────────────────────
       opar <- par(no.readonly = TRUE)
       on.exit(par(opar))
 
-      # Height scales with number of SNPs; minimum 300, cap at 800
-      img_h <- min(max(n_snps * 32 + 80, 300), 800)
-      # Communicate height to jamovi (only works if image$setSize exists)
-      tryCatch(image$setSize(width = 560, height = img_h), error = function(e) NULL)
-
-      par(bg = "white",
-          mar = c(4.5, max(nchar(snp_nms)) * 0.55 + 1, 3, 1.5))
+      # Bottom margin: extra line when note is needed
+      note_lines  <- if (n_hidden > 0) 1 else 0
+      left_margin <- max(nchar(snp_nms)) * 0.55 + 1
+      par(bg  = "white",
+          mar = c(4.5 + note_lines, left_margin, 3, 1.5))
 
       grp_pal <- c("#2980B9", "#C0392B", "#27AE60", "#8E44AD", "#E67E22")
 
       x_max <- max(pct_overall, unlist(grp_data), na.rm = TRUE)
-      x_max <- max(x_max * 1.15, 2)   # at least 2% range so axis is readable
+      x_max <- max(x_max * 1.15, threshold * 1.5, 0.5)
 
-      y_pos <- seq_len(n_snps)   # 1 = bottom SNP
+      y_pos <- seq_len(n_snps)
 
       plot(NULL,
            xlim = c(0, x_max), ylim = c(0.5, n_snps + 0.5),
@@ -854,35 +871,28 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
            main = "SNP Missingness",
            yaxt = "n", las = 1, bty = "l")
 
-      # SNP labels on y-axis
       axis(2, at = y_pos, labels = snp_nms, las = 1, tick = FALSE,
-           cex.axis = min(1, 10 / n_snps + 0.4))
+           cex.axis = min(1, 14 / n_snps + 0.3))
 
-      # Reference line at 0
-      abline(v = 0, col = "#CCCCCC", lwd = 1)
+      # Threshold reference line
+      abline(v = threshold, lty = 3, col = "#AAAAAA", lwd = 1.2)
 
-      # ── Horizontal bars for overall missingness ─────────────────────────
+      # ── Bars ───────────────────────────────────────────────────────────
       bar_col <- adjustcolor("#2C3E50", 0.20)
       bar_brd <- adjustcolor("#2C3E50", 0.45)
       rect(rep(0, n_snps), y_pos - 0.35, pct_overall, y_pos + 0.35,
            col = bar_col, border = bar_brd, lwd = 0.8)
-
-      # Overall missingness point
       points(pct_overall, y_pos, pch = 19, col = "#2C3E50", cex = 1.1)
 
-      # ── Group-level dots ────────────────────────────────────────────────
+      # ── Group dots ─────────────────────────────────────────────────────
       if (!is.null(grp_data) && n_grps > 0) {
         offsets <- seq(-0.18, 0.18, length.out = n_grps)
         for (gi in seq_len(n_grps)) {
-          gv <- grp_data[[gi]]
           col_i <- grp_pal[(gi - 1) %% length(grp_pal) + 1]
-          points(gv, y_pos + offsets[gi],
-                 pch = 21,
-                 bg  = adjustcolor(col_i, 0.70),
-                 col = col_i,
+          points(grp_data[[gi]], y_pos + offsets[gi],
+                 pch = 21, bg = adjustcolor(col_i, 0.70), col = col_i,
                  cex = 0.90, lwd = 0.8)
         }
-
         legend("topright",
                legend = c("Overall", names(grp_data)),
                pch    = c(19, rep(21, n_grps)),
@@ -892,11 +902,21 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                bty = "n", cex = 0.80)
       }
 
-      # ── Percentage labels at the end of each bar ────────────────────────
-      label_x <- pct_overall + x_max * 0.015
-      text(label_x, y_pos,
+      # ── Percentage labels ───────────────────────────────────────────────
+      text(pct_overall + x_max * 0.015, y_pos,
            labels = sprintf("%.1f%%", pct_overall),
-           adj    = 0, cex = 0.72, col = "#333333")
+           adj = 0, cex = 0.72, col = "#333333")
+
+      # ── Threshold note in bottom margin ────────────────────────────────
+      if (n_hidden > 0) {
+        note_txt <- sprintf(
+          "%d SNP(s) with missingness \u2264 %.1f%% not shown  |  dashed line = threshold",
+          n_hidden, threshold)
+      } else {
+        note_txt <- sprintf("Dashed line = %.1f%% threshold", threshold)
+      }
+      mtext(note_txt, side = 1,
+            line = 3.6, cex = 0.72, col = "#666666", adj = 0)
 
       TRUE
     }

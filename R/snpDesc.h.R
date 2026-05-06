@@ -18,7 +18,8 @@ snpDescOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             genoFreq = FALSE,
             hweTest = FALSE,
             showMissing = FALSE,
-            showMissingnessPlot = FALSE, ...) {
+            showMissingnessPlot = FALSE,
+            missingnessThreshold = 0.1, ...) {
 
             super$initialize(
                 package="SNPstats",
@@ -99,6 +100,12 @@ snpDescOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "showMissingnessPlot",
                 showMissingnessPlot,
                 default=FALSE)
+            private$..missingnessThreshold <- jmvcore::OptionNumber$new(
+                "missingnessThreshold",
+                missingnessThreshold,
+                min=0,
+                max=100,
+                default=0.1)
 
             self$.addOption(private$..response)
             self$.addOption(private$..snps)
@@ -113,6 +120,7 @@ snpDescOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..hweTest)
             self$.addOption(private$..showMissing)
             self$.addOption(private$..showMissingnessPlot)
+            self$.addOption(private$..missingnessThreshold)
         }),
     active = list(
         response = function() private$..response$value,
@@ -127,7 +135,8 @@ snpDescOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         genoFreq = function() private$..genoFreq$value,
         hweTest = function() private$..hweTest$value,
         showMissing = function() private$..showMissing$value,
-        showMissingnessPlot = function() private$..showMissingnessPlot$value),
+        showMissingnessPlot = function() private$..showMissingnessPlot$value,
+        missingnessThreshold = function() private$..missingnessThreshold$value),
     private = list(
         ..response = NA,
         ..snps = NA,
@@ -141,7 +150,8 @@ snpDescOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..genoFreq = NA,
         ..hweTest = NA,
         ..showMissing = NA,
-        ..showMissingnessPlot = NA)
+        ..showMissingnessPlot = NA,
+        ..missingnessThreshold = NA)
 )
 
 snpDescResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
@@ -393,13 +403,14 @@ snpDescResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 title="SNP Missingness",
                 visible=FALSE,
                 width=560,
-                height=400,
+                height=500,
                 renderFun=".plotMissingness",
                 clearWith=list(
                     "snps",
                     "response",
                     "covariates",
-                    "subpop")))}))
+                    "subpop",
+                    "missingnessThreshold")))}))
 
 snpDescBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
     "snpDescBase",
@@ -439,10 +450,12 @@ snpDescBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param hweTest .
 #' @param showMissing .
 #' @param showMissingnessPlot If TRUE, displays a horizontal bar chart of
-#'   missing genotype percentage per SNP. The denominator is the number of
-#'   individuals with complete response and covariate data (the eligible pool).
-#'   When stratification is active, group-specific missing rates are overlaid as
-#'   coloured dots.
+#'   missing genotype percentage per SNP. Only SNPs with missingness above the
+#'   threshold are shown; all others are summarised in a note.
+#' @param missingnessThreshold Only SNPs whose missing genotype percentage
+#'   exceeds this value are displayed in the missingness plot. SNPs at or below
+#'   the threshold are omitted and counted in a note below the plot. Default is
+#'   0.1\%. Set to 0 to show all SNPs.
 #' @return A results object containing:
 #' \tabular{llllll}{
 #'   \code{results$validationMsgSNP} \tab \tab \tab \tab \tab a html \cr
@@ -468,7 +481,8 @@ snpDesc <- function(
     genoFreq = FALSE,
     hweTest = FALSE,
     showMissing = FALSE,
-    showMissingnessPlot = FALSE) {
+    showMissingnessPlot = FALSE,
+    missingnessThreshold = 0.1) {
 
     if ( ! requireNamespace("jmvcore", quietly=TRUE))
         stop("snpDesc requires jmvcore to be installed (restart may be required)")
@@ -497,7 +511,8 @@ snpDesc <- function(
         genoFreq = genoFreq,
         hweTest = hweTest,
         showMissing = showMissing,
-        showMissingnessPlot = showMissingnessPlot)
+        showMissingnessPlot = showMissingnessPlot,
+        missingnessThreshold = missingnessThreshold)
 
     analysis <- snpDescClass$new(
         options = options,

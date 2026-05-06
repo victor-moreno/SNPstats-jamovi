@@ -71,3 +71,10 @@ children:
             name: showMissingnessPlot
             label: SNP missingness plot
             enable: (snps)
+            children:
+              - type: TextBox
+                name: missingnessThreshold
+                label: 'Show SNPs with missingness above (%):'
+                format: number
+                width: small
+                enable: (showMissingnessPlot)
