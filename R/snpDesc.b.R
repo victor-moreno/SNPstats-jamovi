@@ -8,9 +8,12 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
   inherit = snpDescBase,
   private = list(
 
+    .miss_cache = NULL,   # populated per-SNP during .run; read by .plotMissingness
+
     .init = function() {
       self$results$covDescGroup$setVisible(FALSE)
       self$results$snpSummaryTablesGroup$setVisible(FALSE)
+      private$.miss_cache <- list()   # reset on each init
       snp_names <- self$options$snps
       if (length(snp_names) == 0) return()
       arr <- self$results$snpResults
@@ -32,6 +35,8 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       run_covDesc     <- isTRUE(opts$covDesc)
       run_showMissing <- isTRUE(opts$showMissing)
       run_rmSnpMissing <- isTRUE(opts$rmSnpMissing)
+
+      private$.miss_cache <- list()   # reset for this run
 
       # ── Validate SNPs ────────────────────────────────────────────
       if (length(snp_vars) == 0) {
@@ -100,25 +105,23 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         geno_obj    <- parse_genotype(snp_raw, user_levels)
         if (is.null(geno_obj)) next
 
-        # For each SNP, we need complete cases: no missing in SNP, response, or covariates
+        # complete_mask: rows with non-missing response + covariates (built above).
+        # snp_complete_mask: additionally non-missing for this SNP.
         snp_complete_mask <- complete_mask & !is.na(snp_raw)
-        
-        # Count missing by category for reporting
-        missing_snp_only <- is.na(snp_raw) & complete_mask
-        missing_resp_cov <- !complete_mask & !is.na(snp_raw)
-        missing_both <- !complete_mask & is.na(snp_raw)
-        
-        n_missing_snp_only <- sum(missing_snp_only)
-        n_missing_resp_cov <- sum(missing_resp_cov)
-        n_missing_both <- sum(missing_both)
-        total_missing <- sum(!snp_complete_mask)
-        
-        # For stratified reporting, track missing by response level
+
+        # total_missing: SNP-missing individuals *within the eligible pool*
+        # (rows that would be analysed but for the missing SNP genotype).
+        # Denominator for the missing row is n_total_eligible = sum(complete_mask).
+        total_missing     <- sum(is.na(snp_raw) & complete_mask)
+        n_total_eligible  <- sum(complete_mask)
+
+        # For stratified reporting: SNP-missing count per response level,
+        # restricted to eligible rows (&& complete_mask) and non-missing response.
         if (run_subpop && (response_type == "binary" || response_type == "categorical")) {
           resp_levels <- levels(as.factor(response_raw))
           n_miss_by_level <- sapply(resp_levels, function(lvl) {
-            # Missing within this response level (including any missing reason)
-            sum((is.na(snp_raw) | !complete_mask) & response_raw == lvl, na.rm=TRUE)
+            sum(is.na(snp_raw) & complete_mask & !is.na(response_raw) &
+                  response_raw == lvl)
           })
           names(n_miss_by_level) <- resp_levels
         } else {
@@ -133,11 +136,25 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
         item    <- arr$get(key = snp_nm)
         n_typed <- sum(snp_complete_mask)
-        n_total_eligible <- sum(complete_mask)  # cases with complete response+covariates
-        
-        item$typingRate$setContent(sprintf(
-          "<b>Typed samples:</b> %d / %d (%.1f%%)", n_typed, n_total_eligible,
-          if (n_total_eligible > 0) n_typed / n_total_eligible * 100 else 0))
+
+        # typingRate: typed / eligible (complete response+covariates), missing SNP count
+        typing_html <- sprintf(
+          "<b>Typed samples:</b> %d / %d (%.1f%%)",
+          n_typed, n_total_eligible,
+          if (n_total_eligible > 0) n_typed / n_total_eligible * 100 else 0)
+        if (total_missing > 0)
+          typing_html <- paste0(typing_html, sprintf(
+            " &nbsp;&mdash;&nbsp; <b>Missing SNP:</b> %d (%.1f%%)",
+            total_missing,
+            if (n_total_eligible > 0) total_missing / n_total_eligible * 100 else 0))
+        item$typingRate$setContent(typing_html)
+
+        # Accumulate per-SNP missingness for the plot cache
+        private$.miss_cache[[snp_nm]] <- list(
+          n_total_eligible = n_total_eligible,
+          total_missing    = total_missing,
+          n_miss_by_level  = n_miss_by_level
+        )
 
         snp_summary_cc <- summary(geno_obj_cc)
         ref            <- get_ref_genotype(geno_obj_cc, user_levels)
@@ -161,6 +178,10 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                             resp_raw_cc, run_subpop,
                             run_showMissing, n_miss_by_level, n_total_eligible, total_missing)
       }
+
+      # Show missingness plot when option is ticked and SNPs were processed
+      self$results$missingnessPlot$setVisible(
+        isTRUE(opts$showMissingnessPlot) && length(private$.miss_cache) > 0)
     },
 
   .run_cov_desc = function(cov_df, response_raw, response_type,
@@ -577,7 +598,7 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       if (isTRUE(show_missing) && total_missing > 0L) {  
         miss_vals <- list(
           allele = "Missing", 
-          stat = fmt_cat(total_missing, n_total_eligible + total_missing)
+          stat = fmt_cat(total_missing, n_total_eligible)
         )
         
         if (do_strat && !is.null(n_miss_by_level)) {
@@ -662,7 +683,7 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       if (isTRUE(show_missing) && total_missing > 0) {
         miss_vals <- list(
           genotype = "Missing", 
-          stat = fmt_cat(total_missing, n_total_eligible + total_missing),
+          stat = fmt_cat(total_missing, n_total_eligible),
           responseStat = ""
         )
         
@@ -717,6 +738,128 @@ snpDescClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           }
         }
       }
+    },
+
+    # ════════════════════════════════════════════════════════════════════════
+    # .plotMissingness
+    #
+    # Horizontal dot/bar plot of SNP missingness rate per SNP.
+    # - One bar per SNP showing % missing within the eligible pool
+    #   (individuals with complete response + covariate data).
+    # - When stratified (subpop = TRUE), coloured dots per group are
+    #   overlaid so group-specific patterns are visible.
+    # - A vertical reference line at 0% anchors the plot.
+    # ════════════════════════════════════════════════════════════════════════
+    .plotMissingness = function(image, ...) {
+
+      cache    <- private$.miss_cache
+      if (is.null(cache) || length(cache) == 0) return(FALSE)
+
+      run_subpop <- isTRUE(self$options$subpop)
+
+      snp_nms  <- names(cache)
+      n_snps   <- length(snp_nms)
+
+      # ── Overall missingness rates ───────────────────────────────────────
+      pct_overall <- vapply(snp_nms, function(nm) {
+        d <- cache[[nm]]
+        if (d$n_total_eligible == 0) return(0)
+        d$total_missing / d$n_total_eligible * 100
+      }, numeric(1))
+
+      # ── Group-level rates (if stratified) ──────────────────────────────
+      grp_data <- NULL
+      if (run_subpop) {
+        # Collect all group names present across SNPs
+        all_grps <- unique(unlist(lapply(cache, function(d) names(d$n_miss_by_level))))
+        if (length(all_grps) > 0) {
+          grp_data <- lapply(all_grps, function(g) {
+            vapply(snp_nms, function(nm) {
+              d <- cache[[nm]]
+              if (is.null(d$n_miss_by_level) || !g %in% names(d$n_miss_by_level))
+                return(NA_real_)
+              n_elig <- d$n_total_eligible   # use overall eligible as denominator
+              if (n_elig == 0) return(0)
+              d$n_miss_by_level[[g]] / n_elig * 100
+            }, numeric(1))
+          })
+          names(grp_data) <- all_grps
+        }
+      }
+
+      n_grps <- if (!is.null(grp_data)) length(grp_data) else 0
+
+      # ── Layout ─────────────────────────────────────────────────────────
+      opar <- par(no.readonly = TRUE)
+      on.exit(par(opar))
+
+      # Height scales with number of SNPs; minimum 300, cap at 800
+      img_h <- min(max(n_snps * 32 + 80, 300), 800)
+      # Communicate height to jamovi (only works if image$setSize exists)
+      tryCatch(image$setSize(width = 560, height = img_h), error = function(e) NULL)
+
+      par(bg = "white",
+          mar = c(4.5, max(nchar(snp_nms)) * 0.55 + 1, 3, 1.5))
+
+      grp_pal <- c("#2980B9", "#C0392B", "#27AE60", "#8E44AD", "#E67E22")
+
+      x_max <- max(pct_overall, unlist(grp_data), na.rm = TRUE)
+      x_max <- max(x_max * 1.15, 2)   # at least 2% range so axis is readable
+
+      y_pos <- seq_len(n_snps)   # 1 = bottom SNP
+
+      plot(NULL,
+           xlim = c(0, x_max), ylim = c(0.5, n_snps + 0.5),
+           xlab = "Missing genotypes (%)",
+           ylab = "",
+           main = "SNP Missingness",
+           yaxt = "n", las = 1, bty = "l")
+
+      # SNP labels on y-axis
+      axis(2, at = y_pos, labels = snp_nms, las = 1, tick = FALSE,
+           cex.axis = min(1, 10 / n_snps + 0.4))
+
+      # Reference line at 0
+      abline(v = 0, col = "#CCCCCC", lwd = 1)
+
+      # ── Horizontal bars for overall missingness ─────────────────────────
+      bar_col <- adjustcolor("#2C3E50", 0.20)
+      bar_brd <- adjustcolor("#2C3E50", 0.45)
+      rect(rep(0, n_snps), y_pos - 0.35, pct_overall, y_pos + 0.35,
+           col = bar_col, border = bar_brd, lwd = 0.8)
+
+      # Overall missingness point
+      points(pct_overall, y_pos, pch = 19, col = "#2C3E50", cex = 1.1)
+
+      # ── Group-level dots ────────────────────────────────────────────────
+      if (!is.null(grp_data) && n_grps > 0) {
+        offsets <- seq(-0.18, 0.18, length.out = n_grps)
+        for (gi in seq_len(n_grps)) {
+          gv <- grp_data[[gi]]
+          col_i <- grp_pal[(gi - 1) %% length(grp_pal) + 1]
+          points(gv, y_pos + offsets[gi],
+                 pch = 21,
+                 bg  = adjustcolor(col_i, 0.70),
+                 col = col_i,
+                 cex = 0.90, lwd = 0.8)
+        }
+
+        legend("topright",
+               legend = c("Overall", names(grp_data)),
+               pch    = c(19, rep(21, n_grps)),
+               col    = c("#2C3E50", grp_pal[seq_len(n_grps)]),
+               pt.bg  = c(NA, adjustcolor(grp_pal[seq_len(n_grps)], 0.70)),
+               pt.cex = c(1.1, rep(0.90, n_grps)),
+               bty = "n", cex = 0.80)
+      }
+
+      # ── Percentage labels at the end of each bar ────────────────────────
+      label_x <- pct_overall + x_max * 0.015
+      text(label_x, y_pos,
+           labels = sprintf("%.1f%%", pct_overall),
+           adj    = 0, cex = 0.72, col = "#333333")
+
+      TRUE
     }
   )
 )

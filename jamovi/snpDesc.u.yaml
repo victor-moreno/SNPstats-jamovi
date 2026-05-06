@@ -67,3 +67,7 @@ children:
           - type: CheckBox
             name: showMissing
             enable: (snps)
+          - type: CheckBox
+            name: showMissingnessPlot
+            label: SNP missingness plot
+            enable: (snps)

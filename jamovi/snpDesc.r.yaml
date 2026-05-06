@@ -102,3 +102,17 @@ items:
             - {name: n22,     title: BB,     type: integer}
             - {name: missing, title: Missing, type: integer, visible: false}
             - {name: pval,    title: P-value, type: number,  format: zto}
+
+  # ── SNP missingness plot ──────────────────────────────────────────────────
+  - name: missingnessPlot
+    title: SNP Missingness
+    type: Image
+    visible: false
+    width: 560
+    height: 400
+    renderFun: .plotMissingness
+    clearWith:
+        - snps
+        - response
+        - covariates
+        - subpop

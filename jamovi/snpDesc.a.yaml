@@ -97,3 +97,15 @@ options:
     title: Show missing values
     type: Bool
     default: false
+
+  - name: showMissingnessPlot
+    title: Show SNP missingness plot
+    type: Bool
+    default: false
+    description:
+        R: >
+            If TRUE, displays a horizontal bar chart of missing genotype
+            percentage per SNP. The denominator is the number of individuals
+            with complete response and covariate data (the eligible pool).
+            When stratification is active, group-specific missing rates are
+            overlaid as coloured dots.

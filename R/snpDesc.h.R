@@ -17,7 +17,8 @@ snpDescOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             allFreq = FALSE,
             genoFreq = FALSE,
             hweTest = FALSE,
-            showMissing = FALSE, ...) {
+            showMissing = FALSE,
+            showMissingnessPlot = FALSE, ...) {
 
             super$initialize(
                 package="SNPstats",
@@ -94,6 +95,10 @@ snpDescOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "showMissing",
                 showMissing,
                 default=FALSE)
+            private$..showMissingnessPlot <- jmvcore::OptionBool$new(
+                "showMissingnessPlot",
+                showMissingnessPlot,
+                default=FALSE)
 
             self$.addOption(private$..response)
             self$.addOption(private$..snps)
@@ -107,6 +112,7 @@ snpDescOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..genoFreq)
             self$.addOption(private$..hweTest)
             self$.addOption(private$..showMissing)
+            self$.addOption(private$..showMissingnessPlot)
         }),
     active = list(
         response = function() private$..response$value,
@@ -120,7 +126,8 @@ snpDescOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         allFreq = function() private$..allFreq$value,
         genoFreq = function() private$..genoFreq$value,
         hweTest = function() private$..hweTest$value,
-        showMissing = function() private$..showMissing$value),
+        showMissing = function() private$..showMissing$value,
+        showMissingnessPlot = function() private$..showMissingnessPlot$value),
     private = list(
         ..response = NA,
         ..snps = NA,
@@ -133,7 +140,8 @@ snpDescOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..allFreq = NA,
         ..genoFreq = NA,
         ..hweTest = NA,
-        ..showMissing = NA)
+        ..showMissing = NA,
+        ..showMissingnessPlot = NA)
 )
 
 snpDescResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
@@ -144,7 +152,8 @@ snpDescResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         validationMsgGeno = function() private$.items[["validationMsgGeno"]],
         covDescGroup = function() private$.items[["covDescGroup"]],
         snpSummaryTablesGroup = function() private$.items[["snpSummaryTablesGroup"]],
-        snpResults = function() private$.items[["snpResults"]]),
+        snpResults = function() private$.items[["snpResults"]],
+        missingnessPlot = function() private$.items[["missingnessPlot"]]),
     private = list(),
     public=list(
         initialize=function(options) {
@@ -377,7 +386,20 @@ snpDescResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                         `name`="pval", 
                                         `title`="P-value", 
                                         `type`="number", 
-                                        `format`="zto"))))}))$new(options=options)))}))
+                                        `format`="zto"))))}))$new(options=options)))
+            self$add(jmvcore::Image$new(
+                options=options,
+                name="missingnessPlot",
+                title="SNP Missingness",
+                visible=FALSE,
+                width=560,
+                height=400,
+                renderFun=".plotMissingness",
+                clearWith=list(
+                    "snps",
+                    "response",
+                    "covariates",
+                    "subpop")))}))
 
 snpDescBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
     "snpDescBase",
@@ -416,6 +438,11 @@ snpDescBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param genoFreq .
 #' @param hweTest .
 #' @param showMissing .
+#' @param showMissingnessPlot If TRUE, displays a horizontal bar chart of
+#'   missing genotype percentage per SNP. The denominator is the number of
+#'   individuals with complete response and covariate data (the eligible pool).
+#'   When stratification is active, group-specific missing rates are overlaid as
+#'   coloured dots.
 #' @return A results object containing:
 #' \tabular{llllll}{
 #'   \code{results$validationMsgSNP} \tab \tab \tab \tab \tab a html \cr
@@ -423,6 +450,7 @@ snpDescBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'   \code{results$covDescGroup$covDescTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$snpSummaryTablesGroup$snpSummaryTable} \tab \tab \tab \tab \tab a table \cr
 #'   \code{results$snpResults} \tab \tab \tab \tab \tab Per-SNP descriptive results \cr
+#'   \code{results$missingnessPlot} \tab \tab \tab \tab \tab an image \cr
 #' }
 #'
 #' @export
@@ -439,7 +467,8 @@ snpDesc <- function(
     allFreq = FALSE,
     genoFreq = FALSE,
     hweTest = FALSE,
-    showMissing = FALSE) {
+    showMissing = FALSE,
+    showMissingnessPlot = FALSE) {
 
     if ( ! requireNamespace("jmvcore", quietly=TRUE))
         stop("snpDesc requires jmvcore to be installed (restart may be required)")
@@ -467,7 +496,8 @@ snpDesc <- function(
         allFreq = allFreq,
         genoFreq = genoFreq,
         hweTest = hweTest,
-        showMissing = showMissing)
+        showMissing = showMissing,
+        showMissingnessPlot = showMissingnessPlot)
 
     analysis <- snpDescClass$new(
         options = options,
