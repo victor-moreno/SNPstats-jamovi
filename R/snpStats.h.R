@@ -1127,7 +1127,7 @@ snpStatsBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             super$initialize(
                 package = "SNPstats",
                 name = "snpStats",
-                version = c(0,1,0),
+                version = c(0,4,0),
                 options = options,
                 results = snpStatsResults$new(options=options),
                 data = data,

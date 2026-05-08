@@ -23,15 +23,29 @@
 `%||%` <- function(a, b) if (!is.null(a)) a else b
 
 # Exponentiate a log-OR and clamp extreme values for display.
-# ORs > 1e4 are collapsed to Inf; ORs < 1e-4 are collapsed to 0.
-# This prevents tables from displaying astronomically large or tiny
-# numbers that arise from complete/quasi-separation in small samples.
+#
+# Complete or quasi-complete separation produces log-ORs with |beta| >> 10,
+# yielding ORs that overflow double precision or are effectively zero. These
+# are uninformative and cause tables to display Inf, 0, or blank cells.
+#
+# Strategy:
+#   |beta| > log(1e4)  → OR > 10 000  → return NA  (clamped high)
+#   |beta| < -log(1e4) → OR < 0.0001  → return NA  (clamped low)
+#
+# The NA is detectable by callers: .exp_or returns an attribute "clamped"
+# (TRUE/FALSE) so table-filling code can set a note when any value was
+# suppressed.
 .exp_or <- function(x) {
-  v <- exp(x)
-  v[!is.na(v) & v > 1e4]  <- Inf
-  v[!is.na(v) & v < 1e-4] <- 0
+  threshold <- log(1e4)   # ~9.21 on the log scale
+  clamped   <- !is.na(x) & abs(x) > threshold
+  v         <- exp(x)
+  v[clamped] <- NA_real_
+  attr(v, "clamped") <- any(clamped, na.rm = TRUE)
   v
 }
+
+# Convenience wrapper: TRUE if the last .exp_or call produced any NA clamps.
+.was_clamped <- function(v) isTRUE(attr(v, "clamped"))
 
 # ── Allele / genotype string utilities ────────────────────────────────────────
 

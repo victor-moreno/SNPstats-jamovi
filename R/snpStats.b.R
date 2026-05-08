@@ -3,7 +3,6 @@
 #' @importFrom genetics genotype allele HWE.exact LD
 #' @importFrom haplo.stats setupGeno hapl.em haplo.glm haplo.glm.control
 #' @import ggplot2
-source("R/snp_helpers.R")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Free functions (unchanged from individual modules)
@@ -789,7 +788,8 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       n_fit <- sum(!is.na(snp_char) & !is.na(response) &
                      (if (!is.null(cov_df) && ncol(cov_df) > 0) complete.cases(cov_df) else TRUE))
       n_cov <- if (!is.null(cov_df)) ncol(cov_df) else 0L
-      row_key <- 0L
+      row_key     <- 0L
+      any_clamped <- FALSE   # set TRUE if any OR was suppressed due to separation
 
       for (mdl in models) {
         snp_enc  <- encode_model(snp_char, ref, mdl, user_levels)
@@ -863,6 +863,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         for (i in seq_along(res_list)) {
           res <- res_list[[i]]
           gl  <- if ((i + 1) <= length(geno_labels)) geno_labels[i + 1] else res$comparison
+          if (is.na(res$effect)) any_clamped <- TRUE
           row_key <- row_key + 1L
           tbl$addRow(rowKey = as.character(row_key), values = list(
             model = "", genotype = gl,
@@ -872,6 +873,9 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             pval = res$pval, AIC = '', BIC = ''))
         }
       }
+      if (any_clamped)
+        tbl$setNote(key = "separation",
+                    note = "One or more OR/CI suppressed (shown as blank) due to complete or quasi-complete separation.")
     },
 
     # .fill_interaction, .fill_strat_by_covariate, .fill_strat_by_genotype,
@@ -897,6 +901,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       tbl$getColumn("AIC")$setVisible(isTRUE(opts$showAIC))
       tbl$getColumn("BIC")$setVisible(isTRUE(opts$showAIC))
       show_adj     <- isTRUE(opts$showInteractionAdjVars)
+      any_clamped  <- FALSE
       model_labels <- c(codominant = "Codominant", dominant = "Dominant",
                         recessive  = "Recessive",  overdominant = "Overdominant",
                         logadditive = "Log-additive")
@@ -931,10 +936,11 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         geno_labels_l <- private$.geno_labels_for_model(mdl, all_genos_l, ref)
         n_fit_bic <- sum(!is.na(snp_enc) & !is.na(response) & complete.cases(cov_df))
         n_cov_bic <- ncol(cov_df)
-        first_row <- TRUE
+        first_row   <- TRUE
         for (res in res_list) {
           rtype <- if (is.null(res$row_type)) "snp" else res$row_type
           if (rtype == "adjustment" && !show_adj) next
+          if (is.na(res$effect)) any_clamped <- TRUE
           row_key    <- row_key + 1L
           term_label <- .label_term(res$term, mdl, geno_labels_l)
           vals <- list(model = if (first_row) model_labels[mdl] else "",
@@ -956,6 +962,9 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           note = paste0("Interaction p-value (LRT): ",
                         format.pval(last_pval_interaction, digits = 3, eps = 0.001)),
           key  = "interactionPval")
+      if (any_clamped)
+        tbl$setNote(key = "separation",
+                    note = "One or more OR/CI suppressed (shown as blank) due to complete or quasi-complete separation.")
     },
     .fill_strat_by_covariate = function(arr, snp_raw, ref, response, cov_df,
                                         interaction_var, response_type, opts,
