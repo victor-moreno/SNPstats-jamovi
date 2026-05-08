@@ -1,3 +1,5 @@
+1:10
+
 revise
 categorical  response SNPstats
 ordinal?
@@ -13,3 +15,20 @@ Enhancements
 - add ordinal model for ordinal response
 
 
+keep the results as stable as possible as the user
+makes changes. If you use data binding, you can have jamovi set these tables up for you
+automatically:
+https://dev.jamovi.org/tuts0201-dynamic-tables.html
+This handles the simple condition where the user has "Stratify by response groups"
+turned od, and the table has one row per SNP var.
+When you have Stratify by response groups turned on, I see that it becomes five rows
+per SNP variable. The way to accomodate this is to use "row folding" where you
+strategically name columns so that they fold down underneath one another.
+
+Lastly, if you use clearWith appropriately, you can prevent unrelated option changes
+from blanking a table, and then repopulating them with exactly the same values.
+https://dev.jamovi.org/tuts0203-state.html
+You can also populate the Alleles (A/B) column by implementing a .init() function
+alongside .run().
+We're currently improving our documentation around this:
+https://jamovi-dev.b-cdn.net/tutorial/tuts0200-analysis-lifecy

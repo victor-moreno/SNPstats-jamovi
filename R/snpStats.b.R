@@ -4,6 +4,17 @@
 #' @importFrom haplo.stats setupGeno hapl.em haplo.glm haplo.glm.control
 #' @import ggplot2
 
+# ── Formula safety helper ──────────────────────────────────────────────────
+# Wraps a column name in backticks so it is safe to interpolate into a
+# formula string even when the name contains spaces, operators, or other
+# special characters.  This is the same escaping that jmvcore::composeTerm()
+# applies and matches the recommendation in the jamovi developer docs.
+safe_term <- function(x) paste0("`", gsub("`", "\\`", x, fixed = TRUE), "`")
+
+# Escape a vector of names and collapse to a single "+"-joined string,
+# suitable for the RHS of a formula.
+safe_rhs <- function(nms) paste(sapply(nms, safe_term), collapse = " + ")
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Free functions (unchanged from individual modules)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -17,7 +28,7 @@ fit_model <- function(snp_enc, response, covariates_df, model_name,
   cov_formula <- ""
   if (!is.null(covariates_df) && ncol(covariates_df) > 0) {
     df          <- cbind(df, covariates_df)
-    cov_formula <- paste("+", paste(names(covariates_df), collapse = "+"))
+    cov_formula <- paste("+", safe_rhs(names(covariates_df)))
   }
   df <- df[complete.cases(df), , drop = FALSE]
   formula_full <- as.formula(paste("resp ~ snp", cov_formula))
@@ -119,15 +130,17 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
   if (!(interaction_var %in% names(df))) return(NULL)
   df <- df[complete.cases(df), , drop = FALSE]
   if (nrow(df) < 5) return(NULL)
-  adj_part <- if (length(adj_covs) > 0) paste("+", paste(adj_covs, collapse = "+")) else ""
+  # Escape all user-supplied names before interpolating into formula strings
+  iv_safe  <- safe_term(interaction_var)
+  adj_part <- if (length(adj_covs) > 0) paste("+", safe_rhs(adj_covs)) else ""
 
   if (conditional) {
     if (cond_var == "snp") {
-      formula_fit <- as.formula(paste("resp ~ snp /", interaction_var, adj_part))
+      formula_fit <- as.formula(paste("resp ~ snp /", iv_safe, adj_part))
     } else {
-      formula_fit <- as.formula(paste("resp ~", interaction_var, "/ snp", adj_part))
+      formula_fit <- as.formula(paste("resp ~", iv_safe, "/ snp", adj_part))
     }
-    formula_add <- as.formula(paste("resp ~ snp +", interaction_var, adj_part))
+    formula_add <- as.formula(paste("resp ~ snp +", iv_safe, adj_part))
     if (response_type == "binary") {
       fit     <- glm(formula_fit, data = df, family = binomial())
       fit_add <- glm(formula_add, data = df, family = binomial())
@@ -150,7 +163,7 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
       seq_along(all_rows),
       c(grep("^\\(Intercept\\)", all_rows),
         snp_rows_idx, inter_rows_idx,
-        grep(paste0("^", interaction_var), all_rows)))
+        which(startsWith(all_rows, interaction_var))))
     if (length(inter_rows_idx) == 0) return(NULL)
     all_keep <- unique(c(snp_rows_idx, inter_rows_idx, adj_rows_idx))
     first_inter_done <- FALSE
@@ -177,8 +190,8 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
     attr(result, "pval_interaction") <- p_inter
     result
   } else {
-    formula_int  <- as.formula(paste("resp ~ snp *", interaction_var, adj_part))
-    formula_main <- as.formula(paste("resp ~ snp +", interaction_var, adj_part))
+    formula_int  <- as.formula(paste("resp ~ snp *", iv_safe, adj_part))
+    formula_main <- as.formula(paste("resp ~ snp +", iv_safe, adj_part))
     tryCatch({
       if (response_type == "binary") {
         fit_int  <- glm(formula_int,  data = df, family = binomial())
@@ -198,8 +211,11 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
                                                       dimnames = list(rownames(coefs), c("lo","hi"))))
       all_rows   <- rownames(coefs)
       snp_rows   <- grep("^snp", all_rows)
-      inter_rows <- grep(paste0("^snp.*:", interaction_var, "|^", interaction_var, ":.*snp"), all_rows)
-      covar_rows <- setdiff(grep(paste0("^", interaction_var), all_rows), inter_rows)
+      inter_rows <- which(
+        (startsWith(all_rows, "snp") & grepl(":", all_rows, fixed = TRUE) &
+           sapply(all_rows, function(x) any(grepl(interaction_var, strsplit(x, ":")[[1]], fixed = TRUE)))) |
+        (startsWith(all_rows, interaction_var) & grepl(":snp", all_rows, fixed = TRUE)))
+      covar_rows <- setdiff(which(startsWith(all_rows, interaction_var)), inter_rows)
       adj_rows   <- setdiff(seq_along(all_rows),
                             c(grep("^\\(Intercept\\)", all_rows),
                               snp_rows, inter_rows, covar_rows))
@@ -1170,7 +1186,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         snp_enc          <- encode_model(snp_char, ref, mdl, user_levels)
         df_fit           <- data.frame(resp = response, snp = snp_enc, interaction_var = int_var_data)
         if (length(adj_vars) > 0) df_fit <- cbind(df_fit, cov_df[, adj_vars, drop=FALSE])
-        adj_part         <- if (length(adj_vars) > 0) paste("+", paste(adj_vars, collapse = "+")) else ""
+        adj_part         <- if (length(adj_vars) > 0) paste("+", safe_rhs(adj_vars)) else ""
         formula_str      <- paste("resp ~ snp * interaction_var", adj_part)
         formula_main_str <- paste("resp ~ snp + interaction_var", adj_part)
         fit <- if (response_type == "binary")
@@ -1922,7 +1938,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       m_model$geno <- subset_geno(geno_setup, keep)
       if (!is.null(cov_df)) {
         m_model    <- cbind(m_model, cov_df[keep, , drop = FALSE])
-        formula_str <- paste("y ~ geno +", paste(names(cov_df), collapse = " + "))
+        formula_str <- paste("y ~ geno +", safe_rhs(names(cov_df)))
       } else {
         formula_str <- "y ~ geno"
       }
@@ -1938,7 +1954,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         tbl$setTitle("<b>Haplotype Association</b>")
         tbl$getColumn("effect")$setTitle(if (response_type == "binary") "OR" else "\u03B2")
         null_formula_str <- if (!is.null(cov_df) && ncol(cov_df) > 0)
-          paste("y ~", paste(names(cov_df), collapse = " + ")) else "y ~ 1"
+          paste("y ~", safe_rhs(names(cov_df))) else "y ~ 1"
         haplo_null_fit <- tryCatch(
           if (family == "binomial") glm(as.formula(null_formula_str), family = binomial(), data = m_model)
           else lm(as.formula(null_formula_str), data = m_model),
@@ -2037,9 +2053,9 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       m_int  <- data.frame(y = y_int)
       m_int$geno <- subset_geno(geno_setup, keep)
       if (!is.null(cov_df)) m_int <- cbind(m_int, cov_df[keep, , drop = FALSE])
-      adj_part         <- if (length(adj_vars) > 0) paste("+", paste(adj_vars, collapse = "+")) else ""
-      formula_mult_str <- paste("y ~ geno *", int_var, adj_part)
-      formula_add_str  <- paste("y ~ geno +", int_var, adj_part)
+      adj_part         <- if (length(adj_vars) > 0) paste("+", safe_rhs(adj_vars)) else ""
+      formula_mult_str <- paste("y ~ geno *", safe_term(int_var), adj_part)
+      formula_add_str  <- paste("y ~ geno +", safe_term(int_var), adj_part)
       haplo_fit_mult <- tryCatch(
         haplo.stats::haplo.glm(as.formula(formula_mult_str), family = family_int, data = m_int,
                                na.action = na.geno.keep,
