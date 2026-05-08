@@ -1,32 +1,15 @@
-7:10 
+revise
+categorical  response SNPstats
+ordinal?
 
-Plots
-reverse Y forest
-histogram, overlap cases/controls with shade
+use common SNP QC both modules
 
-Tutorial screenshots
+Tutorial 
+  screenshots
 
-Revise 
-  - SNP QC 
-        formats allowed: A/B A|B AB A>B 012
-        coding errors: non-biallelic, monomorphic 
-        dosage errors [0,2]
-  - MAF effect allele correctly selected
-
+Organize code & clean
 
 Enhancements
 - add ordinal model for ordinal response
 
-
-Organize code & clean
-
-
----
-
-SNPs 
-assoc/haplotypes
-if value > 1000 : Inf
-NA : ''
-
----
 

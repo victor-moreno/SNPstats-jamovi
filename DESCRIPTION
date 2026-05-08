@@ -1,12 +1,12 @@
 Package: SNPstats
 Type: Package
 Title: SNP Statistics for Genetic Epidemiology
-Version: 0.3.0
+Version: 0.4.0
 Date: 2026-04-10
 Authors@R: person("Victor", "Moreno", role = c("aut", "cre"), email = "v.moreno@iconcologia.net")
 Description: Performs SNP analysis for genetic epidemiology studies. Computes allele and genotype 
     frequencies, Hardy-Weinberg equilibrium tests, SNP-response association, linkage disequilibrium, 
-    and haplotype analysis. Based on the SNPstats web tool (https://www.snpstats.net).
+    haplotype analysis and polygenic risc score calculation. Based on the SNPstats web tool (https://www.snpstats.net).
 License: GPL-3
 Encoding: UTF-8
 LazyData: true

@@ -1,0 +1,248 @@
+title: SNP Analysis
+name: snpStats
+jus: '3.0'
+compilerMode: tame
+children:
+
+  # ── Shared variable assignment ────────────────────────────────────────────
+  - type: VariableSupplier
+    persistentItems: false
+    stretchFactor: 1
+    children:
+      - type: TargetLayoutBox
+        label: Response variable
+        children:
+          - type: VariablesListBox
+            name: response
+            maxItemCount: 1
+            isTarget: true
+      - type: TargetLayoutBox
+        label: SNPs
+        children:
+          - type: VariablesListBox
+            name: snps
+            isTarget: true
+      - type: TargetLayoutBox
+        label: Covariates
+        children:
+          - type: VariablesListBox
+            name: covariates
+            isTarget: true
+
+  - type: LayoutBox
+    margin: large
+    children:
+      - type: ComboBox
+        name: responseType
+        enable: (response)
+      - type: TextBox
+        name: ciWidth
+        label: 'Confidence interval (%):'
+        format: number
+        width: small
+
+  - type: CollapseBox
+    label: Descriptive
+    collapsed: false
+    stretchFactor: 1
+    children:
+      - type: LayoutBox
+        margin: large
+        children:
+          - type: CheckBox
+            name: subpop
+            enable: (response)
+          - type: CheckBox
+            name: covDesc
+            enable: (covariates)
+            children:
+              - type: CheckBox
+                name: rmSnpMissing
+                enable: (covDesc)
+      - type: LayoutBox
+        margin: large
+        stretchFactor: 1
+        children:
+          - type: Label
+            label: SNP descriptive
+            enable: (snps)
+            children:
+              - type: CheckBox
+                name: snpSummary
+                enable: (snps)
+              - type: CheckBox
+                name: allFreq
+                enable: (snps)
+              - type: CheckBox
+                name: genoFreq
+                enable: (snps)
+              - type: CheckBox
+                name: hweTest
+                enable: (snps)
+              - type: CheckBox
+                name: showMissing
+                enable: (snps)
+              - type: CheckBox
+                name: showMissingnessPlot
+                label: SNP missingness plot
+                enable: (snps)
+                children:
+                  - type: TextBox
+                    name: missingnessThreshold
+                    label: 'Show SNPs with missingness above (%):'
+                    format: number
+                    width: small
+                    enable: (showMissingnessPlot)
+
+  - type: CollapseBox
+    label: Association
+    collapsed: true
+    stretchFactor: 1
+    children:
+      - type: LayoutBox
+        margin: large
+        stretchFactor: 1
+        children:
+          - type: LayoutBox
+            cell:
+              column: 0
+              row: 0
+            stretchFactor: 1
+            children:
+              - type: Label
+                label: Genetic models
+                children:
+                  - type: CheckBox
+                    name: modelCodominant
+                    enable: (response && snps)
+                  - type: CheckBox
+                    name: modelDominant
+                    enable: (response && snps)
+                  - type: CheckBox
+                    name: modelRecessive
+                    enable: (response && snps)
+                  - type: CheckBox
+                    name: modelOverdominant
+                    enable: (response && snps)
+                  - type: CheckBox
+                    name: modelLogAdditive
+                    enable: (response && snps)
+          - type: LayoutBox
+            cell:
+              column: 0
+              row: 1
+            margin: large
+            stretchFactor: 1
+            children:
+              - type: Label
+                label: Association analysis
+                children:
+                  - type: CheckBox
+                    name: snpAssoc
+                    enable: (response && snps)
+          - type: LayoutBox
+            cell:
+              column: 0
+              row: 2
+            margin: large
+            stretchFactor: 1
+            children:
+              - type: Label
+                label: Interaction analysis
+                children:
+                  - type: CheckBox
+                    name: snpInteraction
+                    enable: (response && snps && covariates)
+                    children:
+                      - type: CheckBox
+                        name: showInteractionTable
+                        enable: (snpInteraction)
+                        children:
+                          - type: ComboBox
+                            name: interactionType
+                            enable: (snpInteraction)
+                          - type: CheckBox
+                            name: showInteractionAdjVars
+                            enable: (snpInteraction && showInteractionTable)
+                      - type: CheckBox
+                        name: showStratByCovariate
+                        enable: (snpInteraction)
+                      - type: CheckBox
+                        name: showStratByGenotype
+                        enable: (snpInteraction)
+                      - type: CheckBox
+                        name: showCrossClassTable
+                        enable: (snpInteraction)
+          - type: LayoutBox
+            cell:
+              column: 1
+              row: 0
+            margin: large
+            stretchFactor: 1
+            children:
+              - type: Label
+                label: Show in tables
+                children:
+                  - type: CheckBox
+                    name: showAIC
+                    enable: (snpAssoc || snpInteraction)
+
+  - type: CollapseBox
+    label: LD and Haplotype
+    collapsed: true
+    stretchFactor: 1
+    children:
+      - type: LayoutBox
+        margin: large
+        stretchFactor: 1
+        children:
+          - type: LayoutBox
+            cell:
+              column: 0
+              row: 0
+            stretchFactor: 1
+            children:
+              - type: Label
+                label: Linkage disequilibrium
+                enable: (snps)
+                children:
+                  - type: CheckBox
+                    name: ldAnalysis
+                    enable: (snps)
+                  - type: CheckBox
+                    name: ldMatrix
+                    enable: (snps)
+                    children:
+                      - type: ComboBox
+                        name: ldMetric
+                        enable: (ldMatrix)
+                  - type: CheckBox
+                    name: ldPlot
+                    enable: (snps)
+          - type: LayoutBox
+            cell:
+              column: 0
+              row: 1
+            stretchFactor: 1
+            children:
+              - type: Label
+                label: Haplotype analysis
+                children:
+                  - type: CheckBox
+                    name: haploFreq
+                    enable: (snps)
+                    children:
+                      - type: CheckBox
+                        name: ldSubpop
+                        label: Stratify by response groups
+                        enable: (response)
+                      - type: TextBox
+                        name: haploFreqMin
+                        format: number
+                        enable: (haploFreq || haploAssoc || haploInteraction)
+                  - type: CheckBox
+                    name: haploAssoc
+                    enable: (response && snps)
+                  - type: CheckBox
+                    name: haploInteraction
+                    enable: (response && snps && covariates)

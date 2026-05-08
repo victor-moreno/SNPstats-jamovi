@@ -1,0 +1,349 @@
+---
+name: snpStats
+title: SNP Analysis
+jrs: '1.1'
+refs:
+  - snpstats
+  - bioinfo
+
+items:
+
+  # ── Shared validation message ─────────────────────────────────────────────
+  - name: validationMsg
+    title: ''
+    type: Html
+    visible: false
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Tab 1: Descriptive results
+  # ══════════════════════════════════════════════════════════════════════════
+  - name: descGroup
+    title: Descriptive
+    type: Group
+    items:
+
+      - name: validationMsgSNP
+        title: ''
+        type: Html
+        visible: false
+
+      - name: validationMsgGeno
+        title: ''
+        type: Html
+        visible: false
+
+      # ── Covariate descriptives ──────────────────────────────────────────
+      - name: covDescGroup
+        title: Covariate Descriptives
+        type: Group
+        visible: (covDesc)
+        items:
+          - name: covDescTable
+            title: Covariate Summary
+            type: Table
+            columns:
+              - {name: variable,     title: Variable,   type: text}
+              - {name: level,        title: Level,      type: text}
+              - {name: stat_overall, title: Overall,    type: text}
+              - {name: stat_g0,      title: Group 0,    type: text,   visible: false}
+              - {name: stat_g1,      title: Group 1,    type: text,   visible: false}
+              - {name: stat_g2,      title: Group 2,    type: text,   visible: false}
+              - {name: stat_g3,      title: Group 3,    type: text,   visible: false}
+              - {name: stat_g4,      title: Group 4,    type: text,   visible: false}
+              - {name: stat_g5,      title: Group 5,    type: text,   visible: false}
+              - {name: stat_g6,      title: Group 6,    type: text,   visible: false}
+              - {name: stat_g7,      title: Group 7,    type: text,   visible: false}
+              - {name: pval,         title: P-value,    type: number, format: zto, visible: false}
+
+      # ── SNP summary ─────────────────────────────────────────────────────
+      - name: snpSummaryTablesGroup
+        title: SNP Descriptive
+        type: Group
+        visible: (snpSummary || allFreq || genoFreq || hweTest)
+        items:
+          - name: snpSummaryTable
+            title: SNP Summary Table
+            type: Table
+            visible: (snpSummary)
+            columns:
+              - {name: snp,        title: SNP,          type: text}
+              - {name: alleles,    title: Alleles (A/B), type: text}
+              - {name: group,      title: Group,         type: text}
+              - {name: n,          title: N,             type: integer}
+              - {name: missing,    title: Missing,       type: integer}
+              - {name: maf,        title: MAF (B),       type: number, format: zto}
+              - {name: genoCounts, title: AA / AB / BB,  type: text}
+              - {name: hwePval,    title: HWE p-value,   type: number, format: zto}
+
+      # ── Per-SNP descriptive results ─────────────────────────────────────
+      - name: descSnpResults
+        title: SNP Results
+        type: Array
+        description: Per-SNP descriptive results
+        template:
+          title: $key
+          type: Group
+          items:
+            - name: typingRate
+              title: ''
+              type: Html
+              visible: (allFreq || genoFreq || hweTest)
+
+            - name: allFreqTable
+              title: Allele Frequencies
+              type: Table
+              visible: (allFreq)
+              columns:
+                - {name: allele, title: Allele,  type: text}
+                - {name: stat,   title: 'N (%)', type: text}
+
+            - name: genoFreqTable
+              title: Genotype Frequencies
+              type: Table
+              visible: (genoFreq)
+              columns:
+                - {name: genotype,     title: Genotype,           type: text}
+                - {name: stat,         title: 'N (%)',            type: text}
+                - {name: responseStat, title: Response (mean±SE), type: text, visible: false}
+
+            - name: hweTable
+              title: Hardy-Weinberg Equilibrium
+              type: Table
+              visible: (hweTest)
+              columns:
+                - {name: group,   title: Group,   type: text}
+                - {name: n11,     title: AA,      type: integer}
+                - {name: n12,     title: AB,      type: integer}
+                - {name: n22,     title: BB,      type: integer}
+                - {name: missing, title: Missing, type: integer, visible: false}
+                - {name: pval,    title: P-value, type: number,  format: zto}
+
+      # ── Missingness plot ────────────────────────────────────────────────
+      - name: missingnessPlot
+        title: SNP Missingness
+        type: Image
+        visible: false
+        width: 560
+        height: 500
+        renderFun: .plotMissingness
+        clearWith:
+            - snps
+            - response
+            - covariates
+            - subpop
+            - missingnessThreshold
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Tab 2: Association results
+  # ══════════════════════════════════════════════════════════════════════════
+  - name: assocGroup
+    title: Association
+    type: Group
+    items:
+
+      # ── Per-SNP association results ─────────────────────────────────────
+      - name: assocSnpResults
+        title: SNP Association Results
+        type: Array
+        description: Per-SNP association results
+        template:
+          title: $key
+          type: Group
+          items:
+            - name: typingRate
+              title: ''
+              type: Html
+              visible: true
+
+            - name: assocTable
+              title: Association with Response
+              type: Table
+              visible: (snpAssoc && (modelCodominant || modelDominant || modelRecessive || modelOverdominant || modelLogAdditive))
+              columns:
+                - {name: model,    title: Model,     type: text}
+                - {name: genotype, title: Genotype,  type: text}
+                - {name: stat0,    title: Group 0,   type: text}
+                - {name: stat1,    title: Group 1,   type: text}
+                - {name: effect,   title: OR / β,    type: number, format: zto}
+                - {name: ciLow,    title: Lower CI,  type: number, format: zto}
+                - {name: ciHigh,   title: Upper CI,  type: number, format: zto}
+                - {name: pval,     title: P-value,   type: number, format: zto}
+                - {name: AIC,      title: AIC,       type: number, format: zto, visible: false}
+                - {name: BIC,      title: BIC,       type: number, format: zto, visible: false}
+
+            - name: interactionResults
+              title: Interaction Results
+              type: Array
+              visible: (snpInteraction)
+              template:
+                title: $key
+                type: Group
+                items:
+                  - name: interactionTable
+                    title: SNP × Covariate Interaction
+                    type: Table
+                    visible: (snpInteraction && showInteractionTable)
+                    columns:
+                      - {name: model,  title: Model,    type: text}
+                      - {name: term,   title: Term,     type: text}
+                      - {name: effect, title: OR / β,   type: number, format: zto}
+                      - {name: ciLow,  title: Lower CI, type: number, format: zto}
+                      - {name: ciHigh, title: Upper CI, type: number, format: zto}
+                      - {name: pval,   title: P-value,  type: number, format: zto}
+                      - {name: AIC,    title: AIC,      type: number, format: zto, visible: false}
+                      - {name: BIC,    title: BIC,      type: number, format: zto, visible: false}
+
+                  - name: stratByCovariateHeading
+                    title: ''
+                    type: Html
+                    visible: (snpInteraction && showStratByCovariate)
+
+                  - name: stratByCovariate
+                    title: ''
+                    type: Array
+                    visible: (snpInteraction && showStratByCovariate)
+                    template:
+                      title: $key
+                      type: Table
+                      columns:
+                        - {name: genotype, title: Genotype, type: text}
+                        - {name: stat0,    title: Group 0,  type: text}
+                        - {name: stat1,    title: Group 1,  type: text}
+                        - {name: effect,   title: OR / β,   type: number, format: zto}
+                        - {name: ciLow,    title: Lower CI, type: number, format: zto}
+                        - {name: ciHigh,   title: Upper CI, type: number, format: zto}
+                        - {name: pval,     title: P-value,  type: number, format: zto}
+
+                  - name: stratByGenotypeHeading
+                    title: ''
+                    type: Html
+                    visible: (snpInteraction && showStratByGenotype)
+
+                  - name: stratByGenotype
+                    title: ''
+                    type: Array
+                    visible: (snpInteraction && showStratByGenotype)
+                    template:
+                      title: $key
+                      type: Table
+                      columns:
+                        - {name: level,  title: Level,    type: text}
+                        - {name: stat0,  title: Group 0,  type: text}
+                        - {name: stat1,  title: Group 1,  type: text}
+                        - {name: effect, title: OR / β,   type: number, format: zto}
+                        - {name: ciLow,  title: Lower CI, type: number, format: zto}
+                        - {name: ciHigh, title: Upper CI, type: number, format: zto}
+                        - {name: pval,   title: P-value,  type: number, format: zto}
+
+                  - name: crossClassHeading
+                    title: ''
+                    type: Html
+                    visible: (snpInteraction && showCrossClassTable)
+
+                  - name: crossClassTable
+                    title: ''
+                    type: Array
+                    visible: (snpInteraction && showCrossClassTable)
+                    template:
+                      title: $key
+                      type: Table
+                      columns:
+                        - {name: genotype, title: Genotype, type: text}
+                        - {name: stat0,    title: Group 0,  type: text}
+                        - {name: stat1,    title: Group 1,  type: text}
+                        - {name: effect,   title: OR / β,   type: number, format: zto}
+                        - {name: ciLow,    title: Lower CI, type: number, format: zto}
+                        - {name: ciHigh,   title: Upper CI, type: number, format: zto}
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Tab 3: LD and Haplotype results
+  # ══════════════════════════════════════════════════════════════════════════
+  - name: ldHaploGroup
+    title: LD / Haplotype
+    type: Group
+    items:
+
+      # ── Linkage disequilibrium ──────────────────────────────────────────
+      - name: ldGroup
+        title: Linkage Disequilibrium
+        type: Group
+        visible: (ldAnalysis || ldMatrix || ldPlot)
+        items:
+          - name: ldTable
+            title: Pairwise LD
+            type: Table
+            visible: (ldAnalysis)
+            columns:
+              - {name: snp1,   title: SNP 1,   type: text}
+              - {name: snp2,   title: SNP 2,   type: text}
+              - {name: r2,     title: r²,      type: number, format: zto}
+              - {name: Dprime, title: D',      type: number, format: zto}
+              - {name: D,      title: D,       type: number, format: zto}
+              - {name: pval,   title: P-value, type: number, format: zto}
+
+          - name: ldMatrixTable
+            title: LD Matrix
+            type: Table
+            visible: (ldMatrix)
+            columns:
+              - {name: snp, title: SNP, type: text}
+
+          - name: ldPlotImage
+            title: LD Heatmap
+            type: Image
+            visible: (ldPlot)
+            renderFun: .render_ld_plot
+            width: 500
+            height: 450
+
+      # ── Haplotype analysis ──────────────────────────────────────────────
+      - name: haploGroup
+        title: Haplotype Analysis
+        type: Group
+        visible: (haploFreq || haploAssoc || haploInteraction)
+        items:
+          - name: haploFreqTable
+            title: Haplotype Frequencies
+            type: Table
+            visible: (haploFreq)
+            columns:
+              - {name: haplotype, title: Haplotype, type: text}
+              - {name: freq,      title: Frequency, type: number, format: zto}
+              - {name: freq_g0,   title: Group 0,   type: number, format: zto, visible: false}
+              - {name: freq_g1,   title: Group 1,   type: number, format: zto, visible: false}
+
+          - name: haploAssocTable
+            title: Haplotype Association
+            type: Table
+            visible: (haploAssoc)
+            columns:
+              - {name: haplotype, title: Haplotype, type: text}
+              - {name: freq,      title: Frequency, type: number, format: zto}
+              - {name: effect,    title: OR / β,    type: number}
+              - {name: ciLow,     title: Lower CI,  type: number}
+              - {name: ciHigh,    title: Upper CI,  type: number}
+              - {name: pval,      title: P-value,   type: number, format: zto}
+
+          - name: haploInteractionTable
+            title: Haplotype × Covariate Interaction (cross-classification)
+            type: Table
+            visible: (haploInteraction)
+            columns:
+              - {name: term, title: Haplotype, type: text}
+              - {name: freq, title: Frequency, type: number, format: zto}
+
+          - name: haploCondCovarTable
+            title: Haplotype Effect within Covariate Levels
+            type: Table
+            visible: (haploInteraction)
+            columns:
+              - {name: term, title: Haplotype, type: text}
+              - {name: freq, title: Frequency, type: number, format: zto}
+
+          - name: haploCondHaploTable
+            title: Covariate Effect within Haplotypes
+            type: Table
+            visible: (haploInteraction)
+            columns:
+              - {name: term, title: Haplotype, type: text}
+              - {name: freq, title: Frequency, type: number, format: zto}

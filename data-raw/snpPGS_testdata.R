@@ -534,3 +534,6 @@ smoke_test_helpers <- function(dat) {
   message("  Passed: ", pass, "  Failed: ", fail)
   invisible(list(pass = pass, fail = fail))
 }
+
+
+smoke_test_helpers()

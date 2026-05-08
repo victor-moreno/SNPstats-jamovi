@@ -4,7 +4,7 @@ A jamovi module for genetic epidemiology SNP analysis, replicating the functiona
 
 ## Overview
 
-The **SNPstats** module provides an interface for conducting single-SNP and multi-SNP (haplotype) association studies. It handles the complexities of genetic data, including automated format detection, HWE testing, linkage disequilimium calculation and the estimation of haplotype phases via the EM algorithm.
+The **SNPstats** module provides an interface for conducting single-SNP and multi-SNP (haplotype) association studies. It handles the complexities of genetic data, including automated format detection, HWE testing, linkage disequilimium calculation and the estimation of haplotype phases via the EM algorithm. A submodule calculates polygenic risk scores.
 
 See the mini [tutorial](docs/TUTORIAL.md) for more detailed information.
 
@@ -19,6 +19,7 @@ See the mini [tutorial](docs/TUTORIAL.md) for more detailed information.
 * **Multi-SNP analysis:** Linkage disequilibrium (D, D′, r²) statistics, matrices, and heatmaps.
 * **Haplotypes:** Frequency estimation (EM algorithm) and association testing with phase uncertainty propagation, including haplotype x covariate interactions.
 * **Interaction testing:** SNP × covariate and Haplotype × covariate interaction testing.
+* **Polygenic Risc Score:** Unweighted and weighted PGS using an auxiliary file with PGS catalog format.
 
 ## Limitations
 
@@ -35,6 +36,9 @@ SNP columns must use diploid notation. The module automatically detects:
 * **Slash-separated:** `C/C`, `C/T`, `T/T`
 * **Pipe-separated:** `C|C`, `C|T`, `T|T`
 * **No separator:** `CC`, `CT`, `TT`
+* **Dosage:** (only for PGS). Values in `[0,2]`, possibly decimal from imputation dosage estimates. 
+
+Missing values: `'', NA, 'NA', 'N/A', 'N|A', '0/0'`
 
 ---
 

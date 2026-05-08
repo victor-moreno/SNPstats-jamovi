@@ -1,12 +1,12 @@
-build
+mejoras.R
 *.jmo
 example*.*
-mejoras.R
-data-raw/criprev
-data-raw/haplotipai
 *.pdf
 *.csv
 *.omv
 *.jpg
 *.html
+build
+data-raw
 debug
+split-version

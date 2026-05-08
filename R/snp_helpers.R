@@ -397,13 +397,15 @@ detect_response_type <- function(response_raw, responseType_opt) {
   else "none"
 }
 
-#' Prepare response as integer (binary) or numeric (quantitative).
+#' Prepare response as integer (binary), factor (categorical), or numeric (quantitative).
 prepare_response <- function(response_raw, response_type) {
   if (is.null(response_raw) || is.null(response_type)) return(NULL)
   if (response_type == "binary") {
     r <- as.integer(as.factor(response_raw)) - 1L
     r[is.na(response_raw)] <- NA_integer_
     r
+  } else if (response_type == "categorical") {
+    as.factor(response_raw)
   } else {
     as.numeric(response_raw)
   }
