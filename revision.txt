@@ -1,8 +1,11 @@
 6:50
 
-revise
+revise how counts and proportions are calculated for all tables of description and association, because numbers are not consistent, as if they were split in wrond table dimensions
 
 categorical  response SNPstats
+
+genotype frequencies 
+
 ordinal?
 
 use common SNP QC both modules

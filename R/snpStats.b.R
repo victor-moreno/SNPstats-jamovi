@@ -494,7 +494,8 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                                   snp_raw_cc, response_cc, response_type,
                                   run_subpop, resp_raw_cc,
                                   run_showMissing, n_miss_by_level,
-                                  n_total_eligible, total_missing)
+                                  n_total_eligible, total_missing,
+                                  user_levels = user_levels)
         if (run_hweTest)
           private$.fill_hwe(item$hweTable, geno_obj_cc, snp_nm,
                             resp_raw_cc, run_subpop,
@@ -569,7 +570,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         if (run_snpAssoc)
           private$.fill_assoc(item$assocTable, snp_raw_cc, ref, response_cc,
                               cov_df_cc, response_type, opts,
-                              n_miss = n_miss_assoc, user_levels, response_raw, snp_nm)
+                              n_miss = n_miss_assoc, user_levels, response_raw_cc, snp_nm)
 
         if (run_snpInteraction && !is.null(cov_df_cc) && ncol(cov_df_cc) >= 1) {
           interaction_var <- names(cov_df_cc)[1]
@@ -587,7 +588,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
               private$.fill_interaction(
                 mdl_item$interactionTable, snp_raw_cc, ref,
                 response_cc, cov_df_cc, interaction_var,
-                response_type, opts, mdl, user_levels, response_raw, snp_nm)
+                response_type, opts, mdl, user_levels, response_raw_cc, snp_nm)
 
             if (isTRUE(opts$showStratByCovariate)) {
               mdl_item$stratByCovariateHeading$setContent(
@@ -595,7 +596,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
               private$.fill_strat_by_covariate(
                 mdl_item$stratByCovariate, snp_raw_cc, ref,
                 response_cc, cov_df_cc, interaction_var,
-                response_type, opts, mdl, user_levels, response_raw, snp_nm)
+                response_type, opts, mdl, user_levels, response_raw_cc, snp_nm)
             }
 
             if (isTRUE(opts$showStratByGenotype)) {
@@ -844,8 +845,14 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                         recessive  = "Recessive",  overdominant = "Overdominant",
                         logadditive = "Log-additive")
       snp_char  <- as.character(snp_raw)
-      all_genos <- c(ref, setdiff(
-        if (!is.null(user_levels)) user_levels else sort(unique(snp_char[!is.na(snp_char)])), ref))
+      # Respect the user's factor level order. When user_levels exist use them
+      # directly (they are already ref-normalised by get_snp_level_order).
+      # Only fall back to ref-anchored sort when there are no user levels.
+      all_genos <- if (!is.null(user_levels) && length(user_levels) > 0) {
+        user_levels
+      } else {
+        c(ref, setdiff(sort(unique(snp_char[!is.na(snp_char)])), ref))
+      }
       n_fit <- sum(!is.na(snp_char) & !is.na(response) &
                      (if (!is.null(cov_df) && ncol(cov_df) > 0) complete.cases(cov_df) else TRUE))
       n_cov <- if (!is.null(cov_df)) ncol(cov_df) else 0L
@@ -1012,8 +1019,11 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         p_inter <- attr(res_list, "pval_interaction")
         if (!is.null(p_inter) && !is.na(p_inter)) last_pval_interaction <- p_inter
         snp_char_l  <- as.character(snp_raw)
-        all_genos_l <- c(ref, setdiff(
-          if (!is.null(user_levels)) user_levels else sort(unique(snp_char_l[!is.na(snp_char_l)])), ref))
+        all_genos_l <- if (!is.null(user_levels) && length(user_levels) > 0) {
+          user_levels
+        } else {
+          c(ref, setdiff(sort(unique(snp_char_l[!is.na(snp_char_l)])), ref))
+        }
         geno_labels_l <- private$.geno_labels_for_model(mdl, all_genos_l, ref)
         n_fit_bic <- sum(!is.na(snp_enc) & !is.na(response) & complete.cases(cov_df))
         n_cov_bic <- ncol(cov_df)
@@ -1054,7 +1064,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       if (length(table(int_var_data)) > 6) return()
       int_lbl      <- attr(self$data[[interaction_var]], "label") %||% interaction_var
       snp_char     <- as.character(snp_raw)
-      all_genos    <- c(ref, setdiff(if (!is.null(user_levels)) user_levels else sort(unique(snp_char[!is.na(snp_char)])), ref))
+      all_genos <- if (!is.null(user_levels) && length(user_levels) > 0) user_levels else c(ref, setdiff(sort(unique(snp_char[!is.na(snp_char)])), ref))
       model_labels <- c(codominant="Codominant", dominant="Dominant", recessive="Recessive",
                         overdominant="Overdominant", logadditive="Log-additive")
       adj_vars     <- setdiff(names(cov_df), interaction_var)
@@ -1128,7 +1138,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                                        interaction_var, response_type, opts,
                                        int_models, user_levels = NULL, response_raw, snp_lbl) {
       snp_char     <- as.character(snp_raw)
-      all_genos    <- c(ref, setdiff(if (!is.null(user_levels)) user_levels else sort(unique(snp_char[!is.na(snp_char)])), ref))
+      all_genos <- if (!is.null(user_levels) && length(user_levels) > 0) user_levels else c(ref, setdiff(sort(unique(snp_char[!is.na(snp_char)])), ref))
       int_var_data <- cov_df[[interaction_var]]
       int_lbl      <- attr(self$data[[interaction_var]], "label") %||% interaction_var
       resp_lv      <- levels(as.factor(response_raw))
@@ -1230,7 +1240,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       if (length(table(int_var_data)) > 6) return()
       int_lbl    <- attr(self$data[[interaction_var]], "label") %||% interaction_var
       snp_char   <- as.character(snp_raw)
-      all_genos  <- c(ref, setdiff(if (!is.null(user_levels)) user_levels else sort(unique(snp_char[!is.na(snp_char)])), ref))
+      all_genos <- if (!is.null(user_levels) && length(user_levels) > 0) user_levels else c(ref, setdiff(sort(unique(snp_char[!is.na(snp_char)])), ref))
       cov_levels <- if (is.factor(int_var_data)) levels(int_var_data) else sort(unique(int_var_data[!is.na(int_var_data)]))
       adj_vars   <- setdiff(names(cov_df), interaction_var)
       for (cl in cov_levels) {
@@ -1600,6 +1610,17 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                                 show_missing = FALSE, n_miss_by_level = NULL,
                                 n_total_eligible = 0L, total_missing = 0L,
                                 user_levels = NULL) {
+      # Normalise snp_raw to the same orientation parse_genotype() produces:
+      # heterozygotes are flipped so the ref allele comes first (e.g. "G/A" → "A/G"
+      # when A is ref). This must match the rownames of gf (from genetics::genotype).
+      ref_allele <- strsplit(ref, "/", fixed = TRUE)[[1]][1]
+      snp_chr <- sapply(as.character(snp_raw), function(g) {
+        if (is.na(g)) return(NA_character_)
+        p <- strsplit(g, "/", fixed = TRUE)[[1]]
+        if (length(p) == 2L && p[1L] != p[2L] && p[2L] == ref_allele)
+          paste0(p[2L], "/", p[1L])
+        else g
+      }, USE.NAMES = FALSE)
       if (response_type == "quantitative") {
         tbl$getColumn("responseStat")$setVisible(TRUE)
         if (!is.numeric(response)) response <- as.numeric(as.character(response))
@@ -1611,6 +1632,9 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       if (do_strat) {
         grp_levels <- levels(response_raw)
         resp_chr   <- as.character(response_raw)
+        # Per-stratum totals = typed (non-NA SNP) observations in each group
+        strat_totals <- sapply(grp_levels, function(lvl)
+          sum(resp_chr == lvl & !is.na(snp_chr), na.rm = TRUE))
         for (i in seq_along(grp_levels))
           tbl$addColumn(name=paste0("stat_g", i-1), title=grp_levels[i], type="string")
       }
@@ -1621,7 +1645,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         prop     <- gf[i, "Proportion"] * 100
         row_vals <- list(genotype = geno, stat = fmt_catpct(count, prop), responseStat = "")
         if (response_type == "quantitative" && !is.null(response)) {
-          mask  <- snp_raw == geno & !is.na(response)
+          mask  <- snp_chr == geno & !is.na(snp_chr) & !is.na(response)
           n_mask <- sum(mask)
           if (n_mask > 0) {
             mn <- mean(response[mask], na.rm=TRUE)
@@ -1631,10 +1655,10 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         }
         if (do_strat) {
           for (j in seq_along(grp_levels)) {
-            lvl  <- grp_levels[j]
-            idx  <- resp_chr == lvl
-            n_g  <- sum(idx & snp_raw == geno)
-            n_tot <- sum(idx)
+            lvl   <- grp_levels[j]
+            idx   <- resp_chr == lvl & !is.na(resp_chr)
+            n_g   <- sum(idx & snp_chr == geno, na.rm = TRUE)
+            n_tot <- strat_totals[[lvl]]
             row_vals[[paste0("stat_g", j-1)]] <- fmt_cat(n_g, n_tot)
           }
         }
