@@ -1,6 +1,7 @@
-1:10
+6:50
 
 revise
+
 categorical  response SNPstats
 ordinal?
 
@@ -13,6 +14,11 @@ Organize code & clean
 
 Enhancements
 - add ordinal model for ordinal response
+
+Unit Testing
+https://dev.jamovi.org/tutorial/tuts0109-unit-testing
+
+
 
 
 keep the results as stable as possible as the user

@@ -548,9 +548,10 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         geno_obj        <- parse_genotype(snp_raw, user_levels)
         if (is.null(geno_obj)) next
 
-        snp_complete_mask <- complete_mask & !is.na(snp_raw)
+        snp_raw_clean     <- clean_null_alleles(as.character(snp_raw))
+        snp_complete_mask <- complete_mask & !is.na(snp_raw_clean)
         n_miss_assoc      <- n_rows - sum(snp_complete_mask)
-        snp_raw_cc        <- as.factor(snp_raw[snp_complete_mask])
+        snp_raw_cc        <- as.factor(snp_raw_clean[snp_complete_mask])
         response_cc       <- response[snp_complete_mask]
         response_raw_cc   <- response_raw[snp_complete_mask]
         cov_df_cc         <- if (!is.null(cov_df)) cov_df[snp_complete_mask, , drop = FALSE] else NULL
@@ -703,35 +704,78 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
     .split_genos = function(gl)
       unlist(strsplit(gl, "(?<=[A-Za-z0-9*])-(?=[A-Za-z0-9*])", perl = TRUE)),
 
-    .compute_stats = function(geno_labels, snp_char, response, response_type) {
+    .compute_stats = function(geno_labels, snp_char, response, response_type,
+                              response_raw = NULL) {
       split_genos <- private$.split_genos
+
+      # Normalise genotype strings so ref allele is always first (e.g. "G/A" →
+      # "A/G" when A is the ref).  This must match the orientation produced by
+      # parse_genotype(), otherwise %in% lookups silently miss heterozygotes
+      # and every cell falls through to the "---" / zero-count guard.
+      norm_snp_char <- function(sc) {
+        # Determine ref allele from the first homozygote among ALL geno_labels.
+        # geno_labels[1] may be a compound label (e.g. "A/A-B/B" for overdominant),
+        # so scan all single-genotype labels for a homozygote X/X pattern.
+        ref_al <- NULL
+        for (lbl in geno_labels) {
+          parts <- strsplit(lbl, "/", fixed = TRUE)[[1]]
+          if (length(parts) == 2 && parts[1] == parts[2]) { ref_al <- parts[1]; break }
+        }
+        if (is.null(ref_al)) return(sc)
+        sapply(sc, function(g) {
+          if (is.na(g)) return(NA_character_)
+          p <- strsplit(g, "/", fixed = TRUE)[[1]]
+          if (length(p) == 2 && p[1] != p[2] && p[2] == ref_al)
+            paste0(p[2], "/", p[1])
+          else g
+        }, USE.NAMES = FALSE)
+      }
+      sc <- norm_snp_char(snp_char)
+
       if (response_type == "binary") {
-        lv     <- levels(as.factor(response))
-        n_col0 <- sum(response == lv[1] & !is.na(response))
-        n_col1 <- sum(response == lv[2] & !is.na(response))
+        # Use response_raw (original labels) for column titles / grouping so
+        # that the counts match the header labels set in .fill_assoc.
+        resp_grp <- if (!is.null(response_raw)) response_raw else response
+        lv       <- levels(as.factor(resp_grp))
+        if (length(lv) < 2) lv <- c(lv, "")
+        n_col0 <- sum(resp_grp == lv[1] & !is.na(resp_grp))
+        n_col1 <- sum(resp_grp == lv[2] & !is.na(resp_grp))
         stats0 <- character(length(geno_labels))
         stats1 <- character(length(geno_labels))
         for (i in seq_along(geno_labels)) {
-          mask <- snp_char %in% split_genos(geno_labels[i]) & !is.na(response)
-          n0   <- sum(mask & response == lv[1])
-          n1   <- sum(mask & response == lv[2])
-          if ((n0 + n1) == 0) { stats0[i] <- "---"; stats1[i] <- "---"; next }
+          mask <- sc %in% split_genos(geno_labels[i]) & !is.na(resp_grp)
+          n0   <- sum(mask & resp_grp == lv[1])
+          n1   <- sum(mask & resp_grp == lv[2])
           stats0[i] <- sprintf("%d (%.1f%%)", n0, if (n_col0 > 0) n0 / n_col0 * 100 else 0)
           stats1[i] <- sprintf("%d (%.1f%%)", n1, if (n_col1 > 0) n1 / n_col1 * 100 else 0)
         }
         list(s0 = stats0, s1 = stats1)
       } else if (response_type == "categorical") {
-        # For categorical, stat0 = total N per genotype; displayed separately per category block
-        stats0 <- character(length(geno_labels))
-        for (i in seq_along(geno_labels)) {
-          mask      <- snp_char %in% split_genos(geno_labels[i]) & !is.na(response)
-          stats0[i] <- sprintf("%d", sum(mask))
-        }
-        list(s0 = stats0, s1 = rep("", length(geno_labels)))
+        # For categorical: compute N (%) per genotype × category.
+        # Returns a list of per-category vectors; callers index by category.
+        resp_grp <- if (!is.null(response_raw)) response_raw else response
+        cats     <- levels(as.factor(resp_grp))
+        n_cats   <- sapply(cats, function(c) sum(resp_grp == c & !is.na(resp_grp)))
+        cat_stats <- lapply(cats, function(cat) {
+          n_cat <- n_cats[[cat]]
+          sapply(seq_along(geno_labels), function(i) {
+            mask <- sc %in% split_genos(geno_labels[i]) & !is.na(resp_grp)
+            n    <- sum(mask & resp_grp == cat)
+            sprintf("%d (%.1f%%)", n, if (n_cat > 0) n / n_cat * 100 else 0)
+          })
+        })
+        names(cat_stats) <- cats
+        # Also provide overall N per genotype for the header rows
+        stats_total <- sapply(seq_along(geno_labels), function(i) {
+          mask <- sc %in% split_genos(geno_labels[i]) & !is.na(resp_grp)
+          sprintf("%d", sum(mask))
+        })
+        list(s0 = stats_total, s1 = rep("", length(geno_labels)),
+             by_cat = cat_stats, cats = cats)
       } else {
         stats0 <- character(length(geno_labels))
         for (i in seq_along(geno_labels)) {
-          vals <- as.numeric(response[snp_char %in% split_genos(geno_labels[i]) & !is.na(response)])
+          vals <- as.numeric(response[sc %in% split_genos(geno_labels[i]) & !is.na(response)])
           stats0[i] <- if (length(vals) == 0) "---"
                        else sprintf("%.2f (%.2f)", mean(vals), sd(vals))
         }
@@ -767,14 +811,15 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         tbl$getColumn("stat0")$setTitle(lv[1]); tbl$getColumn("stat1")$setTitle(lv[2])
         tbl$getColumn("stat0")$setVisible(TRUE); tbl$getColumn("stat1")$setVisible(TRUE)
       } else if (is_categorical) {
-        # For categorical: show category counts in stat0, hide stat1
+        # For categorical: stat0 shows N (%) per genotype within each category block.
+        # The reference category is the first factor level of response_raw.
         ref_cat <- levels(as.factor(response_raw))[1]
-        tbl$getColumn("stat0")$setTitle(paste0("N (vs. ", ref_cat, ")"))
+        tbl$getColumn("stat0")$setTitle("N (%)")
         tbl$getColumn("stat0")$setVisible(TRUE)
         tbl$getColumn("stat1")$setVisible(FALSE)
         tbl$setNote(key = "multinom_ref",
-                    note = paste0("Multinomial logistic regression. Reference category: ", ref_cat,
-                                  ". OR and CI vs. reference."))
+                    note = paste0("Multinomial logistic regression. Reference category: \u2018",
+                                  ref_cat, "\u2019. OR and CI vs. reference category."))
       } else {
         tbl$getColumn("stat0")$setTitle("Mean (SD)"); tbl$getColumn("stat0")$setVisible(TRUE)
         tbl$getColumn("stat1")$setVisible(FALSE)
@@ -819,14 +864,31 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         # ── Categorical: one block per response category ──────────────────
         if (is_categorical) {
           cats <- unique(sapply(res_list, `[[`, "category"))
+          st   <- private$.compute_stats(geno_labels, snp_char, response,
+                                         response_type, response_raw)
           for (cat in cats) {
-            cat_res <- res_list[sapply(res_list, function(r) r$category == cat)]
-            # Header row for this category × model
+            cat_res  <- res_list[sapply(res_list, function(r) r$category == cat)]
+            cat_sts  <- if (!is.null(st$by_cat)) st$by_cat[[cat]] else rep("", length(geno_labels))
+            n_cat    <- sum(as.character(response_raw) == cat, na.rm = TRUE)
+            if (mdl == "logadditive") {
+              # Log-additive: single per-allele row per category (total N, not per-genotype)
+              res <- cat_res[[1]]
+              row_key <- row_key + 1L
+              tbl$addRow(rowKey = as.character(row_key), values = list(
+                model    = paste0(model_labels[mdl], " \u2014 ", cat, " (n=", n_cat, ")"),
+                genotype = "Per allele",
+                stat0    = sprintf("%d", n_cat),
+                stat1    = "",
+                effect   = res$effect, ciLow = res$ci_low, ciHigh = res$ci_high,
+                pval     = res$pval, AIC = aic_val, BIC = bic_val))
+              next
+            }
+            # Header / reference row for this category
             row_key <- row_key + 1L
             tbl$addRow(rowKey = as.character(row_key), values = list(
-              model    = paste0(model_labels[mdl], " \u2014 ", cat),
+              model    = paste0(model_labels[mdl], " \u2014 ", cat, " (n=", n_cat, ")"),
               genotype = geno_labels[1],
-              stat0    = sprintf("%d", sum(as.character(response_raw) == cat, na.rm = TRUE)),
+              stat0    = if (length(cat_sts) >= 1) cat_sts[1] else "",
               stat1    = "",
               effect   = 1., ciLow = '', ciHigh = '',
               pval     = cat_res[[1]]$global_p,
@@ -837,7 +899,9 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
               gl  <- if ((i + 1) <= length(geno_labels)) geno_labels[i + 1] else res$comparison
               row_key <- row_key + 1L
               tbl$addRow(rowKey = as.character(row_key), values = list(
-                model = "", genotype = gl, stat0 = "", stat1 = "",
+                model = "", genotype = gl,
+                stat0 = if ((i + 1) <= length(cat_sts)) cat_sts[i + 1] else "",
+                stat1 = "",
                 effect = res$effect, ciLow = res$ci_low, ciHigh = res$ci_high,
                 pval = res$pval, AIC = '', BIC = ''))
             }
@@ -849,13 +913,14 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         }
 
         # ── Binary / quantitative ────────────────────────────────────────────
-        st <- private$.compute_stats(geno_labels, snp_char, response, response_type)
+        st <- private$.compute_stats(geno_labels, snp_char, response, response_type,
+                                     response_raw)
         if (mdl == "logadditive") {
           res <- res_list[[1]]; row_key <- row_key + 1L
           if (response_type == "binary") {
-            lv <- levels(as.factor(response))
-            stat0_val <- sprintf("%d", sum(response == lv[1], na.rm = TRUE))
-            stat1_val <- sprintf("%d", sum(response == lv[2], na.rm = TRUE))
+            lv <- levels(as.factor(response_raw))
+            stat0_val <- sprintf("%d", sum(response_raw == lv[1], na.rm = TRUE))
+            stat1_val <- sprintf("%d", sum(response_raw == lv[2], na.rm = TRUE))
           } else {
             stat0_val <- sprintf("%.2f (%.2f)", mean(response, na.rm=TRUE), sd(response, na.rm=TRUE))
             stat1_val <- " "
