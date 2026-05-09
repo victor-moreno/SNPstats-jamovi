@@ -1,12 +1,7 @@
 6:50
 
-revise how counts and proportions are calculated for all tables of description and association, because numbers are not consistent, as if they were split in wrond table dimensions
+refactor code so all preprocesing is encapsulated and snpStats exported function returns the same results as .run in jamovi
 
-categorical  response SNPstats
-
-genotype frequencies 
-
-ordinal?
 
 use common SNP QC both modules
 

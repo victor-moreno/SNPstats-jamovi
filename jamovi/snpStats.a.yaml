@@ -130,7 +130,7 @@ options:
   - name: snpAssoc
     title: SNP-response association
     type: Bool
-    default: true
+    default: false
 
   - name: modelCodominant
     title: Codominant
@@ -186,7 +186,7 @@ options:
   - name: showInteractionTable
     title: Show interaction table
     type: Bool
-    default: true
+    default: false
 
   - name: showInteractionAdjVars
     title: Show adjustment covariate parameters

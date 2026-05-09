@@ -20,7 +20,7 @@ snpStatsOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             showMissing = FALSE,
             showMissingnessPlot = FALSE,
             missingnessThreshold = 0.1,
-            snpAssoc = TRUE,
+            snpAssoc = FALSE,
             modelCodominant = TRUE,
             modelDominant = FALSE,
             modelRecessive = FALSE,
@@ -30,7 +30,7 @@ snpStatsOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             showAIC = FALSE,
             snpInteraction = FALSE,
             interactionType = "multiplicative",
-            showInteractionTable = TRUE,
+            showInteractionTable = FALSE,
             showInteractionAdjVars = FALSE,
             showStratByCovariate = FALSE,
             showStratByGenotype = FALSE,
@@ -133,7 +133,7 @@ snpStatsOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             private$..snpAssoc <- jmvcore::OptionBool$new(
                 "snpAssoc",
                 snpAssoc,
-                default=TRUE)
+                default=FALSE)
             private$..modelCodominant <- jmvcore::OptionBool$new(
                 "modelCodominant",
                 modelCodominant,
@@ -179,7 +179,7 @@ snpStatsOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             private$..showInteractionTable <- jmvcore::OptionBool$new(
                 "showInteractionTable",
                 showInteractionTable,
-                default=TRUE)
+                default=FALSE)
             private$..showInteractionAdjVars <- jmvcore::OptionBool$new(
                 "showInteractionAdjVars",
                 showInteractionAdjVars,
@@ -422,6 +422,12 @@ snpStatsResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                         options=options,
                                         name="covDescTable",
                                         title="Covariate Summary",
+                                        clearWith=list(
+                                            "snps",
+                                            "response",
+                                            "covariates",
+                                            "subpop",
+                                            "rmSnpMissing"),
                                         columns=list(
                                             list(
                                                 `name`="variable", 
@@ -497,6 +503,8 @@ snpStatsResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                         name="snpSummaryTable",
                                         title="SNP Summary Table",
                                         visible="(snpSummary)",
+                                        clearWith=list(
+                                            "snps"),
                                         columns=list(
                                             list(
                                                 `name`="snp", 
@@ -560,6 +568,12 @@ snpStatsResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                             name="allFreqTable",
                                             title="Allele Frequencies",
                                             visible="(allFreq)",
+                                            clearWith=list(
+                                                "snps",
+                                                "response",
+                                                "subpop",
+                                                "showMissing",
+                                                "rmSnpMissing"),
                                             columns=list(
                                                 list(
                                                     `name`="allele", 
@@ -574,6 +588,12 @@ snpStatsResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                             name="genoFreqTable",
                                             title="Genotype Frequencies",
                                             visible="(genoFreq)",
+                                            clearWith=list(
+                                                "snps",
+                                                "response",
+                                                "subpop",
+                                                "showMissing",
+                                                "rmSnpMissing"),
                                             columns=list(
                                                 list(
                                                     `name`="genotype", 
@@ -593,6 +613,12 @@ snpStatsResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                             name="hweTable",
                                             title="Hardy-Weinberg Equilibrium",
                                             visible="(hweTest)",
+                                            clearWith=list(
+                                                "snps",
+                                                "response",
+                                                "subpop",
+                                                "showMissing",
+                                                "rmSnpMissing"),
                                             columns=list(
                                                 list(
                                                     `name`="group", 
@@ -633,7 +659,8 @@ snpStatsResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                 "response",
                                 "covariates",
                                 "subpop",
-                                "missingnessThreshold")))}))$new(options=options))
+                                "missingnessThreshold",
+                                "rmSnpMissing")))}))$new(options=options))
             self$add(R6::R6Class(
                 inherit = jmvcore::Group,
                 active = list(
@@ -666,12 +693,25 @@ snpStatsResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                             options=options,
                                             name="typingRate",
                                             title="",
-                                            visible=TRUE))
+                                            visible=FALSE))
                                         self$add(jmvcore::Table$new(
                                             options=options,
                                             name="assocTable",
                                             title="Association with Response",
                                             visible="(snpAssoc && (modelCodominant || modelDominant || modelRecessive || modelOverdominant || modelLogAdditive))",
+                                            clearWith=list(
+                                                "snps",
+                                                "response",
+                                                "covariates",
+                                                "responseType",
+                                                "modelCodominant",
+                                                "modelDominant",
+                                                "modelRecessive",
+                                                "modelOverdominant",
+                                                "modelLogAdditive",
+                                                "ciWidth",
+                                                "showAIC",
+                                                "rmSnpMissing"),
                                             columns=list(
                                                 list(
                                                     `name`="model", 
@@ -748,6 +788,20 @@ snpStatsResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                                             name="interactionTable",
                                                             title="SNP \u00D7 Covariate Interaction",
                                                             visible="(snpInteraction && showInteractionTable)",
+                                                            clearWith=list(
+                                                                "snps",
+                                                                "response",
+                                                                "covariates",
+                                                                "responseType",
+                                                                "modelCodominant",
+                                                                "modelDominant",
+                                                                "modelRecessive",
+                                                                "modelOverdominant",
+                                                                "modelLogAdditive",
+                                                                "ciWidth",
+                                                                "showAIC",
+                                                                "interactionType",
+                                                                "rmSnpMissing"),
                                                             columns=list(
                                                                 list(
                                                                     `name`="model", 
@@ -802,6 +856,19 @@ snpStatsResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                                             template=jmvcore::Table$new(
                                                                 options=options,
                                                                 title="$key",
+                                                                clearWith=list(
+                                                                    "snps",
+                                                                    "response",
+                                                                    "covariates",
+                                                                    "responseType",
+                                                                    "modelCodominant",
+                                                                    "modelDominant",
+                                                                    "modelRecessive",
+                                                                    "modelOverdominant",
+                                                                    "modelLogAdditive",
+                                                                    "ciWidth",
+                                                                    "interactionType",
+                                                                    "rmSnpMissing"),
                                                                 columns=list(
                                                                     list(
                                                                         `name`="genotype", 
@@ -848,6 +915,19 @@ snpStatsResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                                             template=jmvcore::Table$new(
                                                                 options=options,
                                                                 title="$key",
+                                                                clearWith=list(
+                                                                    "snps",
+                                                                    "response",
+                                                                    "covariates",
+                                                                    "responseType",
+                                                                    "modelCodominant",
+                                                                    "modelDominant",
+                                                                    "modelRecessive",
+                                                                    "modelOverdominant",
+                                                                    "modelLogAdditive",
+                                                                    "ciWidth",
+                                                                    "interactionType",
+                                                                    "rmSnpMissing"),
                                                                 columns=list(
                                                                     list(
                                                                         `name`="level", 
@@ -894,6 +974,19 @@ snpStatsResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                                             template=jmvcore::Table$new(
                                                                 options=options,
                                                                 title="$key",
+                                                                clearWith=list(
+                                                                    "snps",
+                                                                    "response",
+                                                                    "covariates",
+                                                                    "responseType",
+                                                                    "modelCodominant",
+                                                                    "modelDominant",
+                                                                    "modelRecessive",
+                                                                    "modelOverdominant",
+                                                                    "modelLogAdditive",
+                                                                    "ciWidth",
+                                                                    "interactionType",
+                                                                    "rmSnpMissing"),
                                                                 columns=list(
                                                                     list(
                                                                         `name`="genotype", 
@@ -952,6 +1045,10 @@ snpStatsResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                         name="ldTable",
                                         title="Pairwise LD",
                                         visible="(ldAnalysis)",
+                                        clearWith=list(
+                                            "snps",
+                                            "ldMetric",
+                                            "rmSnpMissing"),
                                         columns=list(
                                             list(
                                                 `name`="snp1", 
@@ -986,6 +1083,10 @@ snpStatsResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                         name="ldMatrixTable",
                                         title="LD Matrix",
                                         visible="(ldMatrix)",
+                                        clearWith=list(
+                                            "snps",
+                                            "ldMetric",
+                                            "rmSnpMissing"),
                                         columns=list(
                                             list(
                                                 `name`="snp", 
@@ -998,7 +1099,11 @@ snpStatsResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                         visible="(ldPlot)",
                                         renderFun=".render_ld_plot",
                                         width=500,
-                                        height=450))}))$new(options=options))
+                                        height=450,
+                                        clearWith=list(
+                                            "snps",
+                                            "ldMetric",
+                                            "rmSnpMissing")))}))$new(options=options))
                         self$add(R6::R6Class(
                             inherit = jmvcore::Group,
                             active = list(
@@ -1019,6 +1124,12 @@ snpStatsResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                         name="haploFreqTable",
                                         title="Haplotype Frequencies",
                                         visible="(haploFreq)",
+                                        clearWith=list(
+                                            "snps",
+                                            "response",
+                                            "subpop",
+                                            "haploFreqMin",
+                                            "rmSnpMissing"),
                                         columns=list(
                                             list(
                                                 `name`="haplotype", 
@@ -1046,6 +1157,14 @@ snpStatsResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                         name="haploAssocTable",
                                         title="Haplotype Association",
                                         visible="(haploAssoc)",
+                                        clearWith=list(
+                                            "snps",
+                                            "response",
+                                            "covariates",
+                                            "responseType",
+                                            "ciWidth",
+                                            "haploFreqMin",
+                                            "rmSnpMissing"),
                                         columns=list(
                                             list(
                                                 `name`="haplotype", 
@@ -1078,6 +1197,14 @@ snpStatsResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                         name="haploInteractionTable",
                                         title="Haplotype \u00D7 Covariate Interaction (cross-classification)",
                                         visible="(haploInteraction)",
+                                        clearWith=list(
+                                            "snps",
+                                            "response",
+                                            "covariates",
+                                            "responseType",
+                                            "ciWidth",
+                                            "haploFreqMin",
+                                            "rmSnpMissing"),
                                         columns=list(
                                             list(
                                                 `name`="term", 
@@ -1093,6 +1220,14 @@ snpStatsResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                         name="haploCondCovarTable",
                                         title="Haplotype Effect within Covariate Levels",
                                         visible="(haploInteraction)",
+                                        clearWith=list(
+                                            "snps",
+                                            "response",
+                                            "covariates",
+                                            "responseType",
+                                            "ciWidth",
+                                            "haploFreqMin",
+                                            "rmSnpMissing"),
                                         columns=list(
                                             list(
                                                 `name`="term", 
@@ -1108,6 +1243,14 @@ snpStatsResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                                         name="haploCondHaploTable",
                                         title="Covariate Effect within Haplotypes",
                                         visible="(haploInteraction)",
+                                        clearWith=list(
+                                            "snps",
+                                            "response",
+                                            "covariates",
+                                            "responseType",
+                                            "ciWidth",
+                                            "haploFreqMin",
+                                            "rmSnpMissing"),
                                         columns=list(
                                             list(
                                                 `name`="term", 
@@ -1220,7 +1363,7 @@ snpStats <- function(
     showMissing = FALSE,
     showMissingnessPlot = FALSE,
     missingnessThreshold = 0.1,
-    snpAssoc = TRUE,
+    snpAssoc = FALSE,
     modelCodominant = TRUE,
     modelDominant = FALSE,
     modelRecessive = FALSE,
@@ -1230,7 +1373,7 @@ snpStats <- function(
     showAIC = FALSE,
     snpInteraction = FALSE,
     interactionType = "multiplicative",
-    showInteractionTable = TRUE,
+    showInteractionTable = FALSE,
     showInteractionAdjVars = FALSE,
     showStratByCovariate = FALSE,
     showStratByGenotype = FALSE,

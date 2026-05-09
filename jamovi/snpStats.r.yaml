@@ -41,6 +41,12 @@ items:
           - name: covDescTable
             title: Covariate Summary
             type: Table
+            clearWith:
+              - snps
+              - response
+              - covariates
+              - subpop
+              - rmSnpMissing
             columns:
               - {name: variable,     title: Variable,   type: text}
               - {name: level,        title: Level,      type: text}
@@ -65,15 +71,21 @@ items:
             title: SNP Summary Table
             type: Table
             visible: (snpSummary)
+            clearWith:
+              - snps
+              # - response
+              # - covariates
+              # - subpop
+              # - rmSnpMissing
             columns:
-              - {name: snp,        title: SNP,          type: text}
-              - {name: alleles,    title: Alleles (A/B), type: text}
-              - {name: group,      title: Group,         type: text}
-              - {name: n,          title: N,             type: integer}
-              - {name: missing,    title: Missing,       type: integer}
-              - {name: maf,        title: MAF (B),       type: number, format: zto}
-              - {name: genoCounts, title: AA / AB / BB,  type: text}
-              - {name: hwePval,    title: HWE p-value,   type: number, format: zto}
+              - {name: snp,        title: SNP,           type: text}
+              - {name: alleles,    title: Alleles (A/B),  type: text}
+              - {name: group,      title: Group,          type: text}
+              - {name: n,          title: N,              type: integer}
+              - {name: missing,    title: Missing,        type: integer}
+              - {name: maf,        title: MAF (B),        type: number, format: zto}
+              - {name: genoCounts, title: AA / AB / BB,   type: text}
+              - {name: hwePval,    title: HWE p-value,    type: number, format: zto}
 
       # ── Per-SNP descriptive results ─────────────────────────────────────
       - name: descSnpResults
@@ -93,6 +105,12 @@ items:
               title: Allele Frequencies
               type: Table
               visible: (allFreq)
+              clearWith:
+                - snps
+                - response
+                - subpop
+                - showMissing
+                - rmSnpMissing
               columns:
                 - {name: allele, title: Allele,  type: text}
                 - {name: stat,   title: 'N (%)', type: text}
@@ -101,6 +119,12 @@ items:
               title: Genotype Frequencies
               type: Table
               visible: (genoFreq)
+              clearWith:
+                - snps
+                - response
+                - subpop
+                - showMissing
+                - rmSnpMissing
               columns:
                 - {name: genotype,     title: Genotype,           type: text}
                 - {name: stat,         title: 'N (%)',            type: text}
@@ -110,6 +134,12 @@ items:
               title: Hardy-Weinberg Equilibrium
               type: Table
               visible: (hweTest)
+              clearWith:
+                - snps
+                - response
+                - subpop
+                - showMissing
+                - rmSnpMissing
               columns:
                 - {name: group,   title: Group,   type: text}
                 - {name: n11,     title: AA,      type: integer}
@@ -132,6 +162,7 @@ items:
             - covariates
             - subpop
             - missingnessThreshold
+            - rmSnpMissing
 
   # ══════════════════════════════════════════════════════════════════════════
   # Tab 2: Association results
@@ -153,12 +184,25 @@ items:
             - name: typingRate
               title: ''
               type: Html
-              visible: true
+              visible: false
 
             - name: assocTable
               title: Association with Response
               type: Table
               visible: (snpAssoc && (modelCodominant || modelDominant || modelRecessive || modelOverdominant || modelLogAdditive))
+              clearWith:
+                - snps
+                - response
+                - covariates
+                - responseType
+                - modelCodominant
+                - modelDominant
+                - modelRecessive
+                - modelOverdominant
+                - modelLogAdditive
+                - ciWidth
+                - showAIC
+                - rmSnpMissing
               columns:
                 - {name: model,    title: Model,     type: text}
                 - {name: genotype, title: Genotype,  type: text}
@@ -183,6 +227,20 @@ items:
                     title: SNP × Covariate Interaction
                     type: Table
                     visible: (snpInteraction && showInteractionTable)
+                    clearWith:
+                      - snps
+                      - response
+                      - covariates
+                      - responseType
+                      - modelCodominant
+                      - modelDominant
+                      - modelRecessive
+                      - modelOverdominant
+                      - modelLogAdditive
+                      - ciWidth
+                      - showAIC
+                      - interactionType
+                      - rmSnpMissing
                     columns:
                       - {name: model,  title: Model,    type: text}
                       - {name: term,   title: Term,     type: text}
@@ -205,6 +263,19 @@ items:
                     template:
                       title: $key
                       type: Table
+                      clearWith:
+                        - snps
+                        - response
+                        - covariates
+                        - responseType
+                        - modelCodominant
+                        - modelDominant
+                        - modelRecessive
+                        - modelOverdominant
+                        - modelLogAdditive
+                        - ciWidth
+                        - interactionType
+                        - rmSnpMissing
                       columns:
                         - {name: genotype, title: Genotype, type: text}
                         - {name: stat0,    title: Group 0,  type: text}
@@ -226,6 +297,19 @@ items:
                     template:
                       title: $key
                       type: Table
+                      clearWith:
+                        - snps
+                        - response
+                        - covariates
+                        - responseType
+                        - modelCodominant
+                        - modelDominant
+                        - modelRecessive
+                        - modelOverdominant
+                        - modelLogAdditive
+                        - ciWidth
+                        - interactionType
+                        - rmSnpMissing
                       columns:
                         - {name: level,  title: Level,    type: text}
                         - {name: stat0,  title: Group 0,  type: text}
@@ -247,6 +331,19 @@ items:
                     template:
                       title: $key
                       type: Table
+                      clearWith:
+                        - snps
+                        - response
+                        - covariates
+                        - responseType
+                        - modelCodominant
+                        - modelDominant
+                        - modelRecessive
+                        - modelOverdominant
+                        - modelLogAdditive
+                        - ciWidth
+                        - interactionType
+                        - rmSnpMissing
                       columns:
                         - {name: genotype, title: Genotype, type: text}
                         - {name: stat0,    title: Group 0,  type: text}
@@ -273,6 +370,10 @@ items:
             title: Pairwise LD
             type: Table
             visible: (ldAnalysis)
+            clearWith:
+              - snps
+              - ldMetric
+              - rmSnpMissing
             columns:
               - {name: snp1,   title: SNP 1,   type: text}
               - {name: snp2,   title: SNP 2,   type: text}
@@ -285,6 +386,10 @@ items:
             title: LD Matrix
             type: Table
             visible: (ldMatrix)
+            clearWith:
+              - snps
+              - ldMetric
+              - rmSnpMissing
             columns:
               - {name: snp, title: SNP, type: text}
 
@@ -295,6 +400,10 @@ items:
             renderFun: .render_ld_plot
             width: 500
             height: 450
+            clearWith:
+              - snps
+              - ldMetric
+              - rmSnpMissing
 
       # ── Haplotype analysis ──────────────────────────────────────────────
       - name: haploGroup
@@ -306,6 +415,12 @@ items:
             title: Haplotype Frequencies
             type: Table
             visible: (haploFreq)
+            clearWith:
+              - snps
+              - response
+              - subpop
+              - haploFreqMin
+              - rmSnpMissing
             columns:
               - {name: haplotype, title: Haplotype, type: text}
               - {name: freq,      title: Frequency, type: number, format: zto}
@@ -316,6 +431,14 @@ items:
             title: Haplotype Association
             type: Table
             visible: (haploAssoc)
+            clearWith:
+              - snps
+              - response
+              - covariates
+              - responseType
+              - ciWidth
+              - haploFreqMin
+              - rmSnpMissing
             columns:
               - {name: haplotype, title: Haplotype, type: text}
               - {name: freq,      title: Frequency, type: number, format: zto}
@@ -328,6 +451,14 @@ items:
             title: Haplotype × Covariate Interaction (cross-classification)
             type: Table
             visible: (haploInteraction)
+            clearWith:
+              - snps
+              - response
+              - covariates
+              - responseType
+              - ciWidth
+              - haploFreqMin
+              - rmSnpMissing
             columns:
               - {name: term, title: Haplotype, type: text}
               - {name: freq, title: Frequency, type: number, format: zto}
@@ -336,6 +467,14 @@ items:
             title: Haplotype Effect within Covariate Levels
             type: Table
             visible: (haploInteraction)
+            clearWith:
+              - snps
+              - response
+              - covariates
+              - responseType
+              - ciWidth
+              - haploFreqMin
+              - rmSnpMissing
             columns:
               - {name: term, title: Haplotype, type: text}
               - {name: freq, title: Frequency, type: number, format: zto}
@@ -344,6 +483,14 @@ items:
             title: Covariate Effect within Haplotypes
             type: Table
             visible: (haploInteraction)
+            clearWith:
+              - snps
+              - response
+              - covariates
+              - responseType
+              - ciWidth
+              - haploFreqMin
+              - rmSnpMissing
             columns:
               - {name: term, title: Haplotype, type: text}
               - {name: freq, title: Frequency, type: number, format: zto}
