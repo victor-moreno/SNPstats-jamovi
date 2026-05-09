@@ -38,18 +38,39 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
     .init = function() {
       private$.miss_cache <- list()
 
-      # Always reset group visibility
+      # ── Hide every output object at startup ──────────────────────────────
+      # Groups (also hides their children)
       self$results$descGroup$covDescGroup$setVisible(FALSE)
       self$results$descGroup$snpSummaryTablesGroup$setVisible(FALSE)
       self$results$ldHaploGroup$ldGroup$setVisible(FALSE)
       self$results$ldHaploGroup$haploGroup$setVisible(FALSE)
 
+      # Top-level descriptive tables / plot
+      self$results$descGroup$snpSummaryTablesGroup$snpSummaryTable$setVisible(FALSE)
+      self$results$descGroup$missingnessPlot$setVisible(FALSE)
+
+      # LD / Haplotype tables
+      self$results$ldHaploGroup$ldGroup$ldTable$setVisible(FALSE)
+      self$results$ldHaploGroup$ldGroup$ldMatrixTable$setVisible(FALSE)
+      self$results$ldHaploGroup$ldGroup$ldPlotImage$setVisible(FALSE)
+      self$results$ldHaploGroup$haploGroup$haploFreqTable$setVisible(FALSE)
+      self$results$ldHaploGroup$haploGroup$haploAssocTable$setVisible(FALSE)
+      self$results$ldHaploGroup$haploGroup$haploInteractionTable$setVisible(FALSE)
+      self$results$ldHaploGroup$haploGroup$haploCondCovarTable$setVisible(FALSE)
+      self$results$ldHaploGroup$haploGroup$haploCondHaploTable$setVisible(FALSE)
+
       snp_names <- self$options$snps
       if (length(snp_names) == 0) return()
 
-      # Descriptive per-SNP array
+      # Descriptive per-SNP array: items added here, per-item tables hidden
       desc_arr <- self$results$descGroup$descSnpResults
-      for (nm in snp_names) desc_arr$addItem(key = nm)
+      for (nm in snp_names) {
+        desc_arr$addItem(key = nm)
+        it <- desc_arr$get(key = nm)
+        it$allFreqTable$setVisible(FALSE)
+        it$genoFreqTable$setVisible(FALSE)
+        it$hweTable$setVisible(FALSE)
+      }
 
       # Association per-SNP array
       opts         <- self$options
@@ -60,9 +81,17 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                         logadditive = "Log-additive")
       for (nm in snp_names) {
         assoc_arr$addItem(key = nm)
+        assoc_arr$get(key = nm)$assocTable$setVisible(FALSE)
         if (isTRUE(opts$snpInteraction) && length(int_models) > 0) {
           int_arr <- assoc_arr$get(key = nm)$interactionResults
-          for (mdl in int_models) int_arr$addItem(key = model_labels[[mdl]])
+          for (mdl in int_models) {
+            int_arr$addItem(key = model_labels[[mdl]])
+            mdl_it <- int_arr$get(key = model_labels[[mdl]])
+            mdl_it$interactionTable$setVisible(FALSE)
+            mdl_it$stratByCovariate$setVisible(FALSE)
+            mdl_it$stratByGenotype$setVisible(FALSE)
+            mdl_it$crossClassTable$setVisible(FALSE)
+          }
         }
       }
     },
@@ -176,18 +205,21 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         run_subpop <- FALSE
 
       # ── Covariate descriptives ────────────────────────────────────────
-      if (run_covDesc && (!is.null(cov_df) || !is.null(response_raw))){
+      if (run_covDesc && !is.null(cov_df)) {
         res$covDescGroup$setVisible(TRUE)
+        res$covDescGroup$covDescTable$setVisible(TRUE)
         private$.run_cov_desc(cov_df, response_raw, response_type, run_subpop,
                               opts$response, data, snp_vars, run_rmSnpMissing)
       }
+
       # ── SNP summary table ─────────────────────────────────────────────
       if (run_snpSummary) {
-        res$snpSummaryTablesGroup$setVisible(run_snpSummary && length(snp_vars) > 0)
+        res$snpSummaryTablesGroup$setVisible(TRUE)
+        res$snpSummaryTablesGroup$snpSummaryTable$setVisible(TRUE)
         private$.fill_snp_summary(data, snp_vars, response_raw, response_type,
                                   run_subpop, cov_df)
       }
-      
+
       # ── Per-SNP descriptives ──────────────────────────────────────────
       null_pat               <- "^0[/|>]0$|^00$"
       total_null_across_snps <- 0L
@@ -254,24 +286,30 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         snp_summary_cc <- summary(geno_obj_cc)
         ref            <- get_ref_genotype(geno_obj_cc, user_levels)
 
-        if (run_allFreq)
+        if (run_allFreq) {
+          item$allFreqTable$setVisible(TRUE)
           private$.fill_allele_freq(item$allFreqTable, snp_summary_cc, snp_nm,
                                     resp_raw_cc, run_subpop, response_type, snp_raw_cc,
                                     run_showMissing, n_miss_by_level,
                                     n_total_eligible, total_missing,
                                     user_levels = user_levels)
-        if (run_genoFreq)
+        }
+        if (run_genoFreq) {
+          item$genoFreqTable$setVisible(TRUE)
           private$.fill_geno_freq(item$genoFreqTable, snp_summary_cc, ref,
                                   geno_obj_cc, response_cc, response_type,
                                   run_subpop, resp_raw_cc,
                                   run_showMissing, n_miss_by_level,
                                   n_total_eligible, total_missing,
                                   user_levels = user_levels)
-        if (run_hweTest)
+        }
+        if (run_hweTest) {
+          item$hweTable$setVisible(TRUE)
           private$.fill_hwe(item$hweTable, geno_obj_cc, snp_nm,
                             resp_raw_cc, run_subpop,
                             run_showMissing, n_miss_by_level, n_total_eligible, total_missing,
                             ref = ref, user_levels = user_levels)
+        }
       }
 
       # Missingness plot visibility
@@ -350,7 +388,6 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           if (do_strat) {
             cnt <- get_counts(mask)
             for (i in seq_along(cnt)) row_vals[[paste0("stat_g", i-1)]] <- fmt_cat(cnt[i], sum(mask))
-            row_vals$pval <- ''
           }
           tbl$addRow(rowKey = response_var, values = row_vals)
           n_miss <- sum(!valid_resp)
@@ -377,7 +414,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             pval <- if (do_strat) tryCatch({
               ct <- table(col[valid_resp], grp_fac[valid_resp])
               suppressWarnings(chisq.test(ct)$p.value)
-            }, error = function(e) '') else ''
+            }, error = function(e) NA_real_) else NA_real_
             first <- TRUE
             for (lvl in lvls) {
               mask <- !is.na(col) & col == lvl
@@ -410,7 +447,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                 groups <- split(col[valid_resp], grp_fac[valid_resp])
                 if (length(groups) == 2) t.test(groups[[1]], groups[[2]])$p.value
                 else summary(aov(col ~ grp_fac))[[1]][["Pr(>F)"]][1]
-              }, error = function(e) '')
+              }, error = function(e) NA_real_)
             }
             tbl$addRow(rowKey = v, values = row_vals)
             if (n_miss > 0) {
@@ -828,10 +865,12 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           "<b>Typed samples:</b> %d / %d (%.1f%%)",
           sum(snp_complete_mask), n_rows, sum(snp_complete_mask) / n_rows * 100))
 
-        if (run_snpAssoc)
+        if (run_snpAssoc) {
+          item$assocTable$setVisible(TRUE)
           private$.fill_assoc(item$assocTable, snp_raw_cc, ref, response_cc,
                               cov_df_cc, response_type, opts,
                               n_miss = n_miss_assoc, user_levels, response_raw_cc, snp_nm)
+        }
 
         if (run_snpInteraction && !is.null(cov_df_cc) && ncol(cov_df_cc) >= 1) {
           interaction_var <- names(cov_df_cc)[1]
@@ -845,13 +884,16 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             mdl_label <- model_labels[[mdl]]
             mdl_item  <- item$interactionResults$get(key = mdl_label)
 
-            if (isTRUE(opts$showInteractionTable))
+            if (isTRUE(opts$showInteractionTable)) {
+              mdl_item$interactionTable$setVisible(TRUE)
               private$.fill_interaction(
                 mdl_item$interactionTable, snp_raw_cc, ref,
                 response_cc, cov_df_cc, interaction_var,
                 response_type, opts, mdl, user_levels, response_raw_cc, snp_nm)
+            }
 
             if (isTRUE(opts$showStratByCovariate)) {
+              mdl_item$stratByCovariate$setVisible(TRUE)
               mdl_item$stratByCovariateHeading$setContent(
                 paste0("<h3>Stratified by Covariate: ", int_lbl, "</h3>"))
               private$.fill_strat_by_covariate(
@@ -861,6 +903,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             }
 
             if (isTRUE(opts$showStratByGenotype)) {
+              mdl_item$stratByGenotype$setVisible(TRUE)
               mdl_item$stratByGenotypeHeading$setContent(
                 paste0("<h3>Stratified by Genotype: ", snp_nm, "</h3>"))
               private$.fill_strat_by_genotype(
@@ -870,6 +913,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             }
 
             if (isTRUE(opts$showCrossClassTable)) {
+              mdl_item$crossClassTable$setVisible(TRUE)
               mdl_item$crossClassHeading$setContent(
                 paste0("<h3>Cross-Classification: ", snp_nm, " \u00D7 ", int_lbl, "</h3>"))
               private$.fill_cross_class(
@@ -1558,8 +1602,6 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       }
 
       ld_res_grp    <- self$results$ldHaploGroup
-      ld_res_grp$ldGroup$setVisible(run_ldAnalysis || run_ldMatrix || run_ldPlot)
-      ld_res_grp$haploGroup$setVisible(run_haploFreq || run_haploAssoc || run_haploInteraction)
 
       # ── Parse genotypes ────────────────────────────────────────────────
       geno_list <- list()
@@ -1571,13 +1613,17 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       }
       if (length(geno_list) < 2) return()
 
-      if (run_ldAnalysis || run_ldMatrix || run_ldPlot)
+      if (run_ldAnalysis || run_ldMatrix || run_ldPlot) {
+        ld_res_grp$ldGroup$setVisible(TRUE)
         private$.run_ld(geno_list, opts, run_ldAnalysis, run_ldMatrix, run_ldPlot)
+      }
 
-      if (run_haploFreq || run_haploAssoc || run_haploInteraction)
+      if (run_haploFreq || run_haploAssoc || run_haploInteraction) {
+        ld_res_grp$haploGroup$setVisible(TRUE)
         private$.run_haplo(geno_list, data, response, response_raw, response_type,
                            cov_df, opts, run_haploFreq, run_haploAssoc,
                            run_haploInteraction, run_subpop, complete_mask)
+      }
     },
 
     # ════════════════════════════════════════════════════════════════════════
@@ -1596,6 +1642,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       }
       if (run_ldAnalysis) {
         tbl <- self$results$ldHaploGroup$ldGroup$ldTable
+        tbl$setVisible(TRUE)
         for (pair in pairs) {
           key    <- paste(pair, collapse = "___")
           ld_res <- ld_store[[key]]
@@ -1610,6 +1657,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       }
       if (run_ldMatrix) {
         mtbl   <- self$results$ldHaploGroup$ldGroup$ldMatrixTable
+        mtbl$setVisible(TRUE)
         metric <- opts$ldMetric
         for (nm in nms) {
           safe_nm <- gsub("[^A-Za-z0-9_]","_",nm)
@@ -1648,6 +1696,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         private$.ld_store  <- ld_store
         private$.ld_nms    <- nms
         private$.ld_metric <- opts$ldMetric
+        self$results$ldHaploGroup$ldGroup$ldPlotImage$setVisible(TRUE)
         self$results$ldHaploGroup$ldGroup$ldPlotImage$setState(
           list(ld_store = ld_store, nms = nms, metric = opts$ldMetric))
       }
@@ -1743,6 +1792,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
     .compute_haplo_freqs = function(geno_setup, response_raw, response_type, keep,
                                     n_miss, opts, run_subpop, snp_names, u_alleles) {
       tbl <- self$results$ldHaploGroup$haploGroup$haploFreqTable
+      tbl$setVisible(TRUE)
       tbl$setTitle("<b>Haplotype Frequencies</b>")
       do_strat_haplo   <- isTRUE(run_subpop) && !is.null(response_raw) &&
                           identical(response_type, "binary")
@@ -1830,6 +1880,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         })
       if (!is.null(haplo_fit)) {
         tbl <- self$results$ldHaploGroup$haploGroup$haploAssocTable
+        tbl$setVisible(TRUE)
         tbl$setTitle("<b>Haplotype Association</b>")
         tbl$getColumn("effect")$setTitle(if (response_type == "binary") "OR" else "\u03B2")
         null_formula_str <- if (!is.null(cov_df) && ncol(cov_df) > 0)
@@ -2035,6 +2086,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       }
       # Table 1: Cross-classification
       tbl_cross <- self$results$ldHaploGroup$haploGroup$haploInteractionTable
+      tbl_cross$setVisible(TRUE)
       tbl_cross$setTitle(paste0("<b>Haplotype \u00D7 ", int_var, " (cross-classification)</b>"))
       build_notes(tbl_cross)
       if (!is.na(p_inter)) tbl_cross$setNote(note = paste0("Interaction p-value (LRT): ", format.pval(p_inter, digits = 3)), key = "lrt_inter")
@@ -2078,6 +2130,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       }
       # Table 2: Haplotype effect conditional on covariate
       tbl_cond_covar <- self$results$ldHaploGroup$haploGroup$haploCondCovarTable
+      tbl_cond_covar$setVisible(TRUE)
       tbl_cond_covar$setTitle(paste0("<b>Haplotype effect within ", int_var, " levels</b>"))
       build_notes(tbl_cond_covar)
       for (lvl in covar_levels)
@@ -2105,6 +2158,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       if (!is.na(p_inter)) tbl_cond_covar$setNote(note = paste0("Interaction p-value (LRT): ", format.pval(p_inter, digits = 3)), key = "lrt_inter2")
       # Table 3: Covariate effect conditional on haplotype
       tbl_cond_haplo <- self$results$ldHaploGroup$haploGroup$haploCondHaploTable
+      tbl_cond_haplo$setVisible(TRUE)
       tbl_cond_haplo$setTitle(paste0("<b>", int_var, " effect within haplotypes</b>"))
       build_notes(tbl_cond_haplo)
       non_ref_covar_levels <- covar_levels[-1]
