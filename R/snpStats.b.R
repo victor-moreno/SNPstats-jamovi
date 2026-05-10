@@ -1776,6 +1776,7 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
     ci_mat   <- tryCatch(confint(fit, level = ci_width / 100),
                          error = function(e) matrix(NA, nrow = nrow(coefs), ncol = 2))
     aic_val  <- AIC(fit)
+    bic_val  <- BIC(fit)
     all_rows <- rownames(coefs)
     inter_rows_idx <- grep(":", all_rows)
     snp_rows_idx   <- setdiff(grep("^snp", all_rows), inter_rows_idx)
@@ -1801,11 +1802,11 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
       if (response_type == "binary")
         list(term = term, effect = .exp_or(beta), ci_low = .exp_or(ci_lo), ci_high = .exp_or(ci_hi),
              pval = pval, pval_interaction = if (attach_p) p_inter else NA_real_,
-             aic = aic_val, row_type = row_type)
+             aic = aic_val, bic = bic_val, row_type = row_type)
       else
         list(term = term, effect = beta, ci_low = ci_lo, ci_high = ci_hi,
              pval = pval, pval_interaction = if (attach_p) p_inter else NA_real_,
-             aic = aic_val, row_type = row_type)
+             aic = aic_val, bic = bic_val, row_type = row_type)
     })
     attr(result, "pval_interaction") <- p_inter
     result
@@ -1825,6 +1826,7 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
       lrt      <- tryCatch(anova(fit_main, fit_int, test = lrtest), error = function(e) NULL)
       p_inter  <- if (!is.null(lrt)) lrt[2, lrtest_label] else NA_real_
       aic_val  <- AIC(fit_int)
+      bic_val  <- BIC(fit_int)
       coefs    <- summary(fit_int)$coefficients
       ci       <- tryCatch(confint(fit_int, level = ci_width / 100),
                            error = function(e) matrix(NA, nrow = nrow(coefs), ncol = 2,
@@ -1853,11 +1855,11 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
         if (response_type == "binary")
           list(term = all_rows[r], effect = .exp_or(beta), ci_low = .exp_or(ci_lo), ci_high = .exp_or(ci_hi),
                pval = pval, pval_interaction = if (is_inter) p_inter else NA_real_,
-               aic = aic_val, is_first = (r == keep_rows[1]), row_type = row_type)
+               aic = aic_val, bic = bic_val, is_first = (r == keep_rows[1]), row_type = row_type)
         else
           list(term = all_rows[r], effect = beta, ci_low = ci_lo, ci_high = ci_hi,
                pval = pval, pval_interaction = if (is_inter) p_inter else NA_real_,
-               aic = aic_val, is_first = (r == keep_rows[1]), row_type = row_type)
+               aic = aic_val, bic = bic_val, is_first = (r == keep_rows[1]), row_type = row_type)
       })
       attr(result, "pval_interaction") <- p_inter
       result
@@ -2003,6 +2005,7 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
     ci_mat   <- tryCatch(confint(fit, level = ci_width / 100),
                          error = function(e) matrix(NA, nrow = nrow(coefs), ncol = 2))
     aic_val  <- AIC(fit)
+    bic_val  <- BIC(fit)
     all_rows <- rownames(coefs)
     inter_rows_idx <- grep(":", all_rows)
     snp_rows_idx   <- setdiff(grep("^snp", all_rows), inter_rows_idx)
@@ -2028,11 +2031,11 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
       if (response_type == "binary")
         list(term = term, effect = .exp_or(beta), ci_low = .exp_or(ci_lo), ci_high = .exp_or(ci_hi),
              pval = pval, pval_interaction = if (attach_p) p_inter else NA_real_,
-             aic = aic_val, row_type = row_type)
+             aic = aic_val, bic = bic_val, row_type = row_type)
       else
         list(term = term, effect = beta, ci_low = ci_lo, ci_high = ci_hi,
              pval = pval, pval_interaction = if (attach_p) p_inter else NA_real_,
-             aic = aic_val, row_type = row_type)
+             aic = aic_val, bic = bic_val, row_type = row_type)
     })
     attr(result, "pval_interaction") <- p_inter
     result
@@ -2052,6 +2055,7 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
       lrt      <- tryCatch(anova(fit_main, fit_int, test = lrtest), error = function(e) NULL)
       p_inter  <- if (!is.null(lrt)) lrt[2, lrtest_label] else NA_real_
       aic_val  <- AIC(fit_int)
+      bic_val  <- BIC(fit_int)
       coefs    <- summary(fit_int)$coefficients
       ci       <- tryCatch(confint(fit_int, level = ci_width / 100),
                            error = function(e) matrix(NA, nrow = nrow(coefs), ncol = 2,
@@ -2080,11 +2084,11 @@ fit_interaction_model <- function(snp_enc, response, covariates_df,
         if (response_type == "binary")
           list(term = all_rows[r], effect = .exp_or(beta), ci_low = .exp_or(ci_lo), ci_high = .exp_or(ci_hi),
                pval = pval, pval_interaction = if (is_inter) p_inter else NA_real_,
-               aic = aic_val, is_first = (r == keep_rows[1]), row_type = row_type)
+               aic = aic_val, bic = bic_val, is_first = (r == keep_rows[1]), row_type = row_type)
         else
           list(term = all_rows[r], effect = beta, ci_low = ci_lo, ci_high = ci_hi,
                pval = pval, pval_interaction = if (is_inter) p_inter else NA_real_,
-               aic = aic_val, is_first = (r == keep_rows[1]), row_type = row_type)
+               aic = aic_val, bic = bic_val, is_first = (r == keep_rows[1]), row_type = row_type)
       })
       attr(result, "pval_interaction") <- p_inter
       result
