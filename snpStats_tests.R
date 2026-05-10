@@ -15,7 +15,7 @@ names(data)
 # [64] "rs1800469"  "rs2423279"  "rs961253"   "rs6066825"  "rs6061231"  "rs4925386"  "rs4813802" 
 # [71] "rs5934683"
 
-# function (data, response = NULL, snps, covariates = NULL, responseType = "auto", 
+# function (data, response = NULL, snps = NULL, covariates = NULL, responseType = "auto", 
 #     subpop = FALSE, covDesc = FALSE, rmSnpMissing = FALSE, snpSummary = TRUE, 
 #     allFreq = FALSE, genoFreq = FALSE, hweTest = FALSE, showMissing = FALSE, 
 #     showMissingnessPlot = FALSE, missingnessThreshold = 0.1, 
@@ -30,23 +30,19 @@ names(data)
 
 data<-read.delim("data/CRCgenet-SNPs.tsv", header=TRUE, stringsAsFactors = TRUE)
 
-SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:9], covariates = c("sex", "age","bmi","bmi4"), responseType = "auto", 
-        covDesc = TRUE, snpSummary = FALSE)
+SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:9], covariates = c("sex", "age","bmi","bmi4"), covDesc = TRUE, snpSummary = FALSE)
 
-SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:9], covariates = c("sex", "age","bmi","bmi4"), responseType = "auto", 
-        covDesc = TRUE, subpop = TRUE, snpSummary = FALSE)
+SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:9], covariates = c("sex", "age","bmi","bmi4"), covDesc = TRUE, subpop = TRUE, snpSummary = FALSE)
 
+SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:9], covariates = c("sex", "age","bmi","bmi4"), snpSummary = TRUE, covDesc = FALSE)
 
+SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:9], covariates = c("sex", "age","bmi","bmi4"), snpSummary = TRUE, subpop = TRUE)
 
 SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:9], covariates = c("sex", "age"), responseType = "auto", 
         snpSummary = TRUE) #, covDesc = TRUE, subpop = TRUE)
 
 SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:9], covariates = c("sex", "age"), 
-        snpSummary = TRUE, subpop = TRUE)
-
-
-
-
+       allFreq = TRUE, genoFreq = TRUE, hweTest = TRUE, subpop = TRUE)
 
 
 SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:9], covariates = c("sex", "age","bmi","bmi4"), responseType = "auto", 

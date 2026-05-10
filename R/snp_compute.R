@@ -59,62 +59,69 @@ fmt3 <- function(x) {
 snp_prepare <- function(data, snps, response = NULL, covariates = NULL,
                         response_type = "auto", rm_snp_missing = FALSE) {
 
-  # ── 1. Validate SNP columns ─────────────────────────────────────────────
-  val      <- validate_snp_vars(snps, data)
-  snp_vars <- val$valid_snps
-
-  # ── 2. Response ─────────────────────────────────────────────────────────
+  # ── Response ─────────────────────────────────────────────────────────
   response_var <- if (!is.null(response) && nchar(response) > 0) response else NULL
   response_raw <- if (!is.null(response_var)) data[[response_var]] else NULL
   rtype        <- detect_response_type(response_raw, response_type)
   response_enc <- prepare_response(response_raw, rtype)
 
-  # ── 3. Covariates ────────────────────────────────────────────────────────
+  # ── Covariates ────────────────────────────────────────────────────────
   cov_df <- prepare_covariates(data, covariates %||% character(0))
   if (is.null(cov_df) && !is.null(response_raw))
     cov_df <- data.frame(row.names = seq_len(nrow(data)))
 
-  # ── 4. Complete-case mask ────────────────────────────────────────────────
+  # ── Complete-case mask ────────────────────────────────────────────────
   n_rows        <- nrow(data)
   complete_mask <- rep(TRUE, n_rows)
   if (!is.null(response_enc))                 complete_mask <- complete_mask & !is.na(response_enc)
   if (!is.null(cov_df) && ncol(cov_df) > 0)  complete_mask <- complete_mask & complete.cases(cov_df)
 
-  # ── 5. Optional: additionally exclude rows missing any SNP ──────────────
-  if (isTRUE(rm_snp_missing) && length(snp_vars) > 0) {
-    snp_mat <- as.data.frame(
-      lapply(data[, snp_vars, drop = FALSE],
-             function(col) clean_null_alleles(as.character(col))),
-      stringsAsFactors = FALSE)
-    complete_mask <- complete_mask & complete.cases(snp_mat)
-  }
+  # ── SNP columns ─────────────────────────────────────────────
+  if (length(snps) == 0) {
+    val<- list(bad_html = "No SNPs specified — skipping SNP processing")
+    snp_data <- character(0)
+    snp_vars <- character(0)
+  } else {
+    # ── Validate SNP columns ─────────────────────────────────────────────
+    val      <- validate_snp_vars(snps, data)
+    snp_vars <- val$valid_snps
 
-  # ── 6. Per-SNP: clean → parse → subset to complete cases ────────────────
-  snp_data <- lapply(setNames(snp_vars, snp_vars), function(nm) {
-    raw         <- data[[nm]]
-    user_levels <- get_snp_level_order(raw)           # from original factor
-    clean       <- clean_null_alleles(as.character(raw))
-    snp_mask    <- complete_mask & !is.na(clean)      # per-SNP complete-case
-    clean_cc    <- clean[snp_mask]
-    geno_cc     <- parse_genotype(clean_cc, user_levels)
-    if (is.null(geno_cc)) return(NULL)
-    ref         <- get_ref_genotype(geno_cc, user_levels)
-    summary_cc  <- summary(geno_cc)
-    list(
-      raw         = raw,
-      clean       = clean,
-      user_levels = user_levels,
-      snp_mask    = snp_mask,
-      clean_cc    = clean_cc,
-      geno_cc     = geno_cc,
-      ref         = ref,
-      summary_cc  = summary_cc,
-      n_typed     = sum(snp_mask),
-      n_missing   = sum(!is.na(clean) & complete_mask & !snp_mask) +
-                    sum(is.na(clean)  & complete_mask)
-    )
-  })
-  snp_data <- Filter(Negate(is.null), snp_data)
+    # ── Optional: additionally exclude rows missing any SNP ──────────────
+    if (isTRUE(rm_snp_missing) && length(snp_vars) > 0) {
+      snp_mat <- as.data.frame(
+        lapply(data[, snp_vars, drop = FALSE],
+              function(col) clean_null_alleles(as.character(col))),
+        stringsAsFactors = FALSE)
+      complete_mask <- complete_mask & complete.cases(snp_mat)
+    }
+
+    # ── Per-SNP: clean → parse → subset to complete cases ────────────────
+    snp_data <- lapply(setNames(snp_vars, snp_vars), function(nm) {
+      raw         <- data[[nm]]
+      user_levels <- get_snp_level_order(raw)           # from original factor
+      clean       <- clean_null_alleles(as.character(raw))
+      snp_mask    <- complete_mask & !is.na(clean)      # per-SNP complete-case
+      clean_cc    <- clean[snp_mask]
+      geno_cc     <- parse_genotype(clean_cc, user_levels)
+      if (is.null(geno_cc)) return(NULL)
+      ref         <- get_ref_genotype(geno_cc, user_levels)
+      summary_cc  <- summary(geno_cc)
+      list(
+        raw         = raw,
+        clean       = clean,
+        user_levels = user_levels,
+        snp_mask    = snp_mask,
+        clean_cc    = clean_cc,
+        geno_cc     = geno_cc,
+        ref         = ref,
+        summary_cc  = summary_cc,
+        n_typed     = sum(snp_mask),
+        n_missing   = sum(!is.na(clean) & complete_mask & !snp_mask) +
+                      sum(is.na(clean)  & complete_mask)
+      )
+    })
+    snp_data <- Filter(Negate(is.null), snp_data)
+  } 
 
   list(
     data          = data,

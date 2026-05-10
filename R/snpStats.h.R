@@ -67,8 +67,8 @@ snpStatsOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 suggested=list(
                     "nominal"),
                 permitted=list(
-                    "factor",
-                    "id"))
+                    "factor"),
+                default=NULL)
             private$..covariates <- jmvcore::OptionVariables$new(
                 "covariates",
                 covariates,
@@ -1350,7 +1350,7 @@ snpStatsBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 snpStats <- function(
     data,
     response = NULL,
-    snps,
+    snps = NULL,
     covariates = NULL,
     responseType = "auto",
     subpop = FALSE,
@@ -1401,6 +1401,7 @@ snpStats <- function(
             `if`( ! missing(snps), snps, NULL),
             `if`( ! missing(covariates), covariates, NULL))
 
+    for (v in snps) if (v %in% names(data)) data[[v]] <- as.factor(data[[v]])
 
     options <- snpStatsOptions$new(
         response = response,

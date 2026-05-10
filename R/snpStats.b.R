@@ -105,13 +105,6 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
       opts <- self$options
 
-      # if (length(opts$snps) == 0) {
-      #   self$results$validationMsg$setContent(
-      #     "<p style='color:red;'>Please add at least one SNP variable.</p>")
-      #   self$results$validationMsg$setVisible(TRUE)
-      #   return()
-      # }
-
       # ── All preprocessing in one place ────────────────────────────────────
       #' @return Named list with elements:
       #'   $data, $snp_vars, $snp_data (per-SNP parsed objects),
@@ -135,7 +128,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       }
 
       # activate visualization
-
+      #
       # ── Descriptive ───────────────────────────────────────────────────────
       private$.run_descriptive(prep, opts)
 
@@ -143,10 +136,12 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         self$results$descGroup$setVisible(TRUE)       
       }
       # Covariate descriptives subgroup
-      if(opts$covDesc && !is.null(prep$cov_df) && ncol(prep$cov_df) > 0) {
+      if(isTRUE(opts$covDesc) && !is.null(prep$cov_df) && ncol(prep$cov_df) > 0) {
         self$results$descGroup$covDescGroup$setVisible(TRUE)
-      }
-
+      } # else{
+      #   self$results$descGroup$covDescGroup$setVisible(FALSE)
+      # } 
+      
       # ── Association ───────────────────────────────────────────────────────
       if (isTRUE(opts$snpAssoc) || isTRUE(opts$snpInteraction)) {
         self$results$assocGroup$setVisible(TRUE)
@@ -246,7 +241,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           if (n_total_eligible > 0) n_typed / n_total_eligible * 100 else 0)
         if (total_missing > 0)
           typing_html <- paste0(typing_html, sprintf(
-            " &nbsp;&mdash;&nbsp; <b>Missing SNP:</b> %d (%.1f%%)",
+            " ── <b>Missing SNP:</b> %d (%.1f%%)",
             total_missing,
             if (n_total_eligible > 0) total_missing / n_total_eligible * 100 else 0))
         item$typingRate$setContent(typing_html)
@@ -362,9 +357,9 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           group      = as.character(result[["group"]][i]),
           n          = as.integer(result[["n"]][i]),
           missing    = if (is.na(result[["missing"]][i])) '' else as.integer(result[["missing"]][i]),
-          maf        = as.numeric(result[["maf"]][i]),
+          maf        = fmt3(result[["maf"]][i]),
           genoCounts = as.character(result[["geno_counts"]][i]),
-          hwePval    = result[["hwe_pval"]][i]))
+          hwePval    = fmt_pval(result[["hwe_pval"]][i])))
       }
       parts <- c(if (!is.null(prep$cov_df) && ncol(prep$cov_df)>0) "covariates",
                  if (!is.null(prep$response_raw)) "response")
@@ -430,7 +425,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           n12     = as.integer(rows[["n12"]][i]),
           n22     = as.integer(rows[["n22"]][i]),
           missing = if (is.na(rows[["missing"]][i])) '' else as.integer(rows[["missing"]][i]),
-          pval    = rows[["pval"]][i]))
+          pval    = fmt_pval(rows[["pval"]][i])))
       }
     },
 
@@ -471,7 +466,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           if (prep$n_rows > 0) sd$n_typed / prep$n_rows * 100 else 0)
         if (n_miss > 0)
           typing_html <- paste0(typing_html, sprintf(
-            " &nbsp;&mdash;&nbsp; <b>Missing:</b> %d", n_miss))
+            " ── <b>Missing:</b> %d", n_miss))
         item$typingRate$setContent(typing_html)
 
         # Main association table
@@ -576,12 +571,12 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           genotype = as.character(rows[["genotype"]][i]),
           stat0    = as.character(rows[["stat0"]][i]),
           stat1    = as.character(rows[["stat1"]][i]),
-          effect   = rows[["effect"]][i],
-          ciLow    = rows[["ci_low"]][i],
-          ciHigh   = rows[["ci_high"]][i],
-          pval     = rows[["pval"]][i],
-          AIC      = rows[["aic"]][i],
-          BIC      = rows[["bic"]][i]))
+          effect   = fmt3(rows[["effect"]][i]),
+          ciLow    = fmt3(rows[["ci_low"]][i]),
+          ciHigh   = fmt3(rows[["ci_high"]][i]),
+          pval     = fmt_pval(rows[["pval"]][i]),
+          AIC      = fmt3(rows[["aic"]][i]),
+          BIC      = fmt3(rows[["bic"]][i])))
       }
     },
 
