@@ -13,7 +13,7 @@ snpStatsOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             subpop = FALSE,
             covDesc = FALSE,
             rmSnpMissing = FALSE,
-            snpSummary = TRUE,
+            snpSummary = FALSE,
             allFreq = FALSE,
             genoFreq = FALSE,
             hweTest = FALSE,
@@ -103,7 +103,7 @@ snpStatsOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             private$..snpSummary <- jmvcore::OptionBool$new(
                 "snpSummary",
                 snpSummary,
-                default=TRUE)
+                default=FALSE)
             private$..allFreq <- jmvcore::OptionBool$new(
                 "allFreq",
                 allFreq,
@@ -1356,7 +1356,7 @@ snpStats <- function(
     subpop = FALSE,
     covDesc = FALSE,
     rmSnpMissing = FALSE,
-    snpSummary = TRUE,
+    snpSummary = FALSE,
     allFreq = FALSE,
     genoFreq = FALSE,
     hweTest = FALSE,

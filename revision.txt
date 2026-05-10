@@ -1,4 +1,4 @@
-6:50
+7:30 PM,
 
 refactor code so all preprocesing is encapsulated and snpStats exported function returns the same results as .run in jamovi
 

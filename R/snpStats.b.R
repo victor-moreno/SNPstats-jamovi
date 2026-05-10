@@ -21,48 +21,37 @@ safe_rhs <- function(nms) paste(sapply(nms, safe_term), collapse = " + ")
 # snpStatsClass
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
   "snpStatsClass",
   inherit = snpStatsBase,
   private = list(
 
-    # ── Private state ───────────────────────────────────────────────────────
+    # ── Private state ────────────────────────────────────────────────────────
     .miss_cache = NULL,   # populated during descriptive run; read by .plotMissingness
     .ld_store   = NULL,   # LD heatmap data
     .ld_nms     = NULL,
     .ld_metric  = NULL,
 
-    # ════════════════════════════════════════════════════════════════════════
+    # ══════════════════════════════════════════════════════════════════════════
     # .init
-    # ════════════════════════════════════════════════════════════════════════
+    # ══════════════════════════════════════════════════════════════════════════
     .init = function() {
       private$.miss_cache <- list()
 
-      # ── Hide every output object at startup ──────────────────────────────
-      # Groups (also hides their children)
+      # ── Hide every output object at startup ───────────────────────────────
+      self$results$descGroup$setVisible(FALSE)
+      self$results$assocGroup$setVisible(FALSE)
+
       self$results$descGroup$covDescGroup$setVisible(FALSE)
       self$results$descGroup$snpSummaryTablesGroup$setVisible(FALSE)
-      self$results$ldHaploGroup$ldGroup$setVisible(FALSE)
-      self$results$ldHaploGroup$haploGroup$setVisible(FALSE)
-
-      # Top-level descriptive tables / plot
       self$results$descGroup$snpSummaryTablesGroup$snpSummaryTable$setVisible(FALSE)
       self$results$descGroup$missingnessPlot$setVisible(FALSE)
-
-      # LD / Haplotype tables
-      self$results$ldHaploGroup$ldGroup$ldTable$setVisible(FALSE)
-      self$results$ldHaploGroup$ldGroup$ldMatrixTable$setVisible(FALSE)
-      self$results$ldHaploGroup$ldGroup$ldPlotImage$setVisible(FALSE)
-      self$results$ldHaploGroup$haploGroup$haploFreqTable$setVisible(FALSE)
-      self$results$ldHaploGroup$haploGroup$haploAssocTable$setVisible(FALSE)
-      self$results$ldHaploGroup$haploGroup$haploInteractionTable$setVisible(FALSE)
-      self$results$ldHaploGroup$haploGroup$haploCondCovarTable$setVisible(FALSE)
-      self$results$ldHaploGroup$haploGroup$haploCondHaploTable$setVisible(FALSE)
 
       snp_names <- self$options$snps
       if (length(snp_names) == 0) return()
 
-      # Descriptive per-SNP array: items added here, per-item tables hidden
+      # Descriptive per-SNP array: items added here, tables hidden per-item
       desc_arr <- self$results$descGroup$descSnpResults
       for (nm in snp_names) {
         desc_arr$addItem(key = nm)
@@ -94,180 +83,164 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           }
         }
       }
+
+      # haplotype / LD group
+      # self$results$ldHaploGroup$ldGroup$setVisible(FALSE)
+      # self$results$ldHaploGroup$haploGroup$setVisible(FALSE)
+      # self$results$ldHaploGroup$ldGroup$ldTable$setVisible(FALSE)
+      # self$results$ldHaploGroup$ldGroup$ldMatrixTable$setVisible(FALSE)
+      # self$results$ldHaploGroup$ldGroup$ldPlotImage$setVisible(FALSE)
+      # self$results$ldHaploGroup$haploGroup$haploFreqTable$setVisible(FALSE)
+      # self$results$ldHaploGroup$haploGroup$haploAssocTable$setVisible(FALSE)
+      # self$results$ldHaploGroup$haploGroup$haploInteractionTable$setVisible(FALSE)
+      # self$results$ldHaploGroup$haploGroup$haploCondCovarTable$setVisible(FALSE)
+      # self$results$ldHaploGroup$haploGroup$haploCondHaploTable$setVisible(FALSE)
+
     },
 
-    # ════════════════════════════════════════════════════════════════════════
-    # .run  — runs all enabled analyses based on option flags
-    # ════════════════════════════════════════════════════════════════════════
+    # ══════════════════════════════════════════════════════════════════════════
+    # .run  — single entry point; delegates ALL preprocessing to snp_prepare()
+    # ══════════════════════════════════════════════════════════════════════════
     .run = function() {
-      data           <- self$data
-      opts           <- self$options
-      response_var   <- opts$response
-      snp_vars       <- opts$snps
-      covariate_vars <- opts$covariates
 
-      # ── Shared validation ──────────────────────────────────────────────
-      if (length(snp_vars) == 0) {
-        self$results$validationMsg$setContent(
-          "<p style='color:red;'>Please add at least one SNP variable.</p>")
-        self$results$validationMsg$setVisible(TRUE)
-        return()
-      }
-      val      <- validate_snp_vars(snp_vars, data)
-      snp_vars <- val$valid_snps
-      if (nchar(val$bad_html) > 0) {
-        self$results$validationMsg$setContent(val$bad_html)
+      opts <- self$options
+
+      # if (length(opts$snps) == 0) {
+      #   self$results$validationMsg$setContent(
+      #     "<p style='color:red;'>Please add at least one SNP variable.</p>")
+      #   self$results$validationMsg$setVisible(TRUE)
+      #   return()
+      # }
+
+      # ── All preprocessing in one place ────────────────────────────────────
+      #' @return Named list with elements:
+      #'   $data, $snp_vars, $snp_data (per-SNP parsed objects),
+      #'   $response_var, $response_raw, $response_type, $response_enc,
+      #'   $cov_df, $complete_mask, $n_rows, $warnings
+      prep <- snp_prepare(
+        data           = self$data,
+        snps           = opts$snps,
+        response       = opts$response,
+        covariates     = opts$covariates,
+        response_type  = opts$responseType %||% "auto",
+        rm_snp_missing = isTRUE(opts$rmSnpMissing)
+      )
+
+      # Validation messages
+      if (nchar(prep$warnings) > 0) {
+        self$results$validationMsg$setContent(prep$warnings)
         self$results$validationMsg$setVisible(TRUE)
       } else {
         self$results$validationMsg$setVisible(FALSE)
       }
-      if (length(snp_vars) == 0) return()
 
-      # ── Shared data preparation ─────────────────────────────────────────
-      response_raw  <- if (!is.null(response_var) && response_var != "")
-                         data[[response_var]] else NULL
-      response_type <- detect_response_type(response_raw, opts$responseType)
-      response      <- prepare_response(response_raw, response_type)
-      cov_df        <- prepare_covariates(data, covariate_vars)
-      if (is.null(cov_df) && !is.null(response_raw))
-        cov_df <- data.frame(row.names = seq_len(nrow(data)))
+      # activate visualization
 
-      n_rows        <- nrow(data)
-      complete_mask <- rep(TRUE, n_rows)
-      if (!is.null(response))                        complete_mask <- complete_mask & !is.na(response)
-      if (!is.null(cov_df) && ncol(cov_df) > 0)     complete_mask <- complete_mask & complete.cases(cov_df)
+      # ── Descriptive ───────────────────────────────────────────────────────
+      private$.run_descriptive(prep, opts)
 
-      # ── Always run descriptive (gated internally by its option flags) ───
-      private$.run_descriptive(data, snp_vars, response_var, response_raw,
-                               response_type, response, cov_df,
-                               complete_mask, n_rows, opts)
+      if(isTRUE(opts$covDesc) || isTRUE(opts$snpSummary)) {
+        self$results$descGroup$setVisible(TRUE)       
+      }
+      # Covariate descriptives subgroup
+      if(opts$covDesc && !is.null(prep$cov_df) && ncol(prep$cov_df) > 0) {
+        self$results$descGroup$covDescGroup$setVisible(TRUE)
+      }
 
-      # ── Association: run only when at least one assoc option is ticked ──
-      any_assoc <- isTRUE(opts$snpAssoc) || isTRUE(opts$snpInteraction)
-      if (any_assoc) {
-        if (is.null(response_var) || response_var == "") {
+      # ── Association ───────────────────────────────────────────────────────
+      if (isTRUE(opts$snpAssoc) || isTRUE(opts$snpInteraction)) {
+        self$results$assocGroup$setVisible(TRUE)
+
+        if (is.null(prep$response_var) || prep$response_var == "") {
           self$results$validationMsg$setContent(
             "<p style='color:red;'>A response variable is required for association analysis.</p>")
           self$results$validationMsg$setVisible(TRUE)
         } else {
-          private$.run_association(data, snp_vars, response_var, response_raw,
-                                   response_type, response, cov_df,
-                                   complete_mask, n_rows, opts)
+          private$.run_association(prep, opts)
         }
       }
 
-      # ── LD/Haplotype: run only when at least one LD/haplo option is ticked
+      # ── LD / Haplotype ────────────────────────────────────────────────────
       any_ld <- isTRUE(opts$ldAnalysis) || isTRUE(opts$ldMatrix) || isTRUE(opts$ldPlot) ||
                 isTRUE(opts$haploFreq)  || isTRUE(opts$haploAssoc) || isTRUE(opts$haploInteraction)
       if (any_ld) {
-        if (length(snp_vars) < 2) {
+        if (length(prep$snp_vars) < 2) {
           self$results$validationMsg$setContent(
             "<p style='color:red;'>LD and haplotype analyses require at least 2 SNPs.</p>")
           self$results$validationMsg$setVisible(TRUE)
         } else {
-          private$.run_ldhaplo(data, snp_vars, response_var, response_raw,
-                               response_type, response, cov_df,
-                               complete_mask, n_rows, opts)
+          private$.run_ldhaplo(prep, opts)
         }
       }
     },
 
-    # ════════════════════════════════════════════════════════════════════════
-    # .run_descriptive
-    # ════════════════════════════════════════════════════════════════════════
-    .run_descriptive = function(data, snp_vars, response_var, response_raw,
-                                response_type, response, cov_df,
-                                complete_mask, n_rows, opts) {
-      run_snpSummary   <- isTRUE(opts$snpSummary)
-      run_allFreq      <- isTRUE(opts$allFreq)
-      run_genoFreq     <- isTRUE(opts$genoFreq)
-      run_hweTest      <- isTRUE(opts$hweTest)
-      run_subpop       <- isTRUE(opts$subpop)
-      run_covDesc      <- isTRUE(opts$covDesc)
-      run_showMissing  <- isTRUE(opts$showMissing)
-      run_rmSnpMissing <- isTRUE(opts$rmSnpMissing)
+    # ══════════════════════════════════════════════════════════════════════════
+    # .run_descriptive  — calls compute_* then writes to jamovi tables
+    # ══════════════════════════════════════════════════════════════════════════
+    .run_descriptive = function(prep, opts) {
+      run_snpSummary  <- isTRUE(opts$snpSummary)
+      run_allFreq     <- isTRUE(opts$allFreq)
+      run_genoFreq    <- isTRUE(opts$genoFreq)
+      run_hweTest     <- isTRUE(opts$hweTest)
+      run_subpop      <- isTRUE(opts$subpop) &&
+                         !is.null(prep$response_raw) &&
+                         prep$response_type %in% c("binary", "categorical")
+      run_covDesc     <- isTRUE(opts$covDesc)
+      run_showMissing <- isTRUE(opts$showMissing)
 
       private$.miss_cache <- list()
-
       res <- self$results$descGroup
 
-      # ── Validation messages ───────────────────────────────────────────
+      # Validation
       res$validationMsgSNP$setVisible(FALSE)
-      val2 <- validate_snp_vars(snp_vars, data)
-      if (nchar(val2$bad_html) > 0) {
-        res$validationMsgGeno$setContent(val2$bad_html)
-        res$validationMsgGeno$setVisible(TRUE)
-      } else {
-        res$validationMsgGeno$setVisible(FALSE)
+      res$validationMsgGeno$setVisible(FALSE)
+
+      # ── Covariate descriptives ─────────────────────────────────────────────
+      if (run_covDesc && (!is.null(prep$cov_df) || !is.null(prep$response_raw))) {
+        result <- compute_cov_desc(prep, subpop = run_subpop)
+        if (!is.null(result)) {
+          res$setVisible(TRUE)
+          res$covDescGroup$setVisible(TRUE)
+          res$covDescGroup$covDescTable$setVisible(TRUE)
+          private$.write_cov_desc(res$covDescGroup$covDescTable, result, prep)
+        }
       }
 
-      if (run_subpop && (is.null(response_raw) || response_type == "quantitative"))
-        run_subpop <- FALSE
-
-      # ── Covariate descriptives ────────────────────────────────────────
-      if (run_covDesc && !is.null(cov_df)) {
-        res$covDescGroup$setVisible(TRUE)
-        res$covDescGroup$covDescTable$setVisible(TRUE)
-        private$.run_cov_desc(cov_df, response_raw, response_type, run_subpop,
-                              opts$response, data, snp_vars, run_rmSnpMissing)
-      }
-
-      # ── SNP summary table ─────────────────────────────────────────────
+      # ── SNP summary table ──────────────────────────────────────────────────
+      if (! length(prep$snp_vars) > 0) return() # no SNPs, nothing to do here
+      
       if (run_snpSummary) {
-        res$snpSummaryTablesGroup$setVisible(TRUE)
-        res$snpSummaryTablesGroup$snpSummaryTable$setVisible(TRUE)
-        private$.fill_snp_summary(data, snp_vars, response_raw, response_type,
-                                  run_subpop, cov_df)
+        result <- compute_snp_summary(prep, subpop = run_subpop)
+        if (!is.null(result)) {
+          res$setVisible(TRUE)
+          res$snpSummaryTablesGroup$setVisible(TRUE)
+          res$snpSummaryTablesGroup$snpSummaryTable$setVisible(TRUE)
+          private$.write_snp_summary(res$snpSummaryTablesGroup$snpSummaryTable,
+                                     result, prep)
+        }
       }
 
-      # ── Per-SNP descriptives ──────────────────────────────────────────
+      # ── Per-SNP descriptives ───────────────────────────────────────────────
+      if (run_allFreq || run_genoFreq || run_hweTest) {
+        res$setVisible(TRUE)
+      }
+
       null_pat               <- "^0[/|>]0$|^00$"
-      total_null_across_snps <- 0L
+      total_null_across_snps <- sum(sapply(prep$snp_vars, function(nm) {
+        raw <- as.character(prep$data[[nm]])
+        sum(!is.na(raw) & grepl(null_pat, raw, ignore.case = TRUE))
+      }))
       arr <- res$descSnpResults
 
-      for (snp_nm in snp_vars) {
-        snp_raw_chr     <- as.character(data[[snp_nm]])
-        n_null_replaced <- sum(!is.na(snp_raw_chr) &
-                                 grepl(null_pat, snp_raw_chr, ignore.case = TRUE))
-        total_null_across_snps <- total_null_across_snps + n_null_replaced
-        # Extract factor level order BEFORE clean_null_alleles drops the factor class
-        user_levels <- get_snp_level_order(data[[snp_nm]])
-        snp_raw     <- clean_null_alleles(snp_raw_chr)
-        geno_obj    <- parse_genotype(snp_raw, user_levels)
+      for (nm in prep$snp_vars) {
+        sd   <- prep$snp_data[[nm]]
+        item <- arr$get(key = nm)
 
-        if (is.null(geno_obj)) {
-          if (all(is.na(snp_raw))) {
-            item <- arr$get(key = snp_nm)
-            n_total_eligible <- sum(complete_mask)
-            item$typingRate$setContent(sprintf(
-              "<b>Typed samples:</b> 0 / %d (0.0%%) &nbsp;&mdash;&nbsp; <span style='color:orange;'>all genotypes missing</span>",
-              n_total_eligible))
-          }
-          next
-        }
+        n_typed          <- sd$n_typed
+        n_total_eligible <- sum(prep$complete_mask)
+        total_missing    <- n_total_eligible - n_typed
 
-        snp_complete_mask <- complete_mask & !is.na(snp_raw)
-        total_missing     <- sum(is.na(snp_raw) & complete_mask)
-        n_total_eligible  <- sum(complete_mask)
-
-        if (run_subpop && (response_type == "binary" || response_type == "categorical")) {
-          resp_levels <- levels(as.factor(response_raw))
-          n_miss_by_level <- sapply(resp_levels, function(lvl)
-            sum(is.na(snp_raw) & complete_mask & !is.na(response_raw) & response_raw == lvl))
-          names(n_miss_by_level) <- resp_levels
-        } else {
-          n_miss_by_level <- NULL
-        }
-
-        snp_raw_cc  <- snp_raw[snp_complete_mask]
-        geno_obj_cc <- parse_genotype(snp_raw_cc, user_levels)
-        response_cc <- if (!is.null(response))     response[snp_complete_mask]     else NULL
-        resp_raw_cc <- if (!is.null(response_raw)) response_raw[snp_complete_mask] else NULL
-        if (is.null(geno_obj_cc)) next
-
-        item    <- arr$get(key = snp_nm)
-        n_typed <- sum(snp_complete_mask)
-
+        # Typing-rate HTML
         typing_html <- sprintf("<b>Typed samples:</b> %d / %d (%.1f%%)",
           n_typed, n_total_eligible,
           if (n_total_eligible > 0) n_typed / n_total_eligible * 100 else 0)
@@ -278,49 +251,57 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             if (n_total_eligible > 0) total_missing / n_total_eligible * 100 else 0))
         item$typingRate$setContent(typing_html)
 
-        private$.miss_cache[[snp_nm]] <- list(
+        # Missingness cache (used by .plotMissingness)
+        n_miss_by_level <- if (run_subpop && !is.null(prep$response_raw)) {
+          resp_levels <- levels(as.factor(prep$response_raw))
+          v <- sapply(resp_levels, function(lvl)
+            sum(is.na(sd$clean) & prep$complete_mask &
+                !is.na(prep$response_raw) & prep$response_raw == lvl))
+          names(v) <- resp_levels
+          v
+        } else NULL
+
+        private$.miss_cache[[nm]] <- list(
           n_total_eligible = n_total_eligible,
           total_missing    = total_missing,
           n_miss_by_level  = n_miss_by_level)
 
-        snp_summary_cc <- summary(geno_obj_cc)
-        ref            <- get_ref_genotype(geno_obj_cc, user_levels)
-
+        # Allele frequency
         if (run_allFreq) {
+          result <- compute_allele_freq(nm, prep, subpop = run_subpop,
+                                        show_missing = run_showMissing)
           item$allFreqTable$setVisible(TRUE)
-          private$.fill_allele_freq(item$allFreqTable, snp_summary_cc, snp_nm,
-                                    resp_raw_cc, run_subpop, response_type, snp_raw_cc,
-                                    run_showMissing, n_miss_by_level,
-                                    n_total_eligible, total_missing,
-                                    user_levels = user_levels)
+          private$.write_allele_freq(item$allFreqTable, result, run_subpop, prep)
         }
+
+        # Genotype frequency
         if (run_genoFreq) {
+          result <- compute_geno_freq(nm, prep, subpop = run_subpop,
+                                      show_missing = run_showMissing)
           item$genoFreqTable$setVisible(TRUE)
-          private$.fill_geno_freq(item$genoFreqTable, snp_summary_cc, ref,
-                                  geno_obj_cc, response_cc, response_type,
-                                  run_subpop, resp_raw_cc,
-                                  run_showMissing, n_miss_by_level,
-                                  n_total_eligible, total_missing,
-                                  user_levels = user_levels)
+          private$.write_geno_freq(item$genoFreqTable, result, run_subpop,
+                                   prep, prep$response_type)
         }
+
+        # HWE
         if (run_hweTest) {
-          item$hweTable$setVisible(TRUE)
-          private$.fill_hwe(item$hweTable, geno_obj_cc, snp_nm,
-                            resp_raw_cc, run_subpop,
-                            run_showMissing, n_miss_by_level, n_total_eligible, total_missing,
-                            ref = ref, user_levels = user_levels)
+          result <- compute_hwe(nm, prep, subpop = run_subpop,
+                                show_missing = run_showMissing)
+          if (!is.null(result)) {
+            item$hweTable$setVisible(TRUE)
+            private$.write_hwe(item$hweTable, result)
+          }
         }
       }
 
-      # Missingness plot visibility
+      # Missingness plot
       res$missingnessPlot$setVisible(
         isTRUE(opts$showMissingnessPlot) && length(private$.miss_cache) > 0)
 
-      # Null-allele note on summary table
+      # Null-allele note
       if (run_snpSummary) {
         tbl <- res$snpSummaryTablesGroup$snpSummaryTable
-        tbl$setNote(
-          key  = "null_allele",
+        tbl$setNote(key = "null_allele",
           note = if (total_null_across_snps > 0)
             paste0(total_null_across_snps,
                    " genotype(s) coded as 0/0 were treated as missing (NA).")
@@ -328,791 +309,340 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       }
     },
 
-    # ════════════════════════════════════════════════════════════════════════
-    # .run_association
-    # ════════════════════════════════════════════════════════════════════════
-    .run_cov_desc = function(cov_df, response_raw, response_type,
-                             subpop = FALSE, response_var = NULL,
-                             data = NULL, snp_vars = NULL, rm_snp_missing = FALSE) {
-      tbl <- self$results$descGroup$covDescGroup$covDescTable
-      has_covariates <- !is.null(cov_df) && ncol(cov_df) > 0
-      n_removed_snp <- 0L
-      if (isTRUE(rm_snp_missing) && !is.null(data) && !is.null(snp_vars) && length(snp_vars) > 0) {
-        snp_mat <- as.data.frame(
-          lapply(data[, snp_vars, drop = FALSE], function(col) clean_null_alleles(as.character(col))),
-          stringsAsFactors = FALSE)
-        snp_cc <- complete.cases(snp_mat)
-        n_removed_snp <- sum(!snp_cc)
-        if (n_removed_snp > 0) {
-          cov_df <- cov_df[snp_cc, , drop=FALSE]
-          if (!is.null(response_raw)) response_raw <- response_raw[snp_cc]
-        }
-      }
-      has_response <- !is.null(response_raw) && !is.null(response_type)
-      is_binary    <- has_response && response_type == "binary"
-      is_cat_resp  <- has_response && response_type == "categorical"
-      is_cont_resp <- has_response && response_type == "quantitative"
-      do_strat     <- isTRUE(subpop) && (is_binary || is_cat_resp)
-      valid_resp   <- if (has_response) !is.na(response_raw) else rep(TRUE, nrow(cov_df))
+    # ══════════════════════════════════════════════════════════════════════════
+    # Table writers — thin jamovi-specific adapters over compute_* results
+    # ══════════════════════════════════════════════════════════════════════════
+
+    .write_cov_desc = function(tbl, result, prep) {
+      tbl_df     <- result$table
+      grp_levels <- result$grp_levels   # NULL when not stratified
+      do_strat   <- !is.null(grp_levels) && length(grp_levels) > 0
+
+      # Set group column titles and make them visible
       if (do_strat) {
-        grp_fac  <- as.factor(response_raw)
-        grp_lvls <- levels(grp_fac)
-        mask_list <- lapply(grp_lvls, function(l) valid_resp & grp_fac == l)
-        names(mask_list) <- grp_lvls
-        totals <- sapply(mask_list, sum)
-        for (i in seq_along(grp_lvls)) {
-          nm <- paste0("stat_g", i-1)
-          tbl$getColumn(nm)$setTitle(grp_lvls[i])
+        for (j in seq_along(grp_levels)) {
+          nm <- paste0("stat_g", j - 1L)
+          tbl$getColumn(nm)$setTitle(grp_levels[j])
           tbl$getColumn(nm)$setVisible(TRUE)
         }
         tbl$getColumn("pval")$setVisible(TRUE)
-        get_counts <- function(mask) sapply(mask_list, function(m) sum(mask & m))
       }
-      has_cont <- FALSE
-      if (has_response) {
-        if (is_cont_resp) {
-          tbl$addRow(rowKey = paste0(response_var, "_mean"),
-            values = list(variable = response_var, level = "Mean \u00B1 SD",
-                          stat_overall = fmt_cont(response_raw)))
-          mask <- !is.na(response_raw)
-          tbl$addRow(rowKey = paste0(response_var, "_valid"),
-            values = list(variable = "", level = "Valid", stat_overall = sum(mask)))
-          n_miss <- sum(!mask)
-          if (n_miss > 0)
-            tbl$addRow(rowKey = paste0(response_var, "_missing"),
-              values = list(variable = "", level = "Missing",
-                            stat_overall = fmt_cat(n_miss, length(response_raw))))
-        } else {
-          mask <- valid_resp
-          row_vals <- list(variable = response_var, level = "Valid", stat_overall = sum(mask))
-          if (do_strat) {
-            cnt <- get_counts(mask)
-            for (i in seq_along(cnt)) row_vals[[paste0("stat_g", i-1)]] <- fmt_cat(cnt[i], sum(mask))
+
+      for (i in seq_len(nrow(tbl_df))) {
+        # Column names in tbl_df already match jamovi column names
+        # (stat_g0, stat_g1, … for groups; overall → stat_overall).
+        row <- list(
+          variable     = as.character(tbl_df[["variable"]][i]),
+          level        = as.character(tbl_df[["level"]][i]),
+          stat_overall = as.character(tbl_df[["overall"]][i])
+        )
+        if (do_strat) {
+          for (j in seq_along(grp_levels)) {
+            nm        <- paste0("stat_g", j - 1L)
+            row[[nm]] <- as.character(tbl_df[[nm]][i])
           }
-          tbl$addRow(rowKey = response_var, values = row_vals)
-          n_miss <- sum(!valid_resp)
-          if (n_miss > 0) {
-            miss_vals <- list(variable = "", level = "Missing",
-                              stat_overall = fmt_cat(n_miss, length(response_raw)))
-            if (do_strat) {
-              for (i in seq_along(grp_lvls)) miss_vals[[paste0("stat_g", i-1)]] <- ''
-              miss_vals$pval <- ''
-            }
-            tbl$addRow(rowKey = paste0(response_var, "_missing"), values = miss_vals)
-          }
+          row$pval <- fmt_pval(tbl_df[["pval"]][i])
         }
+        tbl$addRow(rowKey = as.character(i), values = row)
       }
-      if (!is.null(cov_df) && ncol(cov_df) > 0) {
-        for (v in names(cov_df)) {
-          col    <- cov_df[[v]]
-          is_cat <- is.factor(col) || is.character(col)
-          if (is_cat && !is.factor(col)) col <- factor(col)
-          n      <- length(col)
-          n_miss <- sum(is.na(col))
-          if (is_cat) {
-            lvls <- levels(col)
-            pval <- if (do_strat) tryCatch({
-              ct <- table(col[valid_resp], grp_fac[valid_resp])
-              suppressWarnings(chisq.test(ct)$p.value)
-            }, error = function(e) NA_real_) else NA_real_
-            first <- TRUE
-            for (lvl in lvls) {
-              mask <- !is.na(col) & col == lvl
-              row_vals <- list(variable = if (first) v else "", level = lvl,
-                               stat_overall = fmt_cat(sum(mask), n))
-              if (do_strat) {
-                cnt <- get_counts(mask)
-                for (i in seq_along(cnt)) row_vals[[paste0("stat_g", i-1)]] <- fmt_cat(cnt[i], totals[i])
-                row_vals$pval <- if (first) pval else ''
-              }
-              tbl$addRow(rowKey = paste0(v, "_", lvl), values = row_vals)
-              first <- FALSE
-            }
-            if (n_miss > 0) {
-              mask <- is.na(col)
-              row_vals <- list(variable = "", level = "Missing", stat_overall = fmt_cat(n_miss, n))
-              if (do_strat) {
-                cnt <- get_counts(mask)
-                for (i in seq_along(cnt)) row_vals[[paste0("stat_g", i-1)]] <- fmt_cat(cnt[i], totals[i])
-                row_vals$pval <- ''
-              }
-              tbl$addRow(rowKey = paste0(v, "_missing"), values = row_vals)
-            }
-          } else {
-            has_cont <- TRUE
-            row_vals <- list(variable = v, level = "Mean \u00B1 SD", stat_overall = fmt_cont(col))
-            if (do_strat) {
-              for (i in seq_along(mask_list)) row_vals[[paste0("stat_g", i-1)]] <- fmt_cont(col[mask_list[[i]]])
-              row_vals$pval <- tryCatch({
-                groups <- split(col[valid_resp], grp_fac[valid_resp])
-                if (length(groups) == 2) t.test(groups[[1]], groups[[2]])$p.value
-                else summary(aov(col ~ grp_fac))[[1]][["Pr(>F)"]][1]
-              }, error = function(e) NA_real_)
-            }
-            tbl$addRow(rowKey = v, values = row_vals)
-            if (n_miss > 0) {
-              mask <- is.na(col)
-              row_vals <- list(variable = "", level = "Missing", stat_overall = fmt_cat(n_miss, n))
-              if (do_strat) {
-                cnt <- get_counts(mask)
-                for (i in seq_along(cnt)) row_vals[[paste0("stat_g", i-1)]] <- fmt_cat(cnt[i], totals[i])
-                row_vals$pval <- ''
-              }
-              tbl$addRow(rowKey = paste0(v, "_missing"), values = row_vals)
-            }
-          }
-        }
-      }
-      notes <- c()
-      if (n_removed_snp > 0) notes <- c(notes, paste0("Removed ", n_removed_snp, " cases with missing SNP values."))
-      tbl$setNote(note = if (length(notes)) paste(notes, collapse=" ") else NULL, key = "cov_desc_note")
+
+      if (length(result$notes) > 0)
+        tbl$setNote(key = "cov_desc_note",
+                    note = paste(result$notes, collapse = " "))
     },
 
-    .fill_snp_summary = function(data, snp_vars, response_raw, response_type,
-                                 subpop, cov_df = NULL) {
-      tbl <- self$results$descGroup$snpSummaryTablesGroup$snpSummaryTable
-      do_strat     <- isTRUE(subpop) && !is.null(response_raw) &&
-                       (response_type == "binary" || response_type == "categorical")
-      has_response <- !is.null(response_raw)
-      has_cov      <- !is.null(cov_df) && ncol(cov_df) > 0
-      n_total      <- nrow(data)
-      grp_levels   <- if (do_strat) levels(response_raw) else NULL
+    .write_snp_summary = function(tbl, result, prep) {
+      do_strat <- prep$response_type %in% c("binary","categorical") &&
+                  !is.null(prep$response_raw)
       tbl$getColumn("group")$setVisible(do_strat)
-      base_cc <- rep(TRUE, n_total)
-      if (has_response) base_cc <- base_cc & !is.na(response_raw)
-      if (has_cov) base_cc <- base_cc & complete.cases(cov_df)
-      if (do_strat) {
-        resp_base      <- response_raw[base_cc]
-        stratum_totals <- table(factor(resp_base, levels = grp_levels))
+      for (i in seq_len(nrow(result))) {
+        tbl$addRow(rowKey = as.character(i), values = list(
+          snp        = as.character(result[["snp"]][i]),
+          alleles    = as.character(result[["alleles"]][i]),
+          group      = as.character(result[["group"]][i]),
+          n          = as.integer(result[["n"]][i]),
+          missing    = if (is.na(result[["missing"]][i])) '' else as.integer(result[["missing"]][i]),
+          maf        = as.numeric(result[["maf"]][i]),
+          genoCounts = as.character(result[["geno_counts"]][i]),
+          hwePval    = result[["hwe_pval"]][i]))
       }
-      row_key <- 0L
-      for (snp_nm in snp_vars) {
-        user_levels_sum <- get_snp_level_order(data[[snp_nm]])
-        snp_raw         <- clean_null_alleles(as.character(data[[snp_nm]]))
-        geno_obj        <- parse_genotype(snp_raw, user_levels_sum)
-        if (is.null(geno_obj)) next
-        cc_mask <- base_cc & !is.na(snp_raw)
-        n_cc    <- sum(cc_mask)
-        n_excluded <- n_total - n_cc
-        snp_cc  <- snp_raw[cc_mask]
-        geno_cc <- parse_genotype(snp_cc, user_levels_sum)
-        if (is.null(geno_cc)) next
-        resp_cc <- if (has_response) response_raw[cc_mask] else NULL
-        sm_cc   <- summary(geno_cc)
-        ref     <- get_ref_genotype(geno_cc, user_levels_sum)
-        af_all  <- sm_cc$allele.freq
-        allele_nms  <- rownames(af_all)
-        ref_allele  <- strsplit(ref, "/")[[1]][1]
-        alt_allele  <- setdiff(allele_nms, ref_allele)
-        alt_allele  <- if (length(alt_allele)) alt_allele[1] else "?"
-        alleles_label <- paste0(ref_allele, "/", alt_allele)
-        compute_row <- function(mask = NULL) {
-          snp_sub  <- if (is.null(mask)) snp_cc else snp_cc[mask]
-          geno_sub <- if (is.null(mask)) geno_cc else parse_genotype(snp_sub, user_levels_sum)
-          if (is.null(geno_sub)) return(NULL)
-          sm   <- summary(geno_sub)
-          af   <- sm$allele.freq
-          props <- af[, "Proportion"]
-          maf  <- if (alt_allele %in% rownames(af)) af[alt_allele, "Proportion"]
-                  else if (length(props) >= 2) min(props, na.rm = TRUE) else NA_real_
-          gf   <- sm$genotype.freq
-          gf   <- tryCatch(reorder_geno(gf, ref, user_levels_sum), error = function(e) gf)
-          gf   <- gf[rownames(gf) != "NA", , drop = FALSE]
-          counts   <- as.integer(gf[, "Count"])
-          len      <- length(counts)
-          geno_str <- if (len == 3) paste(counts, collapse = " / ")
-                      else if (len == 2) paste(c(counts, 0L), collapse = " / ")
-                      else paste(counts, collapse = " / ")
-          hwe <- tryCatch(genetics::HWE.exact(geno_sub)$p.value, error = function(e) NA_real_)
-          list(n = sm$n.typed, maf = maf, genoCounts = geno_str, hwePval = hwe)
-        }
-        res_all <- compute_row()
-        if (!is.null(res_all)) {
-          row_key <- row_key + 1L
-          tbl$addRow(rowKey = as.character(row_key), values = list(
-            snp = snp_nm, alleles = alleles_label,
-            group = if (do_strat) "All" else "",
-            n = res_all$n, missing = if (n_excluded > 0L) n_excluded else '',
-            maf = round(res_all$maf, 4), genoCounts = res_all$genoCounts, hwePval = res_all$hwePval))
-        }
-        if (do_strat) {
-          resp_cc_chr <- as.character(resp_cc)
-          for (lvl in grp_levels) {
-            mask <- !is.na(resp_cc_chr) & resp_cc_chr == lvl
-            res  <- compute_row(mask)
-            if (is.null(res)) next
-            n_excl <- max(0L, as.integer(stratum_totals[lvl] - res$n))
-            row_key <- row_key + 1L
-            tbl$addRow(rowKey = as.character(row_key), values = list(
-              snp = "", alleles = "", group = lvl, n = res$n,
-              missing = if (n_excl > 0L) n_excl else '',
-              maf = round(res$maf, 4), genoCounts = res$genoCounts, hwePval = res$hwePval))
-          }
-        }
-      }
-      if (has_response || has_cov) {
-        parts <- c(if (has_cov) "covariates", if (has_response) "response")
-        tbl$setNote(
+      parts <- c(if (!is.null(prep$cov_df) && ncol(prep$cov_df)>0) "covariates",
+                 if (!is.null(prep$response_raw)) "response")
+      if (length(parts) > 0)
+        tbl$setNote(key = "missing_resp_cov",
           note = paste0("Complete cases used: rows missing any ",
-                        paste(parts, collapse = " or "), " or SNP value are excluded."),
-          key = "missing_resp_cov")
-      } else {
-        tbl$setNote(note = NULL, key = "missing_resp_cov")
+                        paste(parts, collapse = " or "), " or SNP value are excluded."))
+    },
+
+    .write_allele_freq = function(tbl, result, do_strat, prep) {
+      grp_levels <- if (do_strat && !is.null(prep$response_raw))
+                      levels(as.factor(prep$response_raw)) else NULL
+      if (do_strat && !is.null(grp_levels))
+        for (j in seq_along(grp_levels))
+          tbl$addColumn(name = paste0("stat_g", j-1L), title = grp_levels[j],
+                        type = "text")
+      for (i in seq_len(nrow(result))) {
+        row <- list(
+          allele = as.character(result[["allele"]][i]),
+          stat   = as.character(result[["overall"]][i]))
+        if (do_strat && !is.null(grp_levels))
+          for (j in seq_along(grp_levels))
+            row[[paste0("stat_g", j-1L)]] <-
+              as.character(result[[paste0("stat_g", j-1L)]][i] %||% "")
+        tbl$addRow(rowKey = as.character(i), values = row)
       }
     },
 
-    .fill_allele_freq = function(tbl, sm, snp_nm, response_raw, subpop,
-                                  response_type, snp_raw, show_missing = FALSE,
-                                  n_miss_by_level = NULL, n_total_eligible = 0L,
-                                  total_missing = 0L, user_levels = NULL) {
-      af           <- sm$allele.freq
-      allele_names <- rownames(af)
-      if (!is.null(user_levels) && length(user_levels)) {
-        ref <- NULL
-        for (g in user_levels) {
-          p <- strsplit(g, "/", fixed=TRUE)[[1]]
-          if (length(p)==2 && p[1]==p[2]) { ref <- p[1]; break }
-        }
-        if (!is.null(ref) && ref %in% allele_names)
-          allele_names <- c(ref, setdiff(allele_names, ref))
-      }
-      do_strat <- isTRUE(subpop) && !is.null(response_raw) &&
-                   (response_type == "binary" || response_type == "categorical")
-      if (do_strat) {
-        grp_levels    <- levels(response_raw)
-        resp_chr      <- as.character(response_raw)
-        alleles_split <- strsplit(as.character(snp_raw), "/")
-        for (i in seq_along(grp_levels))
-          tbl$addColumn(name=paste0("stat_g", i-1), title=grp_levels[i], type="string")
-      }
-      for (al in allele_names) {
-        if (!al %in% rownames(af)) next
-        count    <- as.integer(af[al, "Count"])
-        prop     <- round(af[al, "Proportion"] * 100, 1)
-        row_vals <- list(allele = al, stat = fmt_catpct(count, prop))
-        if (do_strat) {
-          for (i in seq_along(grp_levels)) {
-            lvl    <- grp_levels[i]
-            idx    <- resp_chr == lvl
-            all_al <- unlist(alleles_split[idx])
-            n_al   <- sum(all_al == al, na.rm=TRUE)
-            row_vals[[paste0("stat_g", i-1)]] <- fmt_cat(n_al, length(all_al))
-          }
-        }
-        tbl$addRow(rowKey=al, values=row_vals)
-      }
-      if (isTRUE(show_missing) && total_missing > 0L) {
-        miss_vals <- list(allele = "Missing", stat = fmt_cat(total_missing, n_total_eligible))
-        if (do_strat && !is.null(n_miss_by_level)) {
-          for (j in seq_along(grp_levels)) {
-            lvl        <- grp_levels[j]
-            miss_count <- if (lvl %in% names(n_miss_by_level)) n_miss_by_level[lvl] else 0
-            miss_vals[[paste0("stat_g", j-1)]] <- fmt_catn(miss_count)
-          }
-        }
-        tbl$addRow(rowKey="missing", values=miss_vals)
-      }
-    },
-
-    .fill_geno_freq = function(tbl, sm, ref, geno_obj, response,
-                                response_type, subpop, response_raw,
-                                show_missing = FALSE, n_miss_by_level = NULL,
-                                n_total_eligible = 0L, total_missing = 0L,
-                                user_levels = NULL) {
-      # as.character() on a genetics::genotype object returns the same normalised
-      # strings that appear in sm$genotype.freq rownames, so comparisons are exact.
-      snp_chr <- as.character(geno_obj)
-      if (response_type == "quantitative") {
+    .write_geno_freq = function(tbl, result, do_strat, prep, response_type) {
+      grp_levels <- if (do_strat && !is.null(prep$response_raw))
+                      levels(as.factor(prep$response_raw)) else NULL
+      if (response_type == "quantitative")
         tbl$getColumn("responseStat")$setVisible(TRUE)
-        if (!is.numeric(response)) response <- as.numeric(as.character(response))
-      }
-      gf <- tryCatch(reorder_geno(sm$genotype.freq, ref, user_levels), error=function(e) sm$genotype.freq)
-      gf <- gf[rownames(gf) != "NA", , drop = FALSE]
-      do_strat <- isTRUE(subpop) && !is.null(response_raw) &&
-                   (response_type == "binary" || response_type == "categorical")
-      if (do_strat) {
-        grp_levels <- levels(response_raw)
-        resp_chr   <- as.character(response_raw)
-        # Per-stratum totals = typed (non-NA SNP) observations in each group
-        strat_totals <- sapply(grp_levels, function(lvl)
-          sum(resp_chr == lvl & !is.na(snp_chr), na.rm = TRUE))
-        for (i in seq_along(grp_levels))
-          tbl$addColumn(name=paste0("stat_g", i-1), title=grp_levels[i], type="string")
-      }
-      for (i in seq_len(nrow(gf))) {
-        geno <- rownames(gf)[i]
-        if (geno == "NA") next
-        count    <- as.integer(gf[i, "Count"])
-        prop     <- gf[i, "Proportion"] * 100
-        row_vals <- list(genotype = geno, stat = fmt_catpct(count, prop), responseStat = "")
-        if (response_type == "quantitative" && !is.null(response)) {
-          mask  <- snp_chr == geno & !is.na(snp_chr) & !is.na(response)
-          n_mask <- sum(mask)
-          if (n_mask > 0) {
-            mn <- mean(response[mask], na.rm=TRUE)
-            se <- sd(response[mask], na.rm=TRUE) / sqrt(n_mask)
-            row_vals$responseStat <- sprintf("%.2f (%.2f)", mn, se)
-          }
-        }
-        if (do_strat) {
-          for (j in seq_along(grp_levels)) {
-            lvl   <- grp_levels[j]
-            idx   <- resp_chr == lvl & !is.na(resp_chr)
-            n_g   <- sum(idx & snp_chr == geno, na.rm = TRUE)
-            n_tot <- strat_totals[[lvl]]
-            row_vals[[paste0("stat_g", j-1)]] <- fmt_cat(n_g, n_tot)
-          }
-        }
-        tbl$addRow(rowKey=geno, values=row_vals)
-      }
-      if (isTRUE(show_missing) && total_missing > 0) {
-        miss_vals <- list(genotype = "Missing", stat = fmt_cat(total_missing, n_total_eligible), responseStat = "")
-        if (do_strat && !is.null(n_miss_by_level)) {
-          for (j in seq_along(grp_levels)) {
-            lvl        <- grp_levels[j]
-            miss_count <- if (lvl %in% names(n_miss_by_level)) n_miss_by_level[lvl] else 0
-            miss_vals[[paste0("stat_g", j-1)]] <- fmt_catn(miss_count)
-          }
-        }
-        tbl$addRow(rowKey="missing", values=miss_vals)
+      if (do_strat && !is.null(grp_levels))
+        for (j in seq_along(grp_levels))
+          tbl$addColumn(name = paste0("stat_g", j-1L), title = grp_levels[j],
+                        type = "text")
+      for (i in seq_len(nrow(result))) {
+        row <- list(
+          genotype     = as.character(result[["genotype"]][i]),
+          stat         = as.character(result[["overall"]][i]),
+          responseStat = as.character(result[["response_stat"]][i] %||% ""))
+        if (do_strat && !is.null(grp_levels))
+          for (j in seq_along(grp_levels))
+            row[[paste0("stat_g", j-1L)]] <-
+              as.character(result[[paste0("stat_g", j-1L)]][i] %||% "")
+        tbl$addRow(rowKey = as.character(i), values = row)
       }
     },
 
-    .fill_hwe = function(tbl, geno_obj, snp_nm, response_raw, subpop,
-                          show_missing = FALSE, n_miss_by_level = NULL,
-                          n_total_eligible = 0L, total_missing = 0L,
-                          ref = NULL, user_levels = NULL) {
-      tbl$getColumn("missing")$setVisible(isTRUE(show_missing))
-      hw <- tryCatch(genetics::HWE.exact(geno_obj), error=function(e) NULL)
-      if (is.null(hw)) return()
-
-      # Derive display order from reorder_geno so labels and counts are consistent.
-      # HWE.exact assigns N11/N12/N22 by its own internal frequency order, which
-      # may differ from the user's factor order. We read counts from genotype.freq
-      # directly to guarantee alignment with the column labels.
-      get_ordered_counts <- function(go) {
-        gf <- tryCatch(
-          reorder_geno(summary(go)$genotype.freq, ref, user_levels),
-          error = function(e) summary(go)$genotype.freq)
-        gf <- gf[rownames(gf) != "NA", , drop = FALSE]
-        list(labels  = rownames(gf),
-             counts  = as.integer(gf[, "Count"]))
+    .write_hwe = function(tbl, result) {
+      labels <- result$col_labels
+      if (length(labels) == 3) {
+        tbl$getColumn("n11")$setTitle(labels[1])
+        tbl$getColumn("n12")$setTitle(labels[2])
+        tbl$getColumn("n22")$setTitle(labels[3])
       }
-      info <- get_ordered_counts(geno_obj)
-
-      if (length(info$labels) == 3) {
-        tbl$getColumn("n11")$setTitle(info$labels[1])
-        tbl$getColumn("n12")$setTitle(info$labels[2])
-        tbl$getColumn("n22")$setTitle(info$labels[3])
-      }
-
-      add_row <- function(key, label, counts, miss, p) {
-        tbl$addRow(rowKey = key, values = list(
-          group   = label,
-          n11     = counts[1L], n12 = counts[2L], n22 = counts[3L],
-          missing = miss, pval = p))
-      }
-
-      add_row("All", "All subjects", info$counts,
-              if (isTRUE(show_missing)) total_missing else '', hw$p.value)
-
-      if (isTRUE(subpop) && !is.null(response_raw)) {
-        lvls <- levels(response_raw)
-        if (length(lvls) <= 5) {
-          for (lvl in lvls) {
-            mask <- response_raw == lvl & !is.na(response_raw)
-            if (sum(mask) == 0) next
-            hw_sub <- tryCatch(genetics::HWE.exact(geno_obj[mask]), error=function(e) NULL)
-            if (is.null(hw_sub)) next
-            sub_info <- get_ordered_counts(geno_obj[mask])
-            miss_count <- if (isTRUE(show_missing) && !is.null(n_miss_by_level) &&
-                               lvl %in% names(n_miss_by_level)) n_miss_by_level[lvl] else ''
-            add_row(lvl, lvl, sub_info$counts, miss_count, hw_sub$p.value)
-          }
-        }
+      rows <- result$rows
+      for (i in seq_len(nrow(rows))) {
+        tbl$addRow(rowKey = as.character(i), values = list(
+          group   = as.character(rows[["group"]][i]),
+          n11     = as.integer(rows[["n11"]][i]),
+          n12     = as.integer(rows[["n12"]][i]),
+          n22     = as.integer(rows[["n22"]][i]),
+          missing = if (is.na(rows[["missing"]][i])) '' else as.integer(rows[["missing"]][i]),
+          pval    = rows[["pval"]][i]))
       }
     },
 
-    .plotMissingness = function(image, ...) {
-      cache <- private$.miss_cache
-      if (is.null(cache) || length(cache) == 0) return(FALSE)
-      run_subpop <- isTRUE(self$options$subpop)
-      threshold  <- self$options$missingnessThreshold
-      if (!is.numeric(threshold) || is.na(threshold)) threshold <- 0.1
-      all_nms <- names(cache)
-      pct_all <- vapply(all_nms, function(nm) {
-        d <- cache[[nm]]
-        if (d$n_total_eligible == 0) return(0)
-        d$total_missing / d$n_total_eligible * 100
-      }, numeric(1))
-      keep        <- pct_all > threshold
-      n_hidden    <- sum(!keep)
-      snp_nms     <- all_nms[keep]
-      pct_overall <- pct_all[keep]
-      n_snps      <- length(snp_nms)
-      if (n_snps == 0) {
-        opar <- par(no.readonly = TRUE); on.exit(par(opar))
-        par(bg = "white", mar = c(1, 1, 3, 1))
-        plot.new(); title(main = "SNP Missingness")
-        text(0.5, 0.5, sprintf("No SNPs have missingness > %.1f%%\n(threshold: %.1f%%)", threshold, threshold),
-             cex = 1.1, col = "#555555")
-        return(TRUE)
-      }
-      grp_data <- NULL
-      if (run_subpop) {
-        all_grps <- unique(unlist(lapply(cache[snp_nms], function(d) names(d$n_miss_by_level))))
-        if (length(all_grps) > 0) {
-          grp_data <- lapply(all_grps, function(g) {
-            vapply(snp_nms, function(nm) {
-              d <- cache[[nm]]
-              if (is.null(d$n_miss_by_level) || !g %in% names(d$n_miss_by_level)) return(NA_real_)
-              if (d$n_total_eligible == 0) return(0)
-              d$n_miss_by_level[[g]] / d$n_total_eligible * 100
-            }, numeric(1))
-          })
-          names(grp_data) <- all_grps
-        }
-      }
-      n_grps <- if (!is.null(grp_data)) length(grp_data) else 0
-      opar <- par(no.readonly = TRUE); on.exit(par(opar))
-      note_lines  <- if (n_hidden > 0) 1 else 0
-      left_margin <- max(nchar(snp_nms)) * 0.55 + 1
-      par(bg = "white", mar = c(4.5 + note_lines, left_margin, 3, 1.5))
-      grp_pal <- c("#2980B9", "#C0392B", "#27AE60", "#8E44AD", "#E67E22")
-      x_max <- max(pct_overall, unlist(grp_data), na.rm = TRUE)
-      x_max <- max(x_max * 1.15, threshold * 1.5, 0.5)
-      y_pos <- seq_len(n_snps)
-      plot(NULL, xlim = c(0, x_max), ylim = c(0.5, n_snps + 0.5),
-           xlab = "Missing genotypes (%)", ylab = "", main = "SNP Missingness",
-           yaxt = "n", las = 1, bty = "l")
-      axis(2, at = y_pos, labels = snp_nms, las = 1, tick = FALSE,
-           cex.axis = min(1, 14 / n_snps + 0.3))
-      abline(v = threshold, lty = 3, col = "#AAAAAA", lwd = 1.2)
-      bar_col <- adjustcolor("#2C3E50", 0.20)
-      bar_brd <- adjustcolor("#2C3E50", 0.45)
-      rect(rep(0, n_snps), y_pos - 0.35, pct_overall, y_pos + 0.35,
-           col = bar_col, border = bar_brd, lwd = 0.8)
-      points(pct_overall, y_pos, pch = 19, col = "#2C3E50", cex = 1.1)
-      if (!is.null(grp_data) && n_grps > 0) {
-        offsets <- seq(-0.18, 0.18, length.out = n_grps)
-        for (gi in seq_len(n_grps)) {
-          col_i <- grp_pal[(gi - 1) %% length(grp_pal) + 1]
-          points(grp_data[[gi]], y_pos + offsets[gi],
-                 pch = 21, bg = adjustcolor(col_i, 0.70), col = col_i, cex = 0.90, lwd = 0.8)
-        }
-        legend("topright",
-               legend = c("Overall", names(grp_data)),
-               pch    = c(19, rep(21, n_grps)),
-               col    = c("#2C3E50", grp_pal[seq_len(n_grps)]),
-               pt.bg  = c(NA, adjustcolor(grp_pal[seq_len(n_grps)], 0.70)),
-               pt.cex = c(1.1, rep(0.90, n_grps)), bty = "n", cex = 0.80)
-      }
-      text(pct_overall + x_max * 0.015, y_pos,
-           labels = sprintf("%.1f%%", pct_overall), adj = 0, cex = 0.72, col = "#333333")
-      note_txt <- if (n_hidden > 0)
-        sprintf("%d SNP(s) with missingness \u2264 %.1f%% not shown  |  dashed line = threshold", n_hidden, threshold)
-      else sprintf("Dashed line = %.1f%% threshold", threshold)
-      mtext(note_txt, side = 1, line = 3.6, cex = 0.72, col = "#666666", adj = 0)
-      TRUE
-    },
-
-    # ════════════════════════════════════════════════════════════════════════
-    # LD / Haplotype private methods (verbatim from snpLDHaplo_b.R)
-    # ════════════════════════════════════════════════════════════════════════
-    .run_association = function(data, snp_vars, response_var, response_raw,
-                                response_type, response, cov_df,
-                                complete_mask, n_rows, opts) {
+    # ══════════════════════════════════════════════════════════════════════════
+    # .run_association  — calls compute_assoc then writes to jamovi tables
+    # ══════════════════════════════════════════════════════════════════════════
+    .run_association = function(prep, opts) {
       run_snpAssoc       <- isTRUE(opts$snpAssoc)
       run_snpInteraction <- isTRUE(opts$snpInteraction)
 
-      if (run_snpInteraction && (is.null(cov_df) || ncol(cov_df) == 0)) {
+      if (run_snpInteraction && (is.null(prep$cov_df) || ncol(prep$cov_df) == 0)) {
         self$results$validationMsg$setContent(
           "<p style='color:orange;'>SNP \u00D7 covariate interaction requires at least one covariate.</p>")
         self$results$validationMsg$setVisible(TRUE)
         run_snpInteraction <- FALSE
       }
-
-      if (run_snpInteraction && response_type == "categorical") {
+      if (run_snpInteraction && prep$response_type == "categorical") {
         self$results$validationMsg$setContent(
-          "<p style='color:orange;'>SNP \u00D7 covariate interaction is not available for categorical responses. Use binary or quantitative.</p>")
+          "<p style='color:orange;'>SNP \u00D7 covariate interaction is not available for categorical responses.</p>")
         self$results$validationMsg$setVisible(TRUE)
         run_snpInteraction <- FALSE
       }
 
-      arr <- self$results$assocGroup$assocSnpResults
+      int_models   <- private$.get_interaction_models(opts)
+      model_labels <- c(codominant="Codominant", dominant="Dominant",
+                        recessive="Recessive", overdominant="Overdominant",
+                        logadditive="Log-additive")
+      assoc_arr    <- self$results$assocGroup$assocSnpResults
 
-      for (snp_nm in snp_vars) {
-        snp_raw <- data[[snp_nm]]
-        user_levels     <- get_snp_level_order(snp_raw)
-        geno_obj        <- parse_genotype(snp_raw, user_levels)
-        if (is.null(geno_obj)) next
+      for (nm in prep$snp_vars) {
+        sd      <- prep$snp_data[[nm]]
+        item    <- assoc_arr$get(key = nm)
+        n_miss  <- prep$n_rows - sd$n_typed
 
-        snp_raw_clean     <- clean_null_alleles(as.character(snp_raw))
-        snp_complete_mask <- complete_mask & !is.na(snp_raw_clean)
-        n_miss_assoc      <- n_rows - sum(snp_complete_mask)
-        snp_raw_cc        <- as.factor(snp_raw_clean[snp_complete_mask])
-        response_cc       <- response[snp_complete_mask]
-        response_raw_cc   <- response_raw[snp_complete_mask]
-        cov_df_cc         <- if (!is.null(cov_df)) cov_df[snp_complete_mask, , drop = FALSE] else NULL
-        user_levels       <- get_snp_level_order(snp_raw)
-        geno_obj_cc       <- parse_genotype(snp_raw_cc, user_levels)
-        if (is.null(geno_obj_cc)) next
+        # Typing-rate HTML
+        typing_html <- sprintf("<b>Typed samples:</b> %d / %d (%.1f%%)",
+          sd$n_typed, prep$n_rows,
+          if (prep$n_rows > 0) sd$n_typed / prep$n_rows * 100 else 0)
+        if (n_miss > 0)
+          typing_html <- paste0(typing_html, sprintf(
+            " &nbsp;&mdash;&nbsp; <b>Missing:</b> %d", n_miss))
+        item$typingRate$setContent(typing_html)
 
-        item <- arr$get(key = snp_nm)
-        ref  <- get_ref_genotype(geno_obj_cc, user_levels)
-
-        item$typingRate$setContent(sprintf(
-          "<b>Typed samples:</b> %d / %d (%.1f%%)",
-          sum(snp_complete_mask), n_rows, sum(snp_complete_mask) / n_rows * 100))
-
+        # Main association table
         if (run_snpAssoc) {
-          item$assocTable$setVisible(TRUE)
-          private$.fill_assoc(item$assocTable, snp_raw_cc, ref, response_cc,
-                              cov_df_cc, response_type, opts,
-                              n_miss = n_miss_assoc, user_levels, response_raw_cc, snp_nm)
+          result <- compute_assoc(nm, prep,
+                                  models   = int_models,
+                                  ci_width = opts$ciWidth %||% 95)
+          if (!is.null(result$rows) && nrow(result$rows) > 0) {
+            item$assocTable$setVisible(TRUE)
+            private$.write_assoc(item$assocTable, result, opts, nm)
+          }
         }
 
-        if (run_snpInteraction && !is.null(cov_df_cc) && ncol(cov_df_cc) >= 1) {
-          interaction_var <- names(cov_df_cc)[1]
-          int_models      <- private$.get_interaction_models(opts)
-          model_labels    <- c(codominant = "Codominant", dominant = "Dominant",
-                               recessive  = "Recessive",  overdominant = "Overdominant",
-                               logadditive = "Log-additive")
-          int_lbl <- attr(self$data[[interaction_var]], "label") %||% interaction_var
-
+        # Interaction tables
+        if (run_snpInteraction && !is.null(prep$cov_df) && ncol(prep$cov_df) > 0) {
           for (mdl in int_models) {
-            mdl_label <- model_labels[[mdl]]
-            mdl_item  <- item$interactionResults$get(key = mdl_label)
+            mdl_item    <- item$interactionResults$get(key = model_labels[[mdl]])
+            interaction_var <- names(prep$cov_df)[1]  # first covariate as interaction var
+            int_lbl     <- attr(self$data[[interaction_var]], "label") %||% interaction_var
+            snp_char    <- as.character(sd$clean_cc)
+            response_cc <- prep$response_enc[sd$snp_mask]
+            cov_df_cc   <- prep$cov_df[sd$snp_mask, , drop = FALSE]
+            ref         <- sd$ref
+            user_levels <- sd$user_levels
 
             if (isTRUE(opts$showInteractionTable)) {
               mdl_item$interactionTable$setVisible(TRUE)
               private$.fill_interaction(
-                mdl_item$interactionTable, snp_raw_cc, ref,
+                mdl_item$interactionTable, sd$clean_cc, ref,
                 response_cc, cov_df_cc, interaction_var,
-                response_type, opts, mdl, user_levels, response_raw_cc, snp_nm)
+                prep$response_type, opts, mdl, user_levels,
+                prep$response_raw[sd$snp_mask], nm)
             }
-
             if (isTRUE(opts$showStratByCovariate)) {
               mdl_item$stratByCovariate$setVisible(TRUE)
               mdl_item$stratByCovariateHeading$setContent(
                 paste0("<h3>Stratified by Covariate: ", int_lbl, "</h3>"))
               private$.fill_strat_by_covariate(
-                mdl_item$stratByCovariate, snp_raw_cc, ref,
+                mdl_item$stratByCovariate, sd$clean_cc, ref,
                 response_cc, cov_df_cc, interaction_var,
-                response_type, opts, mdl, user_levels, response_raw_cc, snp_nm)
+                prep$response_type, opts, mdl, user_levels,
+                prep$response_raw[sd$snp_mask], nm)
             }
-
             if (isTRUE(opts$showStratByGenotype)) {
               mdl_item$stratByGenotype$setVisible(TRUE)
               mdl_item$stratByGenotypeHeading$setContent(
-                paste0("<h3>Stratified by Genotype: ", snp_nm, "</h3>"))
+                paste0("<h3>Stratified by Genotype: ", nm, "</h3>"))
               private$.fill_strat_by_genotype(
-                mdl_item$stratByGenotype, snp_raw_cc, ref,
+                mdl_item$stratByGenotype, sd$clean_cc, ref,
                 response_cc, cov_df_cc, interaction_var,
-                response_type, opts, mdl, user_levels, response_raw_cc, snp_nm)
+                prep$response_type, opts, mdl, user_levels,
+                prep$response_raw[sd$snp_mask], nm)
             }
-
             if (isTRUE(opts$showCrossClassTable)) {
               mdl_item$crossClassTable$setVisible(TRUE)
               mdl_item$crossClassHeading$setContent(
-                paste0("<h3>Cross-Classification: ", snp_nm, " \u00D7 ", int_lbl, "</h3>"))
+                paste0("<h3>Cross-Classification: ", nm, " \u00D7 ", int_lbl, "</h3>"))
               private$.fill_cross_class(
-                mdl_item$crossClassTable, snp_raw_cc, ref,
+                mdl_item$crossClassTable, sd$clean_cc, ref,
                 response_cc, cov_df_cc, interaction_var,
-                response_type, opts, mdl, user_levels, response_raw_cc, snp_nm)
+                prep$response_type, opts, mdl, user_levels,
+                prep$response_raw[sd$snp_mask], nm)
             }
           }
         }
       }
     },
 
-    # ════════════════════════════════════════════════════════════════════════
-    # .run_ldhaplo
-    # ════════════════════════════════════════════════════════════════════════
-    .get_interaction_models = function(opts) {
-      c(
-        if (isTRUE(opts$modelCodominant))   "codominant",
-        if (isTRUE(opts$modelDominant))     "dominant",
-        if (isTRUE(opts$modelRecessive))    "recessive",
-        if (isTRUE(opts$modelOverdominant)) "overdominant",
-        if (isTRUE(opts$modelLogAdditive))  "logadditive"
-      )
-    },
-
-    .fill_assoc = function(tbl, snp_raw, ref, response, cov_df,
-                           response_type, opts, n_miss = 0L, user_levels = NULL,
-                           response_raw, snp_lbl) {
-
-      is_categorical <- (response_type == "categorical")
-
-      tbl$getColumn("effect")$setTitle(if (response_type == "binary") "OR"
-                                       else if (is_categorical) "OR" else "\u03B2")
-      tbl$getColumn("genotype")$setTitle(snp_lbl)
-      resp_lbl <- attr(self$data[[self$options$response]], "label") %||% self$options$response
+    # Write compute_assoc result to a jamovi assocTable
+    .write_assoc = function(tbl, result, opts, snp_nm) {
+      rtype <- result$response_type
+      tbl$getColumn("effect")$setTitle(result$col_titles$effect)
+      tbl$getColumn("genotype")$setTitle(snp_nm)
+      resp_lbl <- attr(self$data[[self$options$response]], "label") %||%
+                  self$options$response
       tbl$setTitle(paste0("Association with ", resp_lbl))
 
-      if (response_type == "binary") {
-        lv <- levels(as.factor(response_raw))
-        tbl$getColumn("stat0")$setTitle(lv[1]); tbl$getColumn("stat1")$setTitle(lv[2])
-        tbl$getColumn("stat0")$setVisible(TRUE); tbl$getColumn("stat1")$setVisible(TRUE)
-      } else if (is_categorical) {
-        # For categorical: stat0 shows N (%) per genotype within each category block.
-        # The reference category is the first factor level of response_raw.
-        ref_cat <- levels(as.factor(response_raw))[1]
+      if (rtype == "binary") {
+        tbl$getColumn("stat0")$setTitle(result$col_titles$stat0)
+        tbl$getColumn("stat1")$setTitle(result$col_titles$stat1)
+        tbl$getColumn("stat0")$setVisible(TRUE)
+        tbl$getColumn("stat1")$setVisible(TRUE)
+      } else if (rtype == "categorical") {
         tbl$getColumn("stat0")$setTitle("N (%)")
         tbl$getColumn("stat0")$setVisible(TRUE)
         tbl$getColumn("stat1")$setVisible(FALSE)
-        tbl$setNote(key = "multinom_ref",
-                    note = paste0("Multinomial logistic regression. Reference category: \u2018",
-                                  ref_cat, "\u2019. OR and CI vs. reference category."))
       } else {
-        tbl$getColumn("stat0")$setTitle("Mean (SD)"); tbl$getColumn("stat0")$setVisible(TRUE)
+        tbl$getColumn("stat0")$setTitle("Mean (SD)")
+        tbl$getColumn("stat0")$setVisible(TRUE)
         tbl$getColumn("stat1")$setVisible(FALSE)
       }
       tbl$getColumn("AIC")$setVisible(isTRUE(opts$showAIC))
       tbl$getColumn("BIC")$setVisible(isTRUE(opts$showAIC))
-      if (!is.null(cov_df) && ncol(cov_df) > 0) {
-        cov_names <- sapply(names(cov_df), function(x) attr(self$data[[x]], "label") %||% x)
-        note_txt  <- paste0("Model adjusted for: ", paste(cov_names, collapse = ", "))
-        if (!is.na(n_miss) && n_miss > 0) note_txt <- paste0(note_txt, ".  ", n_miss, " observation(s) excluded.")
-        tbl$setNote(note = note_txt, key = "covariates")
-      } else if (!is.na(n_miss) && n_miss > 0) {
-        tbl$setNote(note = paste0(n_miss, " observation(s) excluded."), key = "covariates")
+
+      for (note in result$notes)
+        tbl$setNote(key = note, note = note)
+
+      rows <- result$rows
+      for (i in seq_len(nrow(rows))) {
+        tbl$addRow(rowKey = as.character(i), values = list(
+          model    = as.character(rows[["model"]][i]),
+          genotype = as.character(rows[["genotype"]][i]),
+          stat0    = as.character(rows[["stat0"]][i]),
+          stat1    = as.character(rows[["stat1"]][i]),
+          effect   = rows[["effect"]][i],
+          ciLow    = rows[["ci_low"]][i],
+          ciHigh   = rows[["ci_high"]][i],
+          pval     = rows[["pval"]][i],
+          AIC      = rows[["aic"]][i],
+          BIC      = rows[["bic"]][i]))
       }
-      models <- c(
-        if (opts$modelCodominant)   "codominant",
-        if (opts$modelDominant)     "dominant",
-        if (opts$modelRecessive)    "recessive",
-        if (opts$modelOverdominant) "overdominant",
-        if (opts$modelLogAdditive)  "logadditive")
-      model_labels <- c(codominant = "Codominant", dominant = "Dominant",
-                        recessive  = "Recessive",  overdominant = "Overdominant",
-                        logadditive = "Log-additive")
-      snp_char  <- as.character(snp_raw)
-      # Respect the user's factor level order. When user_levels exist use them
-      # directly (they are already ref-normalised by get_snp_level_order).
-      # Only fall back to ref-anchored sort when there are no user levels.
-      all_genos <- if (!is.null(user_levels) && length(user_levels) > 0) {
-        user_levels
-      } else {
-        c(ref, setdiff(sort(unique(snp_char[!is.na(snp_char)])), ref))
-      }
-      n_fit <- sum(!is.na(snp_char) & !is.na(response) &
-                     (if (!is.null(cov_df) && ncol(cov_df) > 0) complete.cases(cov_df) else TRUE))
-      n_cov <- if (!is.null(cov_df)) ncol(cov_df) else 0L
-      row_key     <- 0L
-      any_clamped <- FALSE   # set TRUE if any OR was suppressed due to separation
-
-      for (mdl in models) {
-        snp_enc  <- encode_model(snp_char, ref, mdl, user_levels)
-        res_list <- fit_model(snp_enc, response, cov_df, mdl, response_type, opts$ciWidth)
-        if (is.null(res_list)) next
-
-        geno_labels <- private$.geno_labels_for_model(mdl, all_genos, ref)
-        aic_val     <- { a <- res_list[[1]]$aic; if (!is.null(a) && !is.nan(a)) round(a,2) else NA_real_ }
-        bic_val     <- private$.bic_from_aic(aic_val, mdl, n_fit, n_cov)
-
-        # ── Categorical: one block per response category ──────────────────
-        if (is_categorical) {
-          cats <- unique(sapply(res_list, `[[`, "category"))
-          st   <- private$.compute_stats(geno_labels, snp_char, response,
-                                         response_type, response_raw)
-          for (cat in cats) {
-            cat_res  <- res_list[sapply(res_list, function(r) r$category == cat)]
-            cat_sts  <- if (!is.null(st$by_cat)) st$by_cat[[cat]] else rep("", length(geno_labels))
-            n_cat    <- sum(as.character(response_raw) == cat, na.rm = TRUE)
-            if (mdl == "logadditive") {
-              # Log-additive: single per-allele row per category (total N, not per-genotype)
-              res <- cat_res[[1]]
-              row_key <- row_key + 1L
-              tbl$addRow(rowKey = as.character(row_key), values = list(
-                model    = paste0(model_labels[mdl], " \u2014 ", cat, " (n=", n_cat, ")"),
-                genotype = "Per allele",
-                stat0    = sprintf("%d", n_cat),
-                stat1    = "",
-                effect   = res$effect, ciLow = res$ci_low, ciHigh = res$ci_high,
-                pval     = res$pval, AIC = aic_val, BIC = bic_val))
-              next
-            }
-            # Header / reference row for this category
-            row_key <- row_key + 1L
-            tbl$addRow(rowKey = as.character(row_key), values = list(
-              model    = paste0(model_labels[mdl], " \u2014 ", cat, " (n=", n_cat, ")"),
-              genotype = geno_labels[1],
-              stat0    = if (length(cat_sts) >= 1) cat_sts[1] else "",
-              stat1    = "",
-              effect   = 1., ciLow = '', ciHigh = '',
-              pval     = cat_res[[1]]$global_p,
-              AIC = aic_val, BIC = bic_val))
-            # One row per non-ref genotype
-            for (i in seq_along(cat_res)) {
-              res <- cat_res[[i]]
-              gl  <- if ((i + 1) <= length(geno_labels)) geno_labels[i + 1] else res$comparison
-              row_key <- row_key + 1L
-              tbl$addRow(rowKey = as.character(row_key), values = list(
-                model = "", genotype = gl,
-                stat0 = if ((i + 1) <= length(cat_sts)) cat_sts[i + 1] else "",
-                stat1 = "",
-                effect = res$effect, ciLow = res$ci_low, ciHigh = res$ci_high,
-                pval = res$pval, AIC = '', BIC = ''))
-            }
-          }
-          if (mdl == "codominant")
-            tbl$setNote(key = "lrt",
-                        note = "P-value in first row of each category is LRT for overall association")
-          next
-        }
-
-        # ── Binary / quantitative ────────────────────────────────────────────
-        st <- private$.compute_stats(geno_labels, snp_char, response, response_type,
-                                     response_raw)
-        if (mdl == "logadditive") {
-          res <- res_list[[1]]; row_key <- row_key + 1L
-          if (response_type == "binary") {
-            lv <- levels(as.factor(response_raw))
-            stat0_val <- sprintf("%d", sum(response_raw == lv[1], na.rm = TRUE))
-            stat1_val <- sprintf("%d", sum(response_raw == lv[2], na.rm = TRUE))
-          } else {
-            stat0_val <- sprintf("%.2f (%.2f)", mean(response, na.rm=TRUE), sd(response, na.rm=TRUE))
-            stat1_val <- " "
-          }
-          tbl$addRow(rowKey = as.character(row_key), values = list(
-            model = model_labels[mdl], genotype = "Per allele",
-            stat0 = stat0_val, stat1 = stat1_val,
-            effect = res$effect, ciLow = res$ci_low, ciHigh = res$ci_high,
-            pval = res$pval, AIC = aic_val, BIC = bic_val))
-          next
-        }
-        pval_row1 <- if (mdl == "codominant") res_list[[1]]$global_p else ''
-        row_key <- row_key + 1L
-        tbl$addRow(rowKey = as.character(row_key), values = list(
-          model = model_labels[mdl], genotype = geno_labels[1],
-          stat0 = st$s0[1], stat1 = st$s1[1],
-          effect = if (response_type == "binary") 1. else 0.,
-          ciLow = '', ciHigh = '', pval = pval_row1, AIC = aic_val, BIC = bic_val))
-        if (mdl == "codominant")
-          tbl$setNote(key = "lrt", note = "First p-value in Codominant is LRT for overall association")
-        for (i in seq_along(res_list)) {
-          res <- res_list[[i]]
-          gl  <- if ((i + 1) <= length(geno_labels)) geno_labels[i + 1] else res$comparison
-          if (is.na(res$effect)) any_clamped <- TRUE
-          row_key <- row_key + 1L
-          tbl$addRow(rowKey = as.character(row_key), values = list(
-            model = "", genotype = gl,
-            stat0 = if ((i+1) <= length(st$s0)) st$s0[i+1] else "-",
-            stat1 = if ((i+1) <= length(st$s1)) st$s1[i+1] else "",
-            effect = res$effect, ciLow = res$ci_low, ciHigh = res$ci_high,
-            pval = res$pval, AIC = '', BIC = ''))
-        }
-      }
-      if (any_clamped)
-        tbl$setNote(key = "separation",
-                    note = "One or more OR/CI suppressed (shown as blank) due to complete or quasi-complete separation.")
     },
 
-    # .fill_interaction, .fill_strat_by_covariate, .fill_strat_by_genotype,
-    # .fill_cross_class are copied verbatim from snpAssoc_b.R — paste below.
-    # (Omitted here for brevity in this skeleton; the actual merge pastes them in full.)
+    # ══════════════════════════════════════════════════════════════════════════
+    # .run_ldhaplo  — calls compute_ld / compute_haplo_* then writes tables
+    # ══════════════════════════════════════════════════════════════════════════
+    .run_ldhaplo = function(prep, opts) {
+      run_ldAnalysis      <- isTRUE(opts$ldAnalysis)
+      run_ldMatrix        <- isTRUE(opts$ldMatrix)
+      run_ldPlot          <- isTRUE(opts$ldPlot)
+      run_haploFreq       <- isTRUE(opts$haploFreq)
+      run_haploAssoc      <- isTRUE(opts$haploAssoc)
+      run_haploInteraction <- isTRUE(opts$haploInteraction)
+      run_subpop          <- isTRUE(opts$subpop) &&
+                             !is.null(prep$response_raw) &&
+                             prep$response_type %in% c("binary","categorical")
+
+      ld_res_grp <- self$results$ldHaploGroup
+
+      # ── LD ───────────────────────────────────────────────────────────────
+      if (run_ldAnalysis || run_ldMatrix || run_ldPlot) {
+        ld_res_grp$ldGroup$setVisible(TRUE)
+        private$.run_ld(prep, opts,
+                        run_ldAnalysis, run_ldMatrix, run_ldPlot)
+      }
+
+      # ── Haplotype ─────────────────────────────────────────────────────────
+      if (run_haploFreq || run_haploAssoc || run_haploInteraction) {
+        ld_res_grp$haploGroup$setVisible(TRUE)
+        private$.run_haplo(prep, opts,
+                           run_haploFreq, run_haploAssoc, run_haploInteraction,
+                           run_subpop)
+      }
+    },
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Shared association utilities (unchanged from original)
+    # ══════════════════════════════════════════════════════════════════════════
+    .get_interaction_models = function(opts) {
+      c(if (isTRUE(opts$modelCodominant))   "codominant",
+        if (isTRUE(opts$modelDominant))     "dominant",
+        if (isTRUE(opts$modelRecessive))    "recessive",
+        if (isTRUE(opts$modelOverdominant)) "overdominant",
+        if (isTRUE(opts$modelLogAdditive))  "logadditive")
+    },
+
+    .geno_labels_for_model = function(model, all_genos, ref) {
+      .geno_labels_for_model(model, all_genos, ref)
+    },
+
+    .split_genos = function(gl) .split_genos(gl),
+
+    .compute_stats = function(geno_labels, snp_char, response, response_type,
+                              response_raw = NULL) {
+      .compute_stats(geno_labels, snp_char, response, response_type, response_raw)
+    },
+
+    .bic_from_aic = function(aic_val, mdl, n_fit, n_cov) {
+      .bic_from_aic(aic_val, mdl, n_fit, n_cov)
+    },
+
     .fill_interaction = function(tbl, snp_raw, ref, response, cov_df,
                                   interaction_var, response_type, opts,
                                   int_models, user_levels = NULL, response_raw, snp_lbl) {
@@ -1466,168 +996,91 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
     # ════════════════════════════════════════════════════════════════════════
     # Descriptive private methods (verbatim from snpDesc_b.R)
     # ════════════════════════════════════════════════════════════════════════
-    .geno_labels_for_model = function(mdl, all_genos, ref) {
-      if (mdl %in% c("codominant", "logadditive")) return(all_genos)
-      het  <- all_genos[all_genos != ref & all_genos != all_genos[length(all_genos)]]
-      hom2 <- all_genos[length(all_genos)]
-      if (length(het) == 0) het <- hom2
-      if (mdl == "dominant")     return(c(ref, paste(c(het, hom2), collapse = "-")))
-      if (mdl == "recessive")    return(c(paste(c(ref, het), collapse = "-"), hom2))
-      if (mdl == "overdominant") return(c(paste(c(ref, hom2), collapse = "-"), het))
-      all_genos
-    },
-
-    .split_genos = function(gl)
-      unlist(strsplit(gl, "(?<=[A-Za-z0-9*])-(?=[A-Za-z0-9*])", perl = TRUE)),
-
-    .compute_stats = function(geno_labels, snp_char, response, response_type,
-                              response_raw = NULL) {
-      split_genos <- private$.split_genos
-
-      # Normalise genotype strings so ref allele is always first (e.g. "G/A" →
-      # "A/G" when A is the ref).  This must match the orientation produced by
-      # parse_genotype(), otherwise %in% lookups silently miss heterozygotes
-      # and every cell falls through to the "---" / zero-count guard.
-      norm_snp_char <- function(sc) {
-        # Determine ref allele from the first homozygote among ALL geno_labels.
-        # geno_labels[1] may be a compound label (e.g. "A/A-B/B" for overdominant),
-        # so scan all single-genotype labels for a homozygote X/X pattern.
-        ref_al <- NULL
-        for (lbl in geno_labels) {
-          parts <- strsplit(lbl, "/", fixed = TRUE)[[1]]
-          if (length(parts) == 2 && parts[1] == parts[2]) { ref_al <- parts[1]; break }
-        }
-        if (is.null(ref_al)) return(sc)
-        sapply(sc, function(g) {
-          if (is.na(g)) return(NA_character_)
-          p <- strsplit(g, "/", fixed = TRUE)[[1]]
-          if (length(p) == 2 && p[1] != p[2] && p[2] == ref_al)
-            paste0(p[2], "/", p[1])
-          else g
-        }, USE.NAMES = FALSE)
+    .plotMissingness = function(image, ...) {
+      cache <- private$.miss_cache
+      if (is.null(cache) || length(cache) == 0) return(FALSE)
+      run_subpop <- isTRUE(self$options$subpop)
+      threshold  <- self$options$missingnessThreshold
+      if (!is.numeric(threshold) || is.na(threshold)) threshold <- 0.1
+      all_nms <- names(cache)
+      pct_all <- vapply(all_nms, function(nm) {
+        d <- cache[[nm]]
+        if (d$n_total_eligible == 0) return(0)
+        d$total_missing / d$n_total_eligible * 100
+      }, numeric(1))
+      keep        <- pct_all > threshold
+      n_hidden    <- sum(!keep)
+      snp_nms     <- all_nms[keep]
+      pct_overall <- pct_all[keep]
+      n_snps      <- length(snp_nms)
+      if (n_snps == 0) {
+        opar <- par(no.readonly = TRUE); on.exit(par(opar))
+        par(bg = "white", mar = c(1, 1, 3, 1))
+        plot.new(); title(main = "SNP Missingness")
+        text(0.5, 0.5, sprintf("No SNPs have missingness > %.1f%%\n(threshold: %.1f%%)", threshold, threshold),
+             cex = 1.1, col = "#555555")
+        return(TRUE)
       }
-      sc <- norm_snp_char(snp_char)
-
-      if (response_type == "binary") {
-        # Use response_raw (original labels) for column titles / grouping so
-        # that the counts match the header labels set in .fill_assoc.
-        resp_grp <- if (!is.null(response_raw)) response_raw else response
-        lv       <- levels(as.factor(resp_grp))
-        if (length(lv) < 2) lv <- c(lv, "")
-        n_col0 <- sum(resp_grp == lv[1] & !is.na(resp_grp))
-        n_col1 <- sum(resp_grp == lv[2] & !is.na(resp_grp))
-        stats0 <- character(length(geno_labels))
-        stats1 <- character(length(geno_labels))
-        for (i in seq_along(geno_labels)) {
-          mask <- sc %in% split_genos(geno_labels[i]) & !is.na(resp_grp)
-          n0   <- sum(mask & resp_grp == lv[1])
-          n1   <- sum(mask & resp_grp == lv[2])
-          stats0[i] <- sprintf("%d (%.1f%%)", n0, if (n_col0 > 0) n0 / n_col0 * 100 else 0)
-          stats1[i] <- sprintf("%d (%.1f%%)", n1, if (n_col1 > 0) n1 / n_col1 * 100 else 0)
-        }
-        list(s0 = stats0, s1 = stats1)
-      } else if (response_type == "categorical") {
-        # For categorical: compute N (%) per genotype × category.
-        # Returns a list of per-category vectors; callers index by category.
-        resp_grp <- if (!is.null(response_raw)) response_raw else response
-        cats     <- levels(as.factor(resp_grp))
-        n_cats   <- sapply(cats, function(c) sum(resp_grp == c & !is.na(resp_grp)))
-        cat_stats <- lapply(cats, function(cat) {
-          n_cat <- n_cats[[cat]]
-          sapply(seq_along(geno_labels), function(i) {
-            mask <- sc %in% split_genos(geno_labels[i]) & !is.na(resp_grp)
-            n    <- sum(mask & resp_grp == cat)
-            sprintf("%d (%.1f%%)", n, if (n_cat > 0) n / n_cat * 100 else 0)
+      grp_data <- NULL
+      if (run_subpop) {
+        all_grps <- unique(unlist(lapply(cache[snp_nms], function(d) names(d$n_miss_by_level))))
+        if (length(all_grps) > 0) {
+          grp_data <- lapply(all_grps, function(g) {
+            vapply(snp_nms, function(nm) {
+              d <- cache[[nm]]
+              if (is.null(d$n_miss_by_level) || !g %in% names(d$n_miss_by_level)) return(NA_real_)
+              if (d$n_total_eligible == 0) return(0)
+              d$n_miss_by_level[[g]] / d$n_total_eligible * 100
+            }, numeric(1))
           })
-        })
-        names(cat_stats) <- cats
-        # Also provide overall N per genotype for the header rows
-        stats_total <- sapply(seq_along(geno_labels), function(i) {
-          mask <- sc %in% split_genos(geno_labels[i]) & !is.na(resp_grp)
-          sprintf("%d", sum(mask))
-        })
-        list(s0 = stats_total, s1 = rep("", length(geno_labels)),
-             by_cat = cat_stats, cats = cats)
-      } else {
-        stats0 <- character(length(geno_labels))
-        for (i in seq_along(geno_labels)) {
-          vals <- as.numeric(response[sc %in% split_genos(geno_labels[i]) & !is.na(response)])
-          stats0[i] <- if (length(vals) == 0) "---"
-                       else sprintf("%.2f (%.2f)", mean(vals), sd(vals))
+          names(grp_data) <- all_grps
         }
-        list(s0 = stats0, s1 = rep("", length(geno_labels)))
       }
-    },
-
-    .bic_from_aic = function(aic_val, mdl, n_fit, n_cov) {
-      snp_df <- c(codominant = 2L, dominant = 1L, recessive = 1L,
-                  overdominant = 1L, logadditive = 1L)
-      if (is.null(aic_val) || is.na(aic_val) || is.nan(aic_val)) return(NA_real_)
-      round(aic_val + (1L + n_cov + snp_df[[mdl]]) * (log(n_fit) - 2), 2)
-    },
-
-    # ── Association, interaction, strat, cross-class fill methods ───────────
-    # These are copied verbatim from snpAssoc_b.R private list.
-    # Self-references to self$results$snpResults become self$results$assocGroup$assocSnpResults
-    # where they appear (only in .fill_cross_class's null check for arr items).
-    .run_ldhaplo = function(data, snp_vars, response_var, response_raw,
-                            response_type, response, cov_df,
-                            complete_mask, n_rows, opts) {
-      run_ldAnalysis       <- isTRUE(opts$ldAnalysis)
-      run_ldMatrix         <- isTRUE(opts$ldMatrix)
-      run_ldPlot           <- isTRUE(opts$ldPlot)
-      run_haploFreq        <- isTRUE(opts$haploFreq)
-      run_haploAssoc       <- isTRUE(opts$haploAssoc)
-      run_haploInteraction <- isTRUE(opts$haploInteraction)
-      run_subpop           <- isTRUE(opts$ldSubpop)
-
-      if (run_haploInteraction && (is.null(cov_df) || ncol(cov_df) == 0)) {
-        self$results$validationMsg$setContent(
-          "<p style='color:orange;'>Haplotype \u00D7 covariate interaction requires at least one covariate.</p>")
-        self$results$validationMsg$setVisible(TRUE)
-        run_haploInteraction <- FALSE
+      n_grps <- if (!is.null(grp_data)) length(grp_data) else 0
+      opar <- par(no.readonly = TRUE); on.exit(par(opar))
+      note_lines  <- if (n_hidden > 0) 1 else 0
+      left_margin <- max(nchar(snp_nms)) * 0.55 + 1
+      par(bg = "white", mar = c(4.5 + note_lines, left_margin, 3, 1.5))
+      grp_pal <- c("#2980B9", "#C0392B", "#27AE60", "#8E44AD", "#E67E22")
+      x_max <- max(pct_overall, unlist(grp_data), na.rm = TRUE)
+      x_max <- max(x_max * 1.15, threshold * 1.5, 0.5)
+      y_pos <- seq_len(n_snps)
+      plot(NULL, xlim = c(0, x_max), ylim = c(0.5, n_snps + 0.5),
+           xlab = "Missing genotypes (%)", ylab = "", main = "SNP Missingness",
+           yaxt = "n", las = 1, bty = "l")
+      axis(2, at = y_pos, labels = snp_nms, las = 1, tick = FALSE,
+           cex.axis = min(1, 14 / n_snps + 0.3))
+      abline(v = threshold, lty = 3, col = "#AAAAAA", lwd = 1.2)
+      bar_col <- adjustcolor("#2C3E50", 0.20)
+      bar_brd <- adjustcolor("#2C3E50", 0.45)
+      rect(rep(0, n_snps), y_pos - 0.35, pct_overall, y_pos + 0.35,
+           col = bar_col, border = bar_brd, lwd = 0.8)
+      points(pct_overall, y_pos, pch = 19, col = "#2C3E50", cex = 1.1)
+      if (!is.null(grp_data) && n_grps > 0) {
+        offsets <- seq(-0.18, 0.18, length.out = n_grps)
+        for (gi in seq_len(n_grps)) {
+          col_i <- grp_pal[(gi - 1) %% length(grp_pal) + 1]
+          points(grp_data[[gi]], y_pos + offsets[gi],
+                 pch = 21, bg = adjustcolor(col_i, 0.70), col = col_i, cex = 0.90, lwd = 0.8)
+        }
+        legend("topright",
+               legend = c("Overall", names(grp_data)),
+               pch    = c(19, rep(21, n_grps)),
+               col    = c("#2C3E50", grp_pal[seq_len(n_grps)]),
+               pt.bg  = c(NA, adjustcolor(grp_pal[seq_len(n_grps)], 0.70)),
+               pt.cex = c(1.1, rep(0.90, n_grps)), bty = "n", cex = 0.80)
       }
-      if (run_haploAssoc && is.null(response_raw)) {
-        self$results$validationMsg$setContent(
-          "<p style='color:orange;'>Haplotype association requires a response variable.</p>")
-        self$results$validationMsg$setVisible(TRUE)
-        run_haploAssoc <- FALSE
-      }
-      if (response_type == "categorical" && (run_haploAssoc || run_haploInteraction)) {
-        self$results$validationMsg$setContent(
-          "<p style='color:orange;'>Haplotype association and interaction are not available for categorical responses. Use binary or quantitative.</p>")
-        self$results$validationMsg$setVisible(TRUE)
-        run_haploAssoc       <- FALSE
-        run_haploInteraction <- FALSE
-      }
-
-      ld_res_grp    <- self$results$ldHaploGroup
-
-      # ── Parse genotypes ────────────────────────────────────────────────
-      geno_list <- list()
-      for (snp_nm in snp_vars) {
-        snp_raw     <- data[[snp_nm]]
-        user_levels <- get_snp_level_order(snp_raw)
-        geno_obj    <- parse_genotype(snp_raw, user_levels)
-        if (!is.null(geno_obj)) geno_list[[snp_nm]] <- geno_obj
-      }
-      if (length(geno_list) < 2) return()
-
-      if (run_ldAnalysis || run_ldMatrix || run_ldPlot) {
-        ld_res_grp$ldGroup$setVisible(TRUE)
-        private$.run_ld(geno_list, opts, run_ldAnalysis, run_ldMatrix, run_ldPlot)
-      }
-
-      if (run_haploFreq || run_haploAssoc || run_haploInteraction) {
-        ld_res_grp$haploGroup$setVisible(TRUE)
-        private$.run_haplo(geno_list, data, response, response_raw, response_type,
-                           cov_df, opts, run_haploFreq, run_haploAssoc,
-                           run_haploInteraction, run_subpop, complete_mask)
-      }
+      text(pct_overall + x_max * 0.015, y_pos,
+           labels = sprintf("%.1f%%", pct_overall), adj = 0, cex = 0.72, col = "#333333")
+      note_txt <- if (n_hidden > 0)
+        sprintf("%d SNP(s) with missingness \u2264 %.1f%% not shown  |  dashed line = threshold", n_hidden, threshold)
+      else sprintf("Dashed line = %.1f%% threshold", threshold)
+      mtext(note_txt, side = 1, line = 3.6, cex = 0.72, col = "#666666", adj = 0)
+      TRUE
     },
 
     # ════════════════════════════════════════════════════════════════════════
-    # Association private methods (verbatim from snpAssoc_b.R)
+    # LD / Haplotype private methods (verbatim from snpLDHaplo_b.R)
     # ════════════════════════════════════════════════════════════════════════
     .run_ld = function(geno_list, opts, run_ldAnalysis, run_ldMatrix, run_ldPlot) {
       nms   <- names(geno_list)
@@ -1642,7 +1095,6 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       }
       if (run_ldAnalysis) {
         tbl <- self$results$ldHaploGroup$ldGroup$ldTable
-        tbl$setVisible(TRUE)
         for (pair in pairs) {
           key    <- paste(pair, collapse = "___")
           ld_res <- ld_store[[key]]
@@ -1657,7 +1109,6 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       }
       if (run_ldMatrix) {
         mtbl   <- self$results$ldHaploGroup$ldGroup$ldMatrixTable
-        mtbl$setVisible(TRUE)
         metric <- opts$ldMetric
         for (nm in nms) {
           safe_nm <- gsub("[^A-Za-z0-9_]","_",nm)
@@ -1696,7 +1147,6 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         private$.ld_store  <- ld_store
         private$.ld_nms    <- nms
         private$.ld_metric <- opts$ldMetric
-        self$results$ldHaploGroup$ldGroup$ldPlotImage$setVisible(TRUE)
         self$results$ldHaploGroup$ldGroup$ldPlotImage$setState(
           list(ld_store = ld_store, nms = nms, metric = opts$ldMetric))
       }
@@ -1792,7 +1242,6 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
     .compute_haplo_freqs = function(geno_setup, response_raw, response_type, keep,
                                     n_miss, opts, run_subpop, snp_names, u_alleles) {
       tbl <- self$results$ldHaploGroup$haploGroup$haploFreqTable
-      tbl$setVisible(TRUE)
       tbl$setTitle("<b>Haplotype Frequencies</b>")
       do_strat_haplo   <- isTRUE(run_subpop) && !is.null(response_raw) &&
                           identical(response_type, "binary")
@@ -1880,7 +1329,6 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         })
       if (!is.null(haplo_fit)) {
         tbl <- self$results$ldHaploGroup$haploGroup$haploAssocTable
-        tbl$setVisible(TRUE)
         tbl$setTitle("<b>Haplotype Association</b>")
         tbl$getColumn("effect")$setTitle(if (response_type == "binary") "OR" else "\u03B2")
         null_formula_str <- if (!is.null(cov_df) && ncol(cov_df) > 0)
@@ -2086,7 +1534,6 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       }
       # Table 1: Cross-classification
       tbl_cross <- self$results$ldHaploGroup$haploGroup$haploInteractionTable
-      tbl_cross$setVisible(TRUE)
       tbl_cross$setTitle(paste0("<b>Haplotype \u00D7 ", int_var, " (cross-classification)</b>"))
       build_notes(tbl_cross)
       if (!is.na(p_inter)) tbl_cross$setNote(note = paste0("Interaction p-value (LRT): ", format.pval(p_inter, digits = 3)), key = "lrt_inter")
@@ -2130,7 +1577,6 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       }
       # Table 2: Haplotype effect conditional on covariate
       tbl_cond_covar <- self$results$ldHaploGroup$haploGroup$haploCondCovarTable
-      tbl_cond_covar$setVisible(TRUE)
       tbl_cond_covar$setTitle(paste0("<b>Haplotype effect within ", int_var, " levels</b>"))
       build_notes(tbl_cond_covar)
       for (lvl in covar_levels)
@@ -2158,7 +1604,6 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       if (!is.na(p_inter)) tbl_cond_covar$setNote(note = paste0("Interaction p-value (LRT): ", format.pval(p_inter, digits = 3)), key = "lrt_inter2")
       # Table 3: Covariate effect conditional on haplotype
       tbl_cond_haplo <- self$results$ldHaploGroup$haploGroup$haploCondHaploTable
-      tbl_cond_haplo$setVisible(TRUE)
       tbl_cond_haplo$setTitle(paste0("<b>", int_var, " effect within haplotypes</b>"))
       build_notes(tbl_cond_haplo)
       non_ref_covar_levels <- covar_levels[-1]
@@ -2199,6 +1644,230 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 #' Fit association model for one SNP under one genetic model.
 #' For categorical response, fits a multinomial logistic model (nnet::multinom)
 #' and returns one result list per response category (vs. reference).
+fit_model <- function(snp_enc, response, covariates_df, model_name,
+                      response_type, ci_width) {
+  df <- data.frame(resp = response, snp = snp_enc)
+  cov_formula <- ""
+  if (!is.null(covariates_df) && ncol(covariates_df) > 0) {
+    df          <- cbind(df, covariates_df)
+    cov_formula <- paste("+", safe_rhs(names(covariates_df)))
+  }
+  df <- df[complete.cases(df), , drop = FALSE]
+  formula_full <- as.formula(paste("resp ~ snp", cov_formula))
+  formula_null <- as.formula(paste("resp ~ 1",   cov_formula))
+
+  # ── Categorical: multinomial logistic via nnet::multinom ──────────────────
+  if (response_type == "categorical") {
+    if (!requireNamespace("nnet", quietly = TRUE)) return(NULL)
+    df$resp <- as.factor(df$resp)
+    fit_full <- tryCatch(
+      nnet::multinom(formula_full, data = df, trace = FALSE),
+      error = function(e) NULL)
+    fit_null <- tryCatch(
+      nnet::multinom(formula_null, data = df, trace = FALSE),
+      error = function(e) NULL)
+    if (is.null(fit_full)) return(NULL)
+    lrt      <- tryCatch(anova(fit_null, fit_full), error = function(e) NULL)
+    global_p <- if (!is.null(lrt) && nrow(lrt) >= 2) lrt[2, "Pr(Chi)"] else NA_real_
+    aic_val  <- AIC(fit_full)
+    coefs    <- summary(fit_full)$coefficients   # matrix: categories × terms
+    ses      <- summary(fit_full)$standard.errors
+    cats     <- rownames(coefs)                  # response categories (not ref)
+    snp_cols <- grep("^snp", colnames(coefs))
+    if (length(snp_cols) == 0) return(NULL)
+    z_crit   <- qnorm(1 - (1 - ci_width / 100) / 2)
+    # Return a list-of-lists: one entry per (category × snp_col)
+    result <- list()
+    for (cat in cats) {
+      for (j in snp_cols) {
+        beta  <- coefs[cat, j]
+        se    <- ses[cat, j]
+        ci_lo <- beta - z_crit * se
+        ci_hi <- beta + z_crit * se
+        pval  <- 2 * (1 - pnorm(abs(beta / se)))
+        result[[length(result) + 1L]] <- list(
+          category   = cat,
+          comparison = sub("^snp", "", colnames(coefs)[j]),
+          effect     = .exp_or(beta),
+          ci_low     = .exp_or(ci_lo),
+          ci_high    = .exp_or(ci_hi),
+          pval       = pval,
+          global_p   = global_p,
+          aic        = aic_val,
+          is_categorical = TRUE
+        )
+      }
+    }
+    return(result)
+  }
+
+  # ── Binary / quantitative ─────────────────────────────────────────────────
+  tryCatch({
+    if (response_type == "binary") {
+      fit_full  <- glm(formula_full, data = df, family = binomial())
+      fit_null  <- glm(formula_null, data = df, family = binomial())
+      lrtest <- "Chisq"; lrtest_label <- "Pr(>Chi)"; pval_col <- "Pr(>|z|)"
+    } else {
+      fit_full  <- lm(formula_full, data = df)
+      fit_null  <- lm(formula_null, data = df)
+      lrtest <- "F"; lrtest_label <- "Pr(>F)"; pval_col <- "Pr(>|t|)"
+    }
+    lrt      <- tryCatch(anova(fit_null, fit_full, test = lrtest), error = function(e) NULL)
+    global_p <- if (!is.null(lrt)) lrt[2, lrtest_label] else NA_real_
+    aic_val  <- AIC(fit_full)
+    coefs    <- summary(fit_full)$coefficients
+    snp_rows <- grep("^snp", rownames(coefs))
+    if (length(snp_rows) == 0) return(NULL)
+    ci <- tryCatch(
+      confint(fit_full, level = ci_width / 100)[snp_rows, , drop = FALSE],
+      error = function(e) matrix(NA, nrow = length(snp_rows), ncol = 2))
+    lapply(seq_along(snp_rows), function(i) {
+      row  <- snp_rows[i]
+      beta <- coefs[row, "Estimate"]
+      pval <- coefs[row, pval_col]
+      ci_lo <- ci[i, 1]; ci_hi <- ci[i, 2]
+      if (response_type == "binary")
+        list(effect = .exp_or(beta), ci_low = .exp_or(ci_lo), ci_high = .exp_or(ci_hi),
+             pval = pval, global_p = global_p, aic = aic_val,
+             comparison = sub("^snp", "", rownames(coefs)[row]))
+      else
+        list(effect = beta, ci_low = ci_lo, ci_high = ci_hi,
+             pval = pval, global_p = global_p, aic = aic_val,
+             comparison = sub("^snp", "", rownames(coefs)[row]))
+    })
+  }, error = function(e) NULL)
+}
+
+#' Fit SNP × covariate interaction model.
+fit_interaction_model <- function(snp_enc, response, covariates_df,
+                                  interaction_var, model_name,
+                                  response_type, ci_width,
+                                  conditional = FALSE, cond_var = interaction_var) {
+  df <- data.frame(resp = response, snp = snp_enc)
+  adj_covs <- character(0)
+  if (!is.null(covariates_df) && ncol(covariates_df) > 0) {
+    df       <- cbind(df, covariates_df)
+    adj_covs <- setdiff(names(covariates_df), interaction_var)
+  }
+  if (!(interaction_var %in% names(df))) return(NULL)
+  df <- df[complete.cases(df), , drop = FALSE]
+  if (nrow(df) < 5) return(NULL)
+  # Escape all user-supplied names before interpolating into formula strings
+  iv_safe  <- safe_term(interaction_var)
+  adj_part <- if (length(adj_covs) > 0) paste("+", safe_rhs(adj_covs)) else ""
+
+  if (conditional) {
+    if (cond_var == "snp") {
+      formula_fit <- as.formula(paste("resp ~ snp /", iv_safe, adj_part))
+    } else {
+      formula_fit <- as.formula(paste("resp ~", iv_safe, "/ snp", adj_part))
+    }
+    formula_add <- as.formula(paste("resp ~ snp +", iv_safe, adj_part))
+    if (response_type == "binary") {
+      fit     <- glm(formula_fit, data = df, family = binomial())
+      fit_add <- glm(formula_add, data = df, family = binomial())
+      pval_col <- "Pr(>|z|)"; lrtest <- "Chisq"; lrtest_label <- "Pr(>Chi)"
+    } else {
+      fit     <- lm(formula_fit, data = df)
+      fit_add <- lm(formula_add, data = df)
+      pval_col <- "Pr(>|t|)"; lrtest <- "F"; lrtest_label <- "Pr(>F)"
+    }
+    lrt_cond <- tryCatch(anova(fit_add, fit, test = lrtest), error = function(e) NULL)
+    p_inter  <- lrt_cond[2, lrtest_label]
+    coefs    <- summary(fit)$coefficients
+    ci_mat   <- tryCatch(confint(fit, level = ci_width / 100),
+                         error = function(e) matrix(NA, nrow = nrow(coefs), ncol = 2))
+    aic_val  <- AIC(fit)
+    all_rows <- rownames(coefs)
+    inter_rows_idx <- grep(":", all_rows)
+    snp_rows_idx   <- setdiff(grep("^snp", all_rows), inter_rows_idx)
+    adj_rows_idx   <- setdiff(
+      seq_along(all_rows),
+      c(grep("^\\(Intercept\\)", all_rows),
+        snp_rows_idx, inter_rows_idx,
+        which(startsWith(all_rows, interaction_var))))
+    if (length(inter_rows_idx) == 0) return(NULL)
+    all_keep <- unique(c(snp_rows_idx, inter_rows_idx, adj_rows_idx))
+    first_inter_done <- FALSE
+    result <- lapply(all_keep, function(r) {
+      term  <- all_rows[r]
+      beta  <- coefs[r, "Estimate"]
+      pval  <- coefs[r, pval_col]
+      ci_lo <- ci_mat[r, 1]; ci_hi <- ci_mat[r, 2]
+      is_inter_term <- r %in% inter_rows_idx
+      row_type <- if (r %in% snp_rows_idx) "snp"
+                  else if (is_inter_term)   "interaction"
+                  else                      "adjustment"
+      attach_p <- is_inter_term && !first_inter_done
+      if (attach_p) first_inter_done <<- TRUE
+      if (response_type == "binary")
+        list(term = term, effect = .exp_or(beta), ci_low = .exp_or(ci_lo), ci_high = .exp_or(ci_hi),
+             pval = pval, pval_interaction = if (attach_p) p_inter else NA_real_,
+             aic = aic_val, row_type = row_type)
+      else
+        list(term = term, effect = beta, ci_low = ci_lo, ci_high = ci_hi,
+             pval = pval, pval_interaction = if (attach_p) p_inter else NA_real_,
+             aic = aic_val, row_type = row_type)
+    })
+    attr(result, "pval_interaction") <- p_inter
+    result
+  } else {
+    formula_int  <- as.formula(paste("resp ~ snp *", iv_safe, adj_part))
+    formula_main <- as.formula(paste("resp ~ snp +", iv_safe, adj_part))
+    tryCatch({
+      if (response_type == "binary") {
+        fit_int  <- glm(formula_int,  data = df, family = binomial())
+        fit_main <- glm(formula_main, data = df, family = binomial())
+        pval_col <- "Pr(>|z|)"; lrtest <- "Chisq"; lrtest_label <- "Pr(>Chi)"
+      } else {
+        fit_int  <- lm(formula_int,  data = df)
+        fit_main <- lm(formula_main, data = df)
+        pval_col <- "Pr(>|t|)"; lrtest <- "F"; lrtest_label <- "Pr(>F)"
+      }
+      lrt      <- tryCatch(anova(fit_main, fit_int, test = lrtest), error = function(e) NULL)
+      p_inter  <- if (!is.null(lrt)) lrt[2, lrtest_label] else NA_real_
+      aic_val  <- AIC(fit_int)
+      coefs    <- summary(fit_int)$coefficients
+      ci       <- tryCatch(confint(fit_int, level = ci_width / 100),
+                           error = function(e) matrix(NA, nrow = nrow(coefs), ncol = 2,
+                                                      dimnames = list(rownames(coefs), c("lo","hi"))))
+      all_rows   <- rownames(coefs)
+      snp_rows   <- grep("^snp", all_rows)
+      inter_rows <- which(
+        (startsWith(all_rows, "snp") & grepl(":", all_rows, fixed = TRUE) &
+           sapply(all_rows, function(x) any(grepl(interaction_var, strsplit(x, ":")[[1]], fixed = TRUE)))) |
+        (startsWith(all_rows, interaction_var) & grepl(":snp", all_rows, fixed = TRUE)))
+      covar_rows <- setdiff(which(startsWith(all_rows, interaction_var)), inter_rows)
+      adj_rows   <- setdiff(seq_along(all_rows),
+                            c(grep("^\\(Intercept\\)", all_rows),
+                              snp_rows, inter_rows, covar_rows))
+      keep_rows  <- unique(c(snp_rows, inter_rows, covar_rows, adj_rows))
+      if (length(keep_rows) == 0) return(NULL)
+      result <- lapply(keep_rows, function(r) {
+        beta  <- coefs[r, "Estimate"]
+        pval  <- coefs[r, pval_col]
+        ci_lo <- ci[r, 1]; ci_hi <- ci[r, 2]
+        is_inter <- r %in% inter_rows
+        row_type <- if (r %in% snp_rows)  "snp"
+                    else if (r %in% inter_rows) "interaction"
+                    else if (r %in% covar_rows) "covariate"
+                    else                        "adjustment"
+        if (response_type == "binary")
+          list(term = all_rows[r], effect = .exp_or(beta), ci_low = .exp_or(ci_lo), ci_high = .exp_or(ci_hi),
+               pval = pval, pval_interaction = if (is_inter) p_inter else NA_real_,
+               aic = aic_val, is_first = (r == keep_rows[1]), row_type = row_type)
+        else
+          list(term = all_rows[r], effect = beta, ci_low = ci_lo, ci_high = ci_hi,
+               pval = pval, pval_interaction = if (is_inter) p_inter else NA_real_,
+               aic = aic_val, is_first = (r == keep_rows[1]), row_type = row_type)
+      })
+      attr(result, "pval_interaction") <- p_inter
+      result
+    }, error = function(e) NULL)
+  }
+}
+
+
 fit_model <- function(snp_enc, response, covariates_df, model_name,
                       response_type, ci_width) {
   df <- data.frame(resp = response, snp = snp_enc)

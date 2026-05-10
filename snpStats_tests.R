@@ -28,10 +28,28 @@ names(data)
 #     ldMetric = "r2", ldPlot = FALSE, haploFreq = FALSE, haploFreqMin = 0.01, 
 #     ldSubpop = FALSE, haploAssoc = FALSE, haploInteraction = FALSE) 
 
-SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:12], covariates = c("sex", "age"), responseType = "auto", 
+data<-read.delim("data/CRCgenet-SNPs.tsv", header=TRUE, stringsAsFactors = TRUE)
+
+SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:9], covariates = c("sex", "age","bmi","bmi4"), responseType = "auto", 
+        covDesc = TRUE, snpSummary = FALSE)
+
+SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:9], covariates = c("sex", "age","bmi","bmi4"), responseType = "auto", 
+        covDesc = TRUE, subpop = TRUE, snpSummary = FALSE)
+
+
+
+SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:9], covariates = c("sex", "age"), responseType = "auto", 
         snpSummary = TRUE) #, covDesc = TRUE, subpop = TRUE)
 
-SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:12], covariates = c("sex", "age"), responseType = "auto", 
+SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:9], covariates = c("sex", "age"), 
+        snpSummary = TRUE, subpop = TRUE)
+
+
+
+
+
+
+SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:9], covariates = c("sex", "age","bmi","bmi4"), responseType = "auto", 
         snpAssoc = TRUE, modelCodominant = TRUE, modelDominant = TRUE, modelRecessive = TRUE, modelOverdominant = TRUE, modelLogAdditive = TRUE) #, covDesc = TRUE, subpop = TRUE)
 
 

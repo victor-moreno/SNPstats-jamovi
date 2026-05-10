@@ -110,6 +110,18 @@ children:
             stretchFactor: 1
             children:
               - type: Label
+                label: Association analysis
+                children:
+                  - type: CheckBox
+                    name: snpAssoc
+                    enable: (response && snps)
+          - type: LayoutBox
+            cell:
+              column: 0
+              row: 1
+            stretchFactor: 1
+            children:
+              - type: Label
                 label: Genetic models
                 children:
                   - type: CheckBox
@@ -129,17 +141,17 @@ children:
                     enable: (response && snps)
           - type: LayoutBox
             cell:
-              column: 0
-              row: 1
+              column: 1
+              row: 0
             margin: large
             stretchFactor: 1
             children:
               - type: Label
-                label: Association analysis
+                label: Show in tables
                 children:
                   - type: CheckBox
-                    name: snpAssoc
-                    enable: (response && snps)
+                    name: showAIC
+                    enable: (snpAssoc || snpInteraction)
           - type: LayoutBox
             cell:
               column: 0
@@ -173,19 +185,6 @@ children:
                       - type: CheckBox
                         name: showCrossClassTable
                         enable: (snpInteraction)
-          - type: LayoutBox
-            cell:
-              column: 1
-              row: 0
-            margin: large
-            stretchFactor: 1
-            children:
-              - type: Label
-                label: Show in tables
-                children:
-                  - type: CheckBox
-                    name: showAIC
-                    enable: (snpAssoc || snpInteraction)
 
   - type: CollapseBox
     label: LD and Haplotype
