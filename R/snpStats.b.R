@@ -705,8 +705,8 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           term_label <- .label_term(res$term, mdl, geno_labels_l)
           vals <- list(model = if (first_row) model_labels[mdl] else "",
                        term  = term_label,
-                       effect = res$effect, ciLow = res$ci_low, ciHigh = res$ci_high,
-                       pval   = res$pval)
+                       effect = fmt3(res$effect), ciLow = fmt3(res$ci_low), ciHigh = fmt3(res$ci_high),
+                       pval   = fmt_pval(res$pval))
           if (isTRUE(opts$showAIC)) {
             aic_val <- if (first_row && !is.nan(res$aic)) fmt3(res$aic) else ""
             bic_val <- if (first_row && !is.null(res$bic) && !is.nan(res$bic))
@@ -719,8 +719,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       }
       if (!is.na(last_pval_interaction))
         tbl$setNote(
-          note = paste0("Interaction p-value (LRT): ",
-                        format.pval(last_pval_interaction, digits = 3, eps = 0.001)),
+          note = paste0("Interaction p-value (LRT): ", fmt_pval(last_pval_interaction)),
           key  = "interactionPval")
       if (any_clamped)
         tbl$setNote(key = "separation",
@@ -784,7 +783,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           row_key <- row_key + 1L
           tbl$addRow(rowKey = as.character(row_key), values = list(
             genotype = geno_labels[1], stat0 = st$s0[1], stat1 = st$s1[1],
-            effect = if (response_type == "binary") 1.0 else 0.0, ciLow = "", ciHigh = "", pval = ""))
+            effect = if (response_type == "binary") fmt3(1.0) else fmt3(0.0), ciLow = "", ciHigh = "", pval = ""))
           for (i in seq_along(level_res)) {
             res <- level_res[[i]]
             gl  <- if ((i + 1) <= length(geno_labels)) geno_labels[i + 1] else sub("snp", "", res$term)
@@ -866,7 +865,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             row_key <- row_key + 1L
             tbl$addRow(rowKey = as.character(row_key), values = list(
               level = cl_ref, stat0 = stat0, stat1 = stat1,
-              effect = if (response_type == "binary") 1.0 else 0.0, ciLow = "", ciHigh = "", pval = ""))
+              effect = if (response_type == "binary") fmt3(1.0) else fmt3(0.0), ciLow = "", ciHigh = "", pval = ""))
             for (i in seq_along(cov_levels[-1])) {
               cl    <- cov_levels[-1][i]
               res   <- if (i <= length(gl_res)) gl_res[[i]] else NULL
@@ -875,7 +874,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
               row_key <- row_key + 1L
               tbl$addRow(rowKey = as.character(row_key), values = list(
                 level  = cl, stat0 = stat0, stat1 = stat1,
-                effect = if (!is.null(res)) fmt3(res$effect) else if (response_type == "binary") 1.0 else 0.0,
+                effect = if (!is.null(res)) fmt3(res$effect) else if (response_type == "binary") fmt3(1.0) else fmt3(0.0),
                 ciLow  = if (!is.null(res)) fmt3(res$ci_low)  else "",
                 ciHigh = if (!is.null(res)) fmt3(res$ci_high) else "",
                 pval   = if (!is.null(res)) fmt_pval(res$pval) else ""))
@@ -887,7 +886,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             row_key <- row_key + 1L
             tbl$addRow(rowKey = as.character(row_key), values = list(
               level  = "Overall", stat0 = stat0, stat1 = stat1,
-              effect = if (!is.null(res)) fmt3(res$effect) else if (response_type == "binary") 1.0 else 0.0,
+              effect = if (!is.null(res)) fmt3(res$effect) else if (response_type == "binary") fmt3(1.0) else fmt3(0.0),
               ciLow  = if (!is.null(res)) fmt3(res$ci_low)  else "",
               ciHigh = if (!is.null(res)) fmt3(res$ci_high) else "",
               pval   = if (!is.null(res)) fmt_pval(res$pval) else ""))
@@ -895,7 +894,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         }
         note_txt  <- paste0("The reference group is <b>", interaction_var, ": ", cov_levels[1], "</b> across all strata.")
         pval_interaction <- attr(res_list, "pval_interaction")
-        note_pval <- paste0("Interaction p-value: ", format.pval(pval_interaction, digits = 3, eps = 0.001))
+        note_pval <- paste0("Interaction p-value: ", fmt_pval(pval_interaction))
         tbl$setNote(note = note_txt,  key = "interStatGeno")
         tbl$setNote(note = note_pval, key = "interStratGenoPval")
       }
@@ -957,7 +956,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             if (i == 1 && j == 1) {
               tbl$addRow(rowKey = paste0(mdl, i), values = list(
                 genotype = gl, stat0 = st$s0[i], stat1 = st$s1[i],
-                effect = if (response_type == "binary") 1.0 else 0.0, ciLow = "", ciHigh = "", pval = ""))
+                effect = if (response_type == "binary") fmt3(1.0) else fmt3(0.0), ciLow = "", ciHigh = "", pval = ""))
               next
             }
             term_snp   <- paste0("snp", gl)
@@ -982,7 +981,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         }
         note_txt  <- paste0("The reference group is <b>", interaction_var, ": ", cov_levels[1],
                             " and ", snp_lbl, ": ", geno_labels[1], "</b>")
-        note_pval <- paste0("Interaction p-value: ", format.pval(p_inter_cc, digits = 3, eps = 0.001))
+        note_pval <- paste0("Interaction p-value: ", fmt_pval(p_inter_cc))
         tbl$setNote(note = note_txt,  key = "interCrossClass")
         tbl$setNote(note = note_pval, key = "interCrossClassPval")
       }

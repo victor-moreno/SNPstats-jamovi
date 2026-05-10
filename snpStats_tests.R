@@ -48,5 +48,11 @@ SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:9], cov
 SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:9], covariates = c("sex", "age","bmi","bmi4"), responseType = "auto", 
         snpAssoc = TRUE, modelCodominant = TRUE, modelDominant = TRUE, modelRecessive = TRUE, modelOverdominant = TRUE, modelLogAdditive = TRUE) #, covDesc = TRUE, subpop = TRUE)
 
+SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:9], covariates = c("sex", "age","bmi","bmi4"), responseType = "auto", 
+        snpInteraction = TRUE, showInteractionTable = TRUE, modelCodominant = TRUE, modelDominant = TRUE, modelRecessive = TRUE, modelOverdominant = TRUE, modelLogAdditive = TRUE) #, covDesc = TRUE, subpop = TRUE)
+
+SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:9], covariates = c("sex", "age","bmi","bmi4"), responseType = "auto", 
+        snpInteraction = TRUE, showInteractionTable = TRUE, modelCodominant = TRUE, modelDominant = TRUE, modelRecessive = TRUE, modelOverdominant = TRUE, modelLogAdditive = TRUE,
+        showStratByCovariate = TRUE, showStratByGenotype = TRUE, showCrossClassTable = TRUE)
 
 jmvtools::install()
