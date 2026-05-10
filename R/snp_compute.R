@@ -650,10 +650,20 @@ compute_cov_desc <- function(prep, subpop = FALSE) {
   strsplit(gl, "-", fixed = TRUE)[[1]]
 }
 
-.bic_from_aic <- function(aic_val, mdl, n_fit, n_cov) {
+# NOTE: .bic_from_aic is kept as a legacy fallback only.
+# fit_model() now returns BIC(fit_full) directly as res$bic, which is always
+# correct.  The formula below was incorrect for quantitative (lm) responses
+# because R's AIC/BIC for lm counts the residual variance (sigma^2) as an
+# extra parameter (k_lm = p_betas + 1_intercept + 1_sigma), but the old
+# code used k = 1 + n_cov + snp_df, missing the +1 for sigma.
+.bic_from_aic <- function(aic_val, mdl, n_fit, n_cov, response_type = "binary") {
   snp_df <- c(codominant=2L, dominant=1L, recessive=1L, overdominant=1L, logadditive=1L)
   if (is.null(aic_val) || is.na(aic_val) || is.nan(aic_val)) return(NA_real_)
-  round(aic_val + (1L + n_cov + snp_df[[mdl]]) * (log(n_fit) - 2), 2)
+  # For lm (quantitative), R counts sigma^2 as an extra free parameter, so k is
+  # one higher than for glm(binomial).  Adjust accordingly.
+  sigma_extra <- if (!is.null(response_type) && response_type == "quantitative") 1L else 0L
+  k <- 1L + n_cov + snp_df[[mdl]] + sigma_extra
+  round(aic_val + k * (log(n_fit) - 2), 2)
 }
 
 .compute_stats <- function(geno_labels, snp_char, response, response_type,
@@ -661,8 +671,15 @@ compute_cov_desc <- function(prep, subpop = FALSE) {
   split_genos <- .split_genos
   ref_al <- NULL
   for (lbl in geno_labels) {
-    parts <- strsplit(lbl, "/", fixed = TRUE)[[1]]
-    if (length(parts) == 2 && parts[1] == parts[2]) { ref_al <- parts[1]; break }
+    # geno_labels can contain compound dash-joined labels (e.g. "A/A-G/G" for
+    # overdominant/recessive/dominant collapsed groups).  Split on "-" first to
+    # obtain individual "X/Y" genotype strings before checking for homozygosity.
+    individual_genos <- strsplit(lbl, "-", fixed = TRUE)[[1]]
+    for (g in individual_genos) {
+      parts <- strsplit(g, "/", fixed = TRUE)[[1]]
+      if (length(parts) == 2 && parts[1] == parts[2]) { ref_al <- parts[1]; break }
+    }
+    if (!is.null(ref_al)) break
   }
   norm_snp_char <- function(sc) {
     if (is.null(ref_al)) return(sc)
@@ -744,7 +761,11 @@ compute_assoc <- function(snp_nm, prep,
   response_raw <- if (!is.null(prep$response_raw)) prep$response_raw[sd$snp_mask] else NULL
   cov_df_cc    <- if (!is.null(prep$cov_df)) prep$cov_df[sd$snp_mask, , drop=FALSE] else NULL
   rtype        <- prep$response_type
-  snp_char     <- as.character(sd$clean_cc)
+  # Use the normalised genotype strings from geno_cc (het orientation is
+  # ref-allele-first, consistent with user_levels and .geno_labels_for_model).
+  # Using clean_cc here caused overdominant counts to be 0 for SNPs where the
+  # raw data had het alleles in non-ref-first order (e.g. "G/A" vs "A/G").
+  snp_char     <- as.character(sd$geno_cc)
   ref          <- sd$ref
   user_levels  <- sd$user_levels
   n_cov        <- if (!is.null(cov_df_cc)) ncol(cov_df_cc) else 0L
@@ -794,7 +815,8 @@ compute_assoc <- function(snp_nm, prep,
     geno_labels <- .geno_labels_for_model(mdl, all_genos, ref)
     aic_val     <- { a <- res_list[[1]]$aic
                      if (!is.null(a) && !is.nan(a)) round(a, 2) else NA_real_ }
-    bic_val     <- .bic_from_aic(aic_val, mdl, n_fit, n_cov)
+    bic_val     <- { b <- res_list[[1]]$bic
+                     if (!is.null(b) && !is.nan(b)) round(b, 2) else NA_real_ }
 
     if (is_categorical) {
       cats <- unique(sapply(res_list, `[[`, "category"))

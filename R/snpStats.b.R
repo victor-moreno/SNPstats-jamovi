@@ -708,9 +708,9 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                        effect = res$effect, ciLow = res$ci_low, ciHigh = res$ci_high,
                        pval   = res$pval)
           if (isTRUE(opts$showAIC)) {
-            aic_val <- if (first_row && !is.nan(res$aic)) round(res$aic, 2) else ""
-            bic_val <- if (first_row && !is.nan(res$aic))
-              private$.bic_from_aic(res$aic, mdl, n_fit_bic, n_cov_bic) else ""
+            aic_val <- if (first_row && !is.nan(res$aic)) fmt3(res$aic) else ""
+            bic_val <- if (first_row && !is.null(res$bic) && !is.nan(res$bic))
+              fmt3(res$bic) else ""
             vals[["AIC"]] <- aic_val; vals[["BIC"]] <- bic_val
           }
           tbl$addRow(rowKey = as.character(row_key), values = vals)
@@ -776,8 +776,8 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           if (mdl == "logadditive") {
             tbl$addRow(rowKey = "1", values = list(
               genotype = paste0(model_labels[mdl], " (per allele)"), stat0 = "", stat1 = "",
-              effect = level_res[[1]]$effect, ciLow = level_res[[1]]$ci_low,
-              ciHigh = level_res[[1]]$ci_high, pval = level_res[[1]]$pval))
+              effect = fmt3(level_res[[1]]$effect), ciLow = fmt3(level_res[[1]]$ci_low),
+              ciHigh = fmt3(level_res[[1]]$ci_high), pval = fmt_pval(level_res[[1]]$pval)))
             tbl$getColumn("stat1")$setVisible(FALSE); tbl$getColumn("stat0")$setVisible(FALSE)
             next
           }
@@ -793,7 +793,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
               genotype = gl,
               stat0 = if ((i+1) <= length(st$s0)) st$s0[i+1] else "-",
               stat1 = if ((i+1) <= length(st$s1)) st$s1[i+1] else " ",
-              effect = res$effect, ciLow = res$ci_low, ciHigh = res$ci_high, pval = res$pval))
+              effect = fmt3(res$effect), ciLow = fmt3(res$ci_low), ciHigh = fmt3(res$ci_high), pval = fmt_pval(res$pval)))
           }
         }
         note_txt  <- paste0("The reference group is <b>", snp_lbl, ": ", geno_labels[1], "</b> across all strata.")
@@ -875,10 +875,10 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
               row_key <- row_key + 1L
               tbl$addRow(rowKey = as.character(row_key), values = list(
                 level  = cl, stat0 = stat0, stat1 = stat1,
-                effect = if (!is.null(res)) res$effect else if (response_type == "binary") 1.0 else 0.0,
-                ciLow  = if (!is.null(res)) res$ci_low  else "",
-                ciHigh = if (!is.null(res)) res$ci_high else "",
-                pval   = if (!is.null(res)) res$pval    else ""))
+                effect = if (!is.null(res)) fmt3(res$effect) else if (response_type == "binary") 1.0 else 0.0,
+                ciLow  = if (!is.null(res)) fmt3(res$ci_low)  else "",
+                ciHigh = if (!is.null(res)) fmt3(res$ci_high) else "",
+                pval   = if (!is.null(res)) fmt_pval(res$pval) else ""))
             }
           } else {
             stat0 <- if (response_type == "binary") fmt_cont(int_g[resp_raw_g == resp_lv[1]]) else fmt_cont(resp_g)
@@ -887,10 +887,10 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             row_key <- row_key + 1L
             tbl$addRow(rowKey = as.character(row_key), values = list(
               level  = "Overall", stat0 = stat0, stat1 = stat1,
-              effect = if (!is.null(res)) res$effect else if (response_type == "binary") 1.0 else 0.0,
-              ciLow  = if (!is.null(res)) res$ci_low  else "",
-              ciHigh = if (!is.null(res)) res$ci_high else "",
-              pval   = if (!is.null(res)) res$pval    else ""))
+              effect = if (!is.null(res)) fmt3(res$effect) else if (response_type == "binary") 1.0 else 0.0,
+              ciLow  = if (!is.null(res)) fmt3(res$ci_low)  else "",
+              ciHigh = if (!is.null(res)) fmt3(res$ci_high) else "",
+              pval   = if (!is.null(res)) fmt_pval(res$pval) else ""))
           }
         }
         note_txt  <- paste0("The reference group is <b>", interaction_var, ": ", cov_levels[1], "</b> across all strata.")
@@ -973,10 +973,10 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             hi_beta <- combined_beta + ci_z * combined_se
             tbl$addRow(rowKey = paste0(mdl, i), values = list(
               genotype = gl, stat0 = st$s0[i], stat1 = st$s1[i],
-              effect = if (response_type == "binary") .exp_or(combined_beta) else combined_beta,
-              ciLow  = if (response_type == "binary") .exp_or(lo_beta) else lo_beta,
-              ciHigh = if (response_type == "binary") .exp_or(hi_beta) else hi_beta,
-              pval   = p_val))
+              effect = fmt3(if (response_type == "binary") .exp_or(combined_beta) else combined_beta),
+              ciLow  = fmt3(if (response_type == "binary") .exp_or(lo_beta) else lo_beta),
+              ciHigh = fmt3(if (response_type == "binary") .exp_or(hi_beta) else hi_beta),
+              pval   = fmt_pval(p_val)))
           }
           tbl$getColumn("stat1")$setVisible(response_type == "binary")
         }
@@ -1096,10 +1096,10 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           if (is.null(ld_res)) next
           tbl$addRow(rowKey = paste(pair, collapse="_"), values = list(
             snp1   = pair[1], snp2 = pair[2],
-            r2     = round(ld_res$`r`^2,  3),
-            Dprime = round(ld_res$`D'`,   3),
-            D      = round(ld_res$`D`,    3),
-            pval   = ld_res$`P-value`))
+            r2     = fmt3(ld_res$`r`^2),
+            Dprime = fmt3(ld_res$`D'`),
+            D      = fmt3(ld_res$`D`),
+            pval   = fmt_pval(ld_res$`P-value`)))
         }
       }
       if (run_ldMatrix) {
@@ -1117,11 +1117,11 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           ld_res <- ld_store[[key]]
           if (is.null(ld_res)) next
           p_val  <- ld_res$`P-value`
-          p_str  <- if (!is.na(p_val)) { if (p_val < 0.001) "< .001" else sprintf("%.3f",p_val) } else ""
+          p_str  <- fmt_pval(p_val)
           up_val <- switch(metric,
-            Dprime = sprintf("%.3f", round(ld_res$`D'`,  3)),
-            r2     = sprintf("%.3f", round(ld_res$`r`^2, 3)),
-            D      = sprintf("%.3f", round(ld_res$`D`,   3)))
+            Dprime = fmt3(ld_res$`D'`),
+            r2     = fmt3(ld_res$`r`^2),
+            D      = fmt3(ld_res$`D`))
           upper_mat[pair[1], pair[2]] <- up_val
           lower_mat[pair[2], pair[1]] <- p_str
         }
@@ -1180,13 +1180,13 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         i_idx <- which(nms==i_nm); j_idx <- which(nms==j_nm)
         if (i_idx > j_idx) {
           pv <- p_mat[i_nm, j_nm]
-          df$label[k] <- if (!is.na(pv)) { if(pv<0.001) "<.001" else sprintf("%.3f",pv) } else ""
+          df$label[k] <- fmt_pval(pv)
         } else if (i_idx < j_idx) {
           key <- paste(c(nms[min(i_idx,j_idx)], nms[max(i_idx,j_idx)]), collapse="___")
           ld_res <- ld_store[[key]]
           if (!is.null(ld_res)) {
             raw <- switch(metric, r2=ld_res$`r`^2, Dprime=ld_res$`D'`, D=ld_res$`D`)
-            df$label[k] <- sprintf("%.3f", round(as.numeric(raw),3))
+            df$label[k] <- fmt3(as.numeric(raw))
           }
         } else { df$label[k] <- i_nm }
       }
@@ -1262,7 +1262,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           }
           grp_freq <- lapply(em_grp, function(em_g) {
             if (is.null(em_g)) return(list())
-            setNames(as.list(round(em_g$hap.prob,3)),
+            setNames(as.list(lapply(em_g$hap.prob, fmt3)),
                      sapply(seq_len(nrow(em_g$haplotype)), function(j)
                        decode_haplo_row(as.numeric(em_g$haplotype[j,]), u_alleles)))
           })
@@ -1279,7 +1279,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         for (i in sorted_idx) {
           if (freqs[i] < opts$haploFreqMin) { rare_sum <- rare_sum + freqs[i]; next }
           label    <- decode_haplo_row(as.numeric(em_all$haplotype[i,]), u_alleles)
-          row_vals <- list(haplotype=label, freq=round(freqs[i],3))
+          row_vals <- list(haplotype=label, freq=fmt3(freqs[i]))
           if (do_strat_haplo) {
             row_vals$freq_g0 <- grp_freq[[grp_levels_haplo[1]]][[label]] %||% NA_real_
             row_vals$freq_g1 <- grp_freq[[grp_levels_haplo[2]]][[label]] %||% NA_real_
@@ -1287,11 +1287,11 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           tbl$addRow(rowKey=paste0("f",i), values=row_vals)
         }
         if (rare_sum > 0) {
-          row_vals <- list(haplotype=paste0("Rare (<",opts$haploFreqMin,")"), freq=round(rare_sum,3))
+          row_vals <- list(haplotype=paste0("Rare (<",opts$haploFreqMin,")"), freq=fmt3(rare_sum))
           if (do_strat_haplo) {
             em0 <- em_grp[[grp_levels_haplo[1]]]; em1 <- em_grp[[grp_levels_haplo[2]]]
-            rare_g0 <- if (!is.null(em0)) round(sum(em0$hap.prob[em0$hap.prob < opts$haploFreqMin]),3) else NA_real_
-            rare_g1 <- if (!is.null(em1)) round(sum(em1$hap.prob[em1$hap.prob < opts$haploFreqMin]),3) else NA_real_
+            rare_g0 <- if (!is.null(em0)) fmt3(sum(em0$hap.prob[em0$hap.prob < opts$haploFreqMin])) else NA_real_
+            rare_g1 <- if (!is.null(em1)) fmt3(sum(em1$hap.prob[em1$hap.prob < opts$haploFreqMin])) else NA_real_
             row_vals$freq_g0 <- if(!is.na(rare_g0) && rare_g0>0) rare_g0 else NA_real_
             row_vals$freq_g1 <- if(!is.na(rare_g1) && rare_g1>0) rare_g1 else NA_real_
           }
@@ -1364,17 +1364,17 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         }
         make_row <- function(label, freq, stats) {
           b <- stats$beta; lo <- stats$ci_lo; hi <- stats$ci_hi
-          list(haplotype = label, freq = round(freq, 4),
+          list(haplotype = label, freq = fmt3(freq),
                effect = if (response_type == "binary") .exp_or(b)  else b,
                ciLow  = if (response_type == "binary") .exp_or(lo) else lo,
                ciHigh = if (response_type == "binary") .exp_or(hi) else hi,
-               pval   = stats$pval)
+               pval   = fmt_pval(stats$pval))
         }
         base_idx   <- haplo_fit$haplo.base
         base_label <- label_from_unique_row(haplo_fit$haplo.unique[base_idx, ])
         base_freq  <- haplo_fit$haplo.freq[base_idx]
         tbl$addRow(rowKey = "base", values = list(
-          haplotype = paste0(base_label, " (Ref)"), freq = round(base_freq, 4),
+          haplotype = paste0(base_label, " (Ref)"), freq = fmt3(base_freq),
           effect = if (response_type == "binary") 1.0 else 0.0, ciLow = '', ciHigh = '', pval = ''))
         common_idx   <- haplo_fit$haplo.common
         common_freqs <- haplo_fit$haplo.freq[common_idx]
@@ -1540,7 +1540,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         entry   <- all_haplo_entries[[entry_nm]]
         h_label <- entry$label; h_freq <- entry$freq; cp <- entry$coef_pos
         geno_nm <- get_geno_coef_nm(cp)
-        row_vals <- list(term = h_label, freq = round(h_freq, 4))
+        row_vals <- list(term = h_label, freq = fmt3(h_freq))
         for (lvl in covar_levels) {
           col_nm       <- paste0("cross_", make.names(lvl))
           lvl_suf      <- sub(paste0("^", int_var), "", covar_lvl_to_main[lvl] %||% "")
@@ -1580,7 +1580,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       for (entry_nm in names(all_haplo_entries)) {
         entry   <- all_haplo_entries[[entry_nm]]
         cp      <- entry$coef_pos; geno_nm <- get_geno_coef_nm(cp); is_ref_haplo <- is.na(cp)
-        row_vals <- list(term = entry$label, freq = round(entry$freq, 4))
+        row_vals <- list(term = entry$label, freq = fmt3(entry$freq))
         for (lvl in covar_levels) {
           col_nm       <- paste0("condcovar_", make.names(lvl))
           lvl_suf      <- sub(paste0("^", int_var), "", covar_lvl_to_main[lvl] %||% "")
@@ -1610,7 +1610,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       for (entry_nm in names(all_haplo_entries)) {
         entry   <- all_haplo_entries[[entry_nm]]
         cp      <- entry$coef_pos; geno_nm <- get_geno_coef_nm(cp); is_ref_haplo <- is.na(cp)
-        row_vals <- list(term = entry$label, freq = round(entry$freq, 4))
+        row_vals <- list(term = entry$label, freq = fmt3(entry$freq))
         row_vals[[ref_col_nm]] <- if (is_binary) "1.00 (Ref)" else "0 (Ref)"
         for (lvl in non_ref_covar_levels) {
           col_nm        <- paste0("condhaplo_", make.names(lvl))
@@ -1665,6 +1665,7 @@ fit_model <- function(snp_enc, response, covariates_df, model_name,
     lrt      <- tryCatch(anova(fit_null, fit_full), error = function(e) NULL)
     global_p <- if (!is.null(lrt) && nrow(lrt) >= 2) lrt[2, "Pr(Chi)"] else NA_real_
     aic_val  <- AIC(fit_full)
+    bic_val  <- BIC(fit_full)
     coefs    <- summary(fit_full)$coefficients   # matrix: categories × terms
     ses      <- summary(fit_full)$standard.errors
     cats     <- rownames(coefs)                  # response categories (not ref)
@@ -1689,6 +1690,7 @@ fit_model <- function(snp_enc, response, covariates_df, model_name,
           pval       = pval,
           global_p   = global_p,
           aic        = aic_val,
+          bic        = bic_val,
           is_categorical = TRUE
         )
       }
@@ -1710,6 +1712,7 @@ fit_model <- function(snp_enc, response, covariates_df, model_name,
     lrt      <- tryCatch(anova(fit_null, fit_full, test = lrtest), error = function(e) NULL)
     global_p <- if (!is.null(lrt)) lrt[2, lrtest_label] else NA_real_
     aic_val  <- AIC(fit_full)
+    bic_val  <- BIC(fit_full)
     coefs    <- summary(fit_full)$coefficients
     snp_rows <- grep("^snp", rownames(coefs))
     if (length(snp_rows) == 0) return(NULL)
@@ -1723,11 +1726,11 @@ fit_model <- function(snp_enc, response, covariates_df, model_name,
       ci_lo <- ci[i, 1]; ci_hi <- ci[i, 2]
       if (response_type == "binary")
         list(effect = .exp_or(beta), ci_low = .exp_or(ci_lo), ci_high = .exp_or(ci_hi),
-             pval = pval, global_p = global_p, aic = aic_val,
+             pval = pval, global_p = global_p, aic = aic_val, bic = bic_val,
              comparison = sub("^snp", "", rownames(coefs)[row]))
       else
         list(effect = beta, ci_low = ci_lo, ci_high = ci_hi,
-             pval = pval, global_p = global_p, aic = aic_val,
+             pval = pval, global_p = global_p, aic = aic_val, bic = bic_val,
              comparison = sub("^snp", "", rownames(coefs)[row]))
     })
   }, error = function(e) NULL)
@@ -1889,6 +1892,7 @@ fit_model <- function(snp_enc, response, covariates_df, model_name,
     lrt      <- tryCatch(anova(fit_null, fit_full), error = function(e) NULL)
     global_p <- if (!is.null(lrt) && nrow(lrt) >= 2) lrt[2, "Pr(Chi)"] else NA_real_
     aic_val  <- AIC(fit_full)
+    bic_val  <- BIC(fit_full)
     coefs    <- summary(fit_full)$coefficients   # matrix: categories × terms
     ses      <- summary(fit_full)$standard.errors
     cats     <- rownames(coefs)                  # response categories (not ref)
@@ -1913,6 +1917,7 @@ fit_model <- function(snp_enc, response, covariates_df, model_name,
           pval       = pval,
           global_p   = global_p,
           aic        = aic_val,
+          bic        = bic_val,
           is_categorical = TRUE
         )
       }
@@ -1934,6 +1939,7 @@ fit_model <- function(snp_enc, response, covariates_df, model_name,
     lrt      <- tryCatch(anova(fit_null, fit_full, test = lrtest), error = function(e) NULL)
     global_p <- if (!is.null(lrt)) lrt[2, lrtest_label] else NA_real_
     aic_val  <- AIC(fit_full)
+    bic_val  <- BIC(fit_full)
     coefs    <- summary(fit_full)$coefficients
     snp_rows <- grep("^snp", rownames(coefs))
     if (length(snp_rows) == 0) return(NULL)
@@ -1947,11 +1953,11 @@ fit_model <- function(snp_enc, response, covariates_df, model_name,
       ci_lo <- ci[i, 1]; ci_hi <- ci[i, 2]
       if (response_type == "binary")
         list(effect = .exp_or(beta), ci_low = .exp_or(ci_lo), ci_high = .exp_or(ci_hi),
-             pval = pval, global_p = global_p, aic = aic_val,
+             pval = pval, global_p = global_p, aic = aic_val, bic = bic_val,
              comparison = sub("^snp", "", rownames(coefs)[row]))
       else
         list(effect = beta, ci_low = ci_lo, ci_high = ci_hi,
-             pval = pval, global_p = global_p, aic = aic_val,
+             pval = pval, global_p = global_p, aic = aic_val, bic = bic_val,
              comparison = sub("^snp", "", rownames(coefs)[row]))
     })
   }, error = function(e) NULL)
