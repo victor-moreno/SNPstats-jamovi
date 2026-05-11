@@ -32,6 +32,9 @@ children:
   - type: LayoutBox
     margin: large
     children:
+      - type: CheckBox
+        name: subpop
+        enable: (response)
       - type: ComboBox
         name: responseType
         enable: (response)
@@ -49,9 +52,6 @@ children:
       - type: LayoutBox
         margin: large
         children:
-          - type: CheckBox
-            name: subpop
-            enable: (response)
           - type: CheckBox
             name: covDesc
             enable: (covariates || response)

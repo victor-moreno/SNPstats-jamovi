@@ -2,6 +2,8 @@ Tutorial
   screenshots
 
 interaction categorical response
+avoid refresh of tables that don't change
+
 
 
 Organize code & clean
