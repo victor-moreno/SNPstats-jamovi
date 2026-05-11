@@ -594,21 +594,59 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
                              !is.null(prep$response_raw) &&
                              prep$response_type %in% c("binary","categorical")
 
+      # Build geno_list on the JOINT complete-case mask — the intersection of
+      # every SNP's snp_mask.  genetics::LD() requires both input vectors to
+      # have identical length; per-SNP geno_cc vectors are each subset by their
+      # own snp_mask so they can differ in length, causing LD() to error
+      # silently for most pairs and leaving only pairs that happen to share the
+      # same missingness pattern (typically adjacent SNPs).
+      joint_mask <- Reduce(`&`, lapply(prep$snp_vars,
+                                       function(nm) prep$snp_data[[nm]]$snp_mask))
+      geno_list <- lapply(prep$snp_vars, function(nm) {
+        sd <- prep$snp_data[[nm]]
+        # Re-parse clean genotype strings restricted to the joint mask.
+        parse_genotype(sd$clean[joint_mask], sd$user_levels)
+      })
+      names(geno_list) <- prep$snp_vars
+      # Drop any SNP that failed to parse under the joint mask
+      geno_list <- Filter(Negate(is.null), geno_list)
+
+      # Pre-subset all row-parallel vectors to joint_mask so they match the
+      # row count of allele_mat / geno_setup inside .run_haplo().
+      # complete_mask is already folded into joint_mask via each snp_mask,
+      # so complete_mask_jm is all-TRUE — kept for clarity/correctness.
+      response_jm      <- if (!is.null(prep$response_enc)) prep$response_enc[joint_mask]  else NULL
+      response_raw_jm  <- if (!is.null(prep$response_raw)) prep$response_raw[joint_mask]  else NULL
+      cov_df_jm        <- if (!is.null(prep$cov_df) && nrow(prep$cov_df) > 0)
+                            prep$cov_df[joint_mask, , drop = FALSE] else prep$cov_df
+      complete_mask_jm <- rep(TRUE, sum(joint_mask))
+
       ld_res_grp <- self$results$ldHaploGroup
 
       # ── LD ───────────────────────────────────────────────────────────────
       if (run_ldAnalysis || run_ldMatrix || run_ldPlot) {
         ld_res_grp$ldGroup$setVisible(TRUE)
-        private$.run_ld(prep, opts,
+        private$.run_ld(geno_list, opts,
                         run_ldAnalysis, run_ldMatrix, run_ldPlot)
       }
 
       # ── Haplotype ─────────────────────────────────────────────────────────
       if (run_haploFreq || run_haploAssoc || run_haploInteraction) {
         ld_res_grp$haploGroup$setVisible(TRUE)
-        private$.run_haplo(prep, opts,
-                           run_haploFreq, run_haploAssoc, run_haploInteraction,
-                           run_subpop)
+        private$.run_haplo(
+          geno_list     = geno_list,
+          data          = prep$data,
+          response      = response_jm,
+          response_raw  = response_raw_jm,
+          response_type = prep$response_type,
+          cov_df        = cov_df_jm,
+          opts          = opts,
+          run_haploFreq        = run_haploFreq,
+          run_haploAssoc       = run_haploAssoc,
+          run_haploInteraction = run_haploInteraction,
+          run_subpop           = run_subpop,
+          complete_mask        = complete_mask_jm
+        )
       }
     },
 
@@ -1093,7 +1131,9 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           key    <- paste(pair, collapse = "___")
           ld_res <- ld_store[[key]]
           if (is.null(ld_res)) next
-          tbl$addRow(rowKey = paste(pair, collapse="_"), values = list(
+          # Use the same "___" separator as ld_store keys to avoid rowKey
+          # collisions when SNP names themselves contain underscores.
+          tbl$addRow(rowKey = key, values = list(
             snp1   = pair[1], snp2 = pair[2],
             r2     = fmt3(ld_res$`r`^2),
             Dprime = fmt3(ld_res$`D'`),
@@ -1103,26 +1143,34 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       }
       if (run_ldMatrix) {
         mtbl   <- self$results$ldHaploGroup$ldGroup$ldMatrixTable
-        metric <- opts$ldMetric
+        metric <- opts$ldMetric %||% "r2"   # default to r2 if unset
         for (nm in nms) {
           safe_nm <- gsub("[^A-Za-z0-9_]","_",nm)
           mtbl$addColumn(name = safe_nm, title = nm, type = "text")
         }
-        upper_mat <- matrix("", n, n, dimnames = list(nms, nms))
-        lower_mat <- matrix("", n, n, dimnames = list(nms, nms))
-        diag(upper_mat) <- nms; diag(lower_mat) <- nms
+        # Use integer-indexed matrices to avoid any name-matching ambiguity.
+        # upper_mat[i,j] (i<j): metric value for pair (nms[i], nms[j])
+        # lower_mat[i,j] (i>j): p-value  for pair (nms[j], nms[i])
+        # Both are addressed as [row, col] = [i, j] when building rows,
+        # so writes must follow the same convention.
+        upper_mat <- matrix("", n, n)
+        lower_mat <- matrix("", n, n)
+        diag(upper_mat) <- nms
+        diag(lower_mat) <- nms
         for (pair in pairs) {
           key    <- paste(pair, collapse = "___")
           ld_res <- ld_store[[key]]
           if (is.null(ld_res)) next
-          p_val  <- ld_res$`P-value`
-          p_str  <- fmt_pval(p_val)
+          i <- match(pair[1], nms)   # pair[1] always has lower index (combn order)
+          j <- match(pair[2], nms)   # pair[2] always has higher index
+          p_str  <- fmt_pval(ld_res$`P-value`)
           up_val <- switch(metric,
             Dprime = fmt3(ld_res$`D'`),
             r2     = fmt3(ld_res$`r`^2),
-            D      = fmt3(ld_res$`D`))
-          upper_mat[pair[1], pair[2]] <- up_val
-          lower_mat[pair[2], pair[1]] <- p_str
+            D      = fmt3(ld_res$`D`),
+            fmt3(ld_res$`r`^2))      # safe fallback
+          upper_mat[i, j] <- up_val  # upper triangle: row i < col j
+          lower_mat[j, i] <- p_str   # lower triangle: row j > col i
         }
         for (i in seq_len(n)) {
           row_vals <- list(snp = nms[i])
