@@ -912,12 +912,41 @@ compute_assoc <- function(snp_nm, prep,
 }
 
 
+# ── Joint-mask geno_list helper ───────────────────────────────────────────────
+#
+# genetics::LD() and haplo.stats::setupGeno() both require every input vector
+# to have the *same* length.  Each SNP's geno_cc is subset by its own per-SNP
+# snp_mask (complete_mask & !is.na(clean)), so SNPs with different missingness
+# patterns yield vectors of different lengths, causing silent NULL returns from
+# LD() and "subscript too long" errors in subset_geno().
+#
+# This helper computes the row-wise intersection of all snp_masks (joint_mask),
+# re-parses each SNP on that intersection, and returns equal-length genotype
+# objects.  All three compute functions (compute_ld, compute_haplo_freq,
+# compute_haplo_assoc) call it so the fix is in one place.
+#
+# @return list: $geno_list (named, equal-length), $joint_mask (logical, n_rows)
+.make_joint_geno_list <- function(prep) {
+  snp_vars   <- prep$snp_vars
+  joint_mask <- Reduce(`&`, lapply(snp_vars,
+                                   function(nm) prep$snp_data[[nm]]$snp_mask))
+  geno_list  <- lapply(snp_vars, function(nm) {
+    sd <- prep$snp_data[[nm]]
+    parse_genotype(sd$clean[joint_mask], sd$user_levels)
+  })
+  names(geno_list) <- snp_vars
+  geno_list <- Filter(Negate(is.null), geno_list)
+  list(geno_list = geno_list, joint_mask = joint_mask)
+}
+# ─────────────────────────────────────────────────────────────────────────────
+
+
 #' Compute pairwise LD for all SNP pairs.
 #'
 #' @return data.frame: snp1, snp2, r2, Dprime, D, pval
 compute_ld <- function(prep, metric = "r2") {
-  geno_list <- lapply(prep$snp_vars, function(nm) prep$snp_data[[nm]]$geno_cc)
-  names(geno_list) <- prep$snp_vars
+  jg        <- .make_joint_geno_list(prep)
+  geno_list <- jg$geno_list
   if (length(geno_list) < 2) return(NULL)
 
   nms   <- names(geno_list)
@@ -944,8 +973,8 @@ compute_ld <- function(prep, metric = "r2") {
 #'
 #' @return list: $table data.frame (haplotype, freq, [group freqs]), $notes
 compute_haplo_freq <- function(prep, subpop = FALSE, min_freq = 0.01) {
-  geno_list  <- lapply(prep$snp_vars, function(nm) prep$snp_data[[nm]]$geno_cc)
-  names(geno_list) <- prep$snp_vars
+  jg        <- .make_joint_geno_list(prep)
+  geno_list <- jg$geno_list
   if (length(geno_list) < 2) return(NULL)
 
   snp_names  <- names(geno_list)
@@ -955,9 +984,11 @@ compute_haplo_freq <- function(prep, subpop = FALSE, min_freq = 0.01) {
   if (is.null(geno_setup)) return(NULL)
 
   u_alleles     <- attr(geno_setup, "unique.alleles")
-  snp_miss_mask <- apply(is.na(allele_mat), 1, all)
-  keep          <- prep$complete_mask & !snp_miss_mask
-  response_raw  <- prep$response_raw
+  # geno_list is already on the joint mask so allele_mat has no cross-SNP
+  # missingness; keep is all-TRUE.  response_raw is subset to joint_mask so
+  # its length matches nrow(allele_mat).
+  keep          <- rep(TRUE, nrow(allele_mat))
+  response_raw  <- if (!is.null(prep$response_raw)) prep$response_raw[jg$joint_mask] else NULL
 
   do_strat   <- isTRUE(subpop) && !is.null(response_raw) && prep$response_type == "binary"
   grp_levels <- if (do_strat) levels(as.factor(response_raw)) else NULL
@@ -1003,7 +1034,7 @@ compute_haplo_freq <- function(prep, subpop = FALSE, min_freq = 0.01) {
 
   list(table = do.call(rbind, rows),
        notes = paste0("Min frequency: ", min_freq,
-                      ". N missing: ", sum(snp_miss_mask & prep$complete_mask)))
+                      ". N missing: ", sum(!jg$joint_mask & prep$complete_mask)))
 }
 
 
@@ -1011,8 +1042,8 @@ compute_haplo_freq <- function(prep, subpop = FALSE, min_freq = 0.01) {
 #'
 #' @return list: $table data.frame, $notes character
 compute_haplo_assoc <- function(prep, ci_width = 95, min_freq = 0.01) {
-  geno_list  <- lapply(prep$snp_vars, function(nm) prep$snp_data[[nm]]$geno_cc)
-  names(geno_list) <- prep$snp_vars
+  jg        <- .make_joint_geno_list(prep)
+  geno_list <- jg$geno_list
   if (length(geno_list) < 2 || is.null(prep$response_enc)) return(NULL)
 
   snp_names  <- names(geno_list)
@@ -1021,13 +1052,14 @@ compute_haplo_assoc <- function(prep, ci_width = 95, min_freq = 0.01) {
                          error=function(e) NULL)
   if (is.null(geno_setup)) return(NULL)
 
-  u_alleles     <- attr(geno_setup, "unique.alleles")
-  snp_miss_mask <- apply(is.na(allele_mat), 1, all)
-  keep          <- prep$complete_mask & !snp_miss_mask
-  n_miss        <- sum(snp_miss_mask & prep$complete_mask)
+  u_alleles <- attr(geno_setup, "unique.alleles")
+  # geno_list is on the joint mask; allele_mat has no cross-SNP missingness.
+  keep   <- rep(TRUE, nrow(allele_mat))
+  n_miss <- sum(!jg$joint_mask & prep$complete_mask)
 
-  response  <- prep$response_enc
-  cov_df    <- prep$cov_df
+  response  <- prep$response_enc[jg$joint_mask]
+  cov_df    <- if (!is.null(prep$cov_df) && nrow(prep$cov_df) > 0)
+                 prep$cov_df[jg$joint_mask, , drop = FALSE] else prep$cov_df
   rtype     <- prep$response_type
   fam       <- if (rtype == "binary") binomial() else gaussian()
   cov_nms   <- if (!is.null(cov_df) && ncol(cov_df) > 0) names(cov_df) else character(0)
@@ -1045,7 +1077,7 @@ compute_haplo_assoc <- function(prep, ci_width = 95, min_freq = 0.01) {
 
   fit <- tryCatch({
     haplo.stats::haplo.glm(
-      response[keep] ~ 1,
+      response ~ 1,
       geno     = subset_geno(geno_setup, keep),
       family   = fam,
       haplo.freq.min = min_freq,
