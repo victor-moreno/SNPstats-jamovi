@@ -30,6 +30,9 @@ names(data)
 
 data<-read.delim("data/CRCgenet-SNPs.tsv", header=TRUE, stringsAsFactors = TRUE)
 
+SNPstats::snpStats(data=data, snps=names(data)[8:9], snpSummary = TRUE)
+
+
 SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:9], covariates = c("sex", "age","bmi","bmi4"), covDesc = TRUE, snpSummary = FALSE)
 
 SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:9], covariates = c("sex", "age","bmi","bmi4"), covDesc = TRUE, subpop = TRUE, snpSummary = FALSE)
@@ -54,5 +57,11 @@ SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:9], cov
 SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:9], covariates = c("sex", "age","bmi","bmi4"), responseType = "auto", 
         snpInteraction = TRUE, showInteractionTable = TRUE, modelCodominant = TRUE, modelDominant = TRUE, modelRecessive = TRUE, modelOverdominant = TRUE, modelLogAdditive = TRUE,
         showStratByCovariate = TRUE, showStratByGenotype = TRUE, showCrossClassTable = TRUE)
+
+
+SNPstats::snpStats(data=data, response = "phenotype", snps=names(data)[8:11], covariates = c("sex"), responseType = "auto", 
+     ldAnalysis = TRUE, ldMatrix = TRUE, 
+     ldMetric = "r2", ldPlot = TRUE, haploFreq = TRUE, haploFreqMin = 0.01, 
+     ldSubpop = TRUE, haploAssoc = TRUE, haploInteraction = TRUE)
 
 jmvtools::install()

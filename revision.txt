@@ -1,12 +1,8 @@
-7:30 PM,
-
-refactor code so all preprocesing is encapsulated and snpStats exported function returns the same results as .run in jamovi
-
-
-use common SNP QC both modules
-
 Tutorial 
   screenshots
+
+interaction categorical response
+
 
 Organize code & clean
 

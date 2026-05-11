@@ -54,7 +54,7 @@ children:
             enable: (response)
           - type: CheckBox
             name: covDesc
-            enable: (covariates)
+            enable: (covariates || response)
             children:
               - type: CheckBox
                 name: rmSnpMissing
