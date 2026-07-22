@@ -1,0 +1,104 @@
+---
+title: Basic Genetic Epidemiology Analyses of SNP data
+name: SNPstats
+version: 0.5.0
+jms: '1.0'
+authors:
+  - Victor Moreno
+maintainer: Victor Moreno <v.moreno@iconcologia.net>
+date: '2026-07-22'
+type: R
+description: >
+  Performs SNP analysis for genetic epidemiology studies. Computes allele and
+  genotype frequencies, Hardy-Weinberg equilibrium tests, SNP-response
+  association, linkage disequilibrium, haplotype analysis, and polygenic score
+  (PGS) calculation. Based on the SNPstats web tool (https://www.snpstats.net).
+analyses:
+  - title: SNP Analysis
+    name: snpStats
+    ns: SNPstats
+    menuGroup: SNPstats
+    menuTitle: SNP Analysis
+    menuSubgroup: Genetic epidemiology
+    description: >
+      Integrated SNP analysis module. Computes allele and genotype frequencies,
+      Hardy-Weinberg equilibrium tests, covariate descriptives, SNP-response
+      association under codominant, dominant, recessive, overdominant, and
+      log-additive genetic models with optional SNP × covariate interaction
+      tests, linkage disequilibrium (pairwise table, matrix, heatmap), and
+      haplotype frequency estimation and association analysis via haplo.stats.
+      Variable selection is shared across all analyses.
+    category: analyses
+  - title: Polygenic Score (PGS)
+    name: snpPGS
+    ns: SNPstats
+    menuGroup: SNPstats
+    menuTitle: Polygenic Score (PGS)
+    menuSubgroup: Genetic epidemiology
+    description: >
+      Calculates a Polygenic Risk Score (PGS) for each individual using genotype
+      columns (dosage 0/1/2 or allele strings, auto-detected) and a PGS
+      Catalog-format weights file (rsID, effect_allele, effect_weight). Outputs
+      per-individual scores, Z-scores, percentile ranks, a score distribution
+      plot, SNP coverage summary, and optional association with a binary or
+      quantitative response variable.
+    category: analyses
+usesNative: true
+minApp: 1.0.8
+datasets:
+  - name: SNP sample1
+    path: sample1.tsv
+    description: >
+      Example SNP dataset 706 individuals, 5 SNPs, case-control status, age,
+      sex, BMI
+    tags:
+      - SNP
+      - genetics
+  - name: SNP sample2
+    path: sample2.tsv
+    description: Example SNP dataset 566 individuals, 3 SNPs, case-control status
+    tags:
+      - SNP
+      - genetics
+  - name: SNP sample3
+    path: sample3.tsv
+    description: >
+      Example SNP dataset 706 individuals, 8 SNPs, case-control status, age,
+      sex, family history
+    tags:
+      - SNP
+      - genetics
+  - name: SNP sample4
+    path: sample4.tsv
+    description: >
+      Example SNP dataset 706 individuals, 9 SNPs, case-control status, age,
+      sex, diet
+    tags:
+      - SNP
+      - genetics
+  - name: SNP sample5
+    path: sample5.tsv
+    description: Example SNP dataset 706 individuals, 4 SNPs, case-control, age, sex
+    tags:
+      - SNP
+      - genetics
+  - name: CRC genetics
+    path: CRCgenet-SNPs.tsv
+    description: >
+      Example SNP dataset 2837 individuals, 65 SNPs from CRC WGAS, phenotype,
+      sex, age,  bmi (numerical and categorical) and FIT result. Real SNP
+      dataset with permuted SNPs by phenotype and sex.  Age, BMI and FIT result
+      have been randomly generated. - SNP - genetics
+    tags:
+      - SNP
+      - genetics
+  - name: CRC PGS
+    path: CRCgenet-PGS.txt
+    description: >
+      Weights table to be used with CRCgenet-SNPs.tsv with SNP risk allele and
+      weights from GWAS.
+    tags:
+      - SNP
+      - genetics
+
+...

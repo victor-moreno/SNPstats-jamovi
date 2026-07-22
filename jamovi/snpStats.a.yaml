@@ -1,0 +1,297 @@
+---
+name: snpStats
+title: SNP Analysis
+version: '0.5.0'
+jas: '1.2'
+menuGroup: SNPstats
+menuTitle: SNP Analysis
+
+options:
+  - name: data
+    type: Data
+    description:
+      main: >
+        Integrated SNP analysis: descriptive statistics, association analysis,
+        and LD / haplotype analysis. Select SNPs and covariates once and switch
+        between analysis tabs without re-entering variable assignments.
+      R:
+        dontrun: false
+        usage: |
+          snpStats(
+            data = mydata,
+            snps = c("snp1", "snp2"),
+            response = "status",
+            covariates = c("age", "sex")
+          )
+
+  # ══════════════════════════════════════════════════════════════════════
+  # Shared variable assignment (all tabs read these)
+  # ══════════════════════════════════════════════════════════════════════
+  - name: response
+    title: Response variable
+    type: Variable
+    suggested: [nominal, continuous]
+    permitted:  [factor, numeric]
+    default: ~
+
+  - name: snps
+    title: SNPs
+    type: Variables
+    suggested: [nominal]
+    permitted:  [factor]
+    default: ~
+
+  - name: covariates
+    title: Covariates
+    type: Variables
+    suggested: [nominal, continuous]
+    permitted:  [factor, numeric]
+    default: ~
+
+  - name: responseType
+    title: Response type
+    type: List
+    options:
+      - {title: Auto-detect,                name: auto}
+      - {title: Binary (logistic),          name: binary}
+      - {title: Quantitative (linear),      name: quantitative}
+      - {title: Categorical (multinomial),  name: categorical}
+    default: auto
+    description:
+        R: >
+            Controls how the response variable is treated. Auto-detect selects
+            binary (2 levels), categorical (3-6 levels, factor), or quantitative
+            (numeric). For categorical responses, association analysis uses
+            multinomial logistic regression (nnet::multinom); SNP x covariate
+            interaction and haplotype association are not available for
+            categorical responses.
+
+  # ══════════════════════════════════════════════════════════════════════
+  # Tab 1: Descriptive
+  # ══════════════════════════════════════════════════════════════════════
+  - name: subpop
+    title: Stratify by response groups
+    type: Bool
+    default: false
+
+  - name: covDesc
+    title: Descriptive statistics for covariates
+    type: Bool
+    default: false
+
+  - name: rmSnpMissing
+    title: Remove missing values in SNPs
+    type: Bool
+    default: false
+
+  - name: completeCases
+    title: Complete cases analysis (affects all analyses)
+    type: Bool
+    default: false
+    description:
+        R: >
+            Remove all observations with any missing value in SNPs, response, or
+            covariates. Missing value rows are suppressed from all output tables;
+            table notes report how many cases were excluded from the full dataset.
+
+  - name: snpSummary
+    title: SNP summary table
+    type: Bool
+    default: true
+
+  - name: allFreq
+    title: Allele frequencies
+    type: Bool
+    default: false
+
+  - name: genoFreq
+    title: Genotype frequencies
+    type: Bool
+    default: false
+
+  - name: hweTest
+    title: Hardy-Weinberg equilibrium
+    type: Bool
+    default: false
+
+  - name: showMissing
+    title: Show missing values in tables
+    type: Bool
+    default: false
+
+  - name: showMissingnessPlot
+    title: Show SNP missingness plot
+    type: Bool
+    default: false
+
+  - name: missingnessThreshold
+    title: Show SNPs with missingness above (%)
+    type: Number
+    min: 0
+    max: 100
+    default: 0.1
+    description:
+        R: >
+            Only SNPs whose missing genotype percentage exceeds this value
+            are displayed in the missingness plot. Set to 0 to show all SNPs.
+
+  # ══════════════════════════════════════════════════════════════════════
+  # Tab 2: Association
+  # ══════════════════════════════════════════════════════════════════════
+  - name: snpAssoc
+    title: SNP-response association
+    type: Bool
+    default: false
+
+  - name: modelCodominant
+    title: Codominant
+    type: Bool
+    default: true
+
+  - name: modelDominant
+    title: Dominant
+    type: Bool
+    default: false
+
+  - name: modelRecessive
+    title: Recessive
+    type: Bool
+    default: false
+
+  - name: modelOverdominant
+    title: Overdominant
+    type: Bool
+    default: false
+
+  - name: modelLogAdditive
+    title: Additive
+    type: Bool
+    default: false
+
+  - name: ciWidth
+    title: Confidence interval (%)
+    type: Number
+    min: 50
+    max: 99.9
+    default: 95
+
+  - name: showAIC
+    title: AIC / BIC
+    type: Bool
+    default: false
+
+  - name: snpInteraction
+    title: SNP × covariate interaction
+    type: Bool
+    default: false
+
+  - name: interactionType
+    title: Interaction parameterisation
+    type: List
+    options:
+      - {title: "Multiplicative (SNP × covariate)",           name: multiplicative}
+      - {title: "Conditional on covariate (SNP | covariate)", name: conditional_on_covar}
+      - {title: "Conditional on genotype  (covariate | SNP)", name: conditional_on_snp}
+    default: multiplicative
+
+  - name: showInteractionTable
+    title: Show interaction table
+    type: Bool
+    default: true
+
+  - name: showInteractionAdjVars
+    title: Show adjustment covariate parameters
+    type: Bool
+    default: false
+
+  - name: showStratByCovariate
+    title: Stratified analysis by covariate
+    type: Bool
+    default: false
+
+  - name: showStratByGenotype
+    title: Stratified analysis by genotype
+    type: Bool
+    default: false
+
+  - name: showCrossClassTable
+    title: Show cross-classification table
+    type: Bool
+    default: false
+
+  # ══════════════════════════════════════════════════════════════════════
+  # Tab 3: LD and Haplotype
+  # ══════════════════════════════════════════════════════════════════════
+  - name: ldAnalysis
+    title: Pairwise LD table
+    type: Bool
+    default: false
+
+  - name: ldMatrix
+    title: LD matrix
+    type: Bool
+    default: false
+
+  - name: ldMetric
+    title: Metric
+    type: List
+    options:
+      - {title: r²,  name: r2}
+      - {title: D',  name: Dprime}
+      - {title: D,   name: D}
+    default: r2
+
+  - name: ldPlot
+    title: LD heatmap
+    type: Bool
+    default: false
+
+  - name: haploFreq
+    title: Haplotype frequency estimation
+    type: Bool
+    default: false
+
+  - name: haploRareCriterion
+    title: Rare-haplotype criterion
+    type: List
+    options:
+      - name: frequency
+        title: Min frequency
+      - name: count
+        title: Min count
+    default: frequency
+
+  - name: haploFreqMin
+    title: Min freq for rare haplotypes
+    type: Number
+    min: 0
+    max: 0.5
+    default: 0.01
+
+  - name: haploEffect
+    title: Haplotype genetic model
+    type: List
+    options:
+      - name: additive
+        title: Additive
+      - name: dominant
+        title: Dominant
+      - name: recessive
+        title: Recessive
+    default: additive
+
+  - name: haploMinCount
+    title: Min haplotype count
+    type: Number
+    min: 1
+    default: 8
+
+  - name: haploAssoc
+    title: Haplotype-response association
+    type: Bool
+    default: false
+
+  - name: haploInteraction
+    title: Haplotype × covariate interaction (first covariate)
+    type: Bool
+    default: false

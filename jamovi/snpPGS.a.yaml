@@ -1,0 +1,508 @@
+# snpPGS_a.yaml  — Analysis definition for SNPstats PGS module
+---
+name: snpPGS
+title: Polygenic Score (PGS)
+version: '0.1.0'
+jas: '1.2'
+menuGroup: SNPstats
+menuTitle: Polygenic Score (PGS)
+menuSubgroup: Genetic epidemiology
+
+options:
+    - name: data
+      type: Data
+      description:
+          main: >
+              Calculates a Polygenic Risk Score (PGS) for each individual
+              using genotype columns and a PGS Catalog-format weights file.
+          R:
+              dontrun: true
+              usage: |
+                  snpPGS(data = myData,
+                         snpCols = vars(rs123, rs456),
+                         weightsPath = "pgs_catalog.csv")
+
+    - name: snpCols
+      title: SNP columns
+      type: Variables
+      suggested:
+          - continuous
+          - nominal
+      permitted:
+          - numeric
+          - factor
+      default: ~
+      description:
+          R: >
+              One column per SNP. Dosage (0/1/2) or allele strings
+              auto-detected per column.
+
+    - name: responseCol
+      title: Response variable (optional)
+      type: Variable
+      suggested:
+          - nominal
+          - continuous
+      permitted:
+          - factor
+          - numeric
+      default: ~
+      description:
+          R: >
+              Optional outcome variable. If provided, an association test
+              between PGS and response is reported (logistic for binary,
+              linear for continuous).
+
+    - name: covCols
+      title: Covariates (optional)
+      type: Variables
+      suggested:
+          - continuous
+          - nominal
+      permitted:
+          - numeric
+          - factor
+      default: ~
+      description:
+          R: >
+              Optional covariate columns. If provided, regression models
+              (logistic and linear) are adjusted for these variables.
+              A note listing the covariates is added to the association table.
+
+    - name: weightingMode
+      title: SNP weighting mode
+      type: List
+      options:
+          - name: weighted
+            title: Weighted (from PGS weights file)
+          - name: unweighted
+            title: Unweighted (weight = 1 for all SNPs)
+          - name: both
+            title: Both (weighted and unweighted)
+      default: both
+      description:
+          R: >
+              Controls how SNP weights are applied. 'weighted' uses
+              effect_weight values from the loaded PGS Catalog file.
+              'unweighted' assigns weight 1 to every SNP regardless of
+              the file. 'both' computes and reports both scores side by
+              side in the summary and association tables. If no weights
+              file is loaded, unweighted scoring is used automatically.
+
+    - name: weightsPath
+      title: Weights file path (PGS Catalog format)
+      type: String
+      default: ""
+      description:
+          R: >
+              Path to a PGS Catalog-format file. Lines starting with '#' are
+              skipped automatically. Recognised columns: rsID/variant_id,
+              effect_allele, other_allele, effect_weight/beta, chr_name/chr,
+              chr_position/pos. Missing expected columns are hidden in output;
+              extra columns are shown concatenated in an 'Extra fields' column.
+
+    - name: missingStrategy
+      title: Missing genotype handling
+      type: List
+      options:
+          - name: 'SNP-wise'
+            title: Use observed SNPs only individual-wise
+          - name: zero
+            title: Treat as 0 (reference homozygous)
+          - name: mean
+            title: Impute with column mean dosage
+          - name: exclude
+            title: Exclude individuals with any missing SNP
+      default: 'SNP-wise'
+      description:
+          R: >
+              Strategy for handling missing genotype values. 'SNP-wise'
+              scores each individual using only their observed SNPs and
+              divides by that individual's observed SNP count, keeping
+              all individuals regardless of missingness.
+
+    - name: qcFilterMissing
+      title: Filter SNPs by missingness
+      type: Bool
+      default: false
+      description:
+          R: >
+              If TRUE, SNPs whose percentage of missing genotypes exceeds
+              qcMaxMissingPct are excluded from scoring. Missing genotypes
+              include NA values and any null-allele codings (e.g. 0/0)
+              that were cleaned to NA during pre-processing.
+
+    - name: qcMaxMissingPct
+      title: Max missing genotypes (%)
+      type: Number
+      min: 0
+      max: 100
+      default: 10
+      description:
+          R: >
+              Threshold for the SNP missingness filter (requires
+              qcFilterMissing = TRUE). SNPs with percentage of missing
+              genotypes strictly greater than this value are excluded.
+              Default: 10 (i.e. > 10% missing → excluded).
+
+    - name: qcFilterHwe
+      title: Filter SNPs by HWE
+      type: Bool
+      default: false
+      description:
+          R: >
+              If TRUE, SNPs whose Hardy-Weinberg equilibrium exact test
+              p-value is below qcHweP are excluded from scoring.
+
+    - name: qcHweP
+      title: HWE p-value threshold
+      type: Number
+      min: 0
+      max: 1
+      default: 0.001
+      description:
+          R: >
+              Threshold for the HWE filter (requires qcFilterHwe = TRUE).
+              SNPs with HWE p-value strictly below this value are excluded.
+              Default: 0.001. HWE is computed using an exact test on the
+              cleaned (NA-corrected) genotype column. When a binary response
+              variable is selected, HWE is automatically tested in controls
+              only (the lower/first level), following standard GWAS QC practice.
+
+
+    - name: missingCorrection
+      title: Correct for missing genotypes
+      type: Bool
+      default: true
+      description:
+          R: >
+              If TRUE, divides each individual's raw score by the maximum
+              score they could have achieved given their observed SNPs only.
+              For unweighted scoring: denominator = 2 × n_observed_SNPs.
+              For weighted scoring:   denominator = 2 × sum of positive weights
+              for observed SNPs (negative weights excluded from the maximum
+              to prevent scores exceeding the rescaled range).
+              This correction is strongly recommended whenever genotypes are
+              missing, as it ensures scores are comparable across individuals
+              with different amounts of missing data. It is a prerequisite
+              for meaningful proportional or percent rescaling.
+
+    - name: scaleMethod
+      title: Score rescaling
+      type: List
+      options:
+          - name: none
+            title: None (raw sum)
+          - name: proportion
+            title: Proportion of maximum (0–1)
+          - name: percent
+            title: Percent of maximum (0–100)
+          - name: multiply
+            title: Multiply by custom factor
+          - name: perNAlleles
+            title: Per N risk alleles
+      default: proportion
+      description:
+          R: >
+              How the (missingness-corrected) score is rescaled before output.
+              'none': report the raw weighted sum. 'proportion': divide by the
+              per-individual maximum possible score, giving a value in [0, 1]
+              (requires missingCorrection = TRUE to be meaningful).
+              'percent': same as proportion but multiplied by 100, giving
+              0–100. 'multiply': multiply the missingness-corrected score by
+              scaleFactor (e.g. 10 for a 0–10 scale). 'perNAlleles': divide
+              the raw score by scaleFactor; for the unweighted score this gives
+              the average dosage per N SNPs — e.g. with scaleFactor = 10 the
+              unit is "per 10 risk alleles", a common epidemiological reporting
+              convention. For the weighted score the denominator is
+              scaleFactor × mean(positive weights), giving comparable units.
+
+    - name: scaleFactor
+      title: Scale factor / N alleles
+      type: Number
+      default: 10
+      description:
+          R: >
+              Numeric value used by the 'multiply' and 'perNAlleles' rescaling
+              methods. For 'multiply': the corrected score is multiplied by
+              this value (e.g. 100 gives a 0–100 scale from a 0–1 proportion).
+              For 'perNAlleles': the raw score is divided by this value
+              (e.g. 10 for "per 10 risk alleles").
+
+    - name: scaleWeights
+      title: Scale weights to unit mean (comparable to unweighted)
+      type: Bool
+      default: false
+      description:
+          R: >
+              If TRUE, the effect weights are L1-normalised to unit mean
+              (wvec / mean(|wvec|)) before scoring. This places the weighted
+              score on the same scale as the unweighted score, so the two can
+              be directly compared: both represent an effective risk-allele
+              count, and the difference between them reflects the contribution
+              of differential weighting. Has no effect when weightingMode is
+              'unweighted'. Rescaling and standardization are applied after
+              weight scaling.
+
+    - name: standardize
+      title: Standardize score (SD = 1)
+      type: Bool
+      default: false
+      description:
+          R: >
+              If TRUE, divides the rescaled score by its standard deviation
+              across all individuals (after all other transformations).
+              The resulting score has SD = 1, so regression coefficients
+              represent the effect per 1-SD change in PGS. Can be combined
+              with any rescaling method; when combined with 'proportion' or
+              'percent' the SD is computed on that scale before dividing.
+
+    - name: showSummary
+      title: Show PGS summary statistics
+      type: Bool
+      default: true
+      description:
+          R: Show the PGS summary statistics table.
+
+    - name: summaryStratify
+      title: Stratify summary by response
+      type: Bool
+      default: true
+      description:
+          R: >
+              If TRUE, the PGS summary statistics table is stratified by the
+              levels of the response variable (one row per level plus an Overall
+              row, per scoring mode). Only effective when a binary or categorical
+              response variable is selected; otherwise a single Overall row per
+              mode is shown.
+
+    - name: showCoverage
+      title: Show SNP coverage summary
+      type: Bool
+      default: true
+      description:
+          R: Show the SNP coverage summary table.
+
+    - name: showSnpGrid
+      title: Show SNP weights table
+      type: Bool
+      default: true
+      description:
+          R: Show the per-SNP weights and QC table.
+
+    - name: showDistPlot
+      title: Show score distribution plot
+      type: Bool
+      default: false
+      description:
+          R: Show the score distribution plot.
+
+    - name: showForestPlot
+      title: Show percentile forest plot
+      type: Bool
+      default: false
+      description:
+          R: >
+              Show a forest plot of OR (binary response) or β (continuous
+              response) per percentile category, using the same logistic /
+              linear model as the percentile category analysis. Requires a
+              response variable. Uses the same percentile breaks and reference
+              category settings as the percentile analysis.
+
+    - name: showRocPlot
+      title: Show ROC curve
+      type: Bool
+      default: false
+      description:
+          R: >
+              Show a Receiver Operating Characteristic (ROC) curve with AUC
+              for binary responses. When covariates are selected, a second
+              curve for the covariate-adjusted logistic model is overlaid.
+              AUC is computed via the trapezoidal rule. Requires a binary
+              response variable.
+
+    - name: showCalibPlot
+      title: Show calibration plot
+      type: Bool
+      default: false
+      description:
+          R: >
+              Show a calibration plot for binary responses. Individuals are
+              binned into deciles of predicted probability from the logistic
+              model; observed event rate per decile is plotted against mean
+              predicted probability. A Hosmer-Lemeshow chi-square statistic
+              is annotated. Requires a binary response variable.
+
+    - name: distPlotType
+      title: Plot type
+      type: List
+      options:
+          - name: density
+            title: Density
+          - name: histogram
+            title: Histogram
+          - name: both
+            title: Both (histogram + density)
+      default: density
+      description:
+          R: >
+              Controls the visual style of the distribution plot.
+              'density' shows kernel density curves with filled polygons;
+              'histogram' shows bars (density scale); 'both' overlays
+              density curves on histogram bars.
+
+    - name: histBreaks
+      title: Histogram breaks
+      type: Number
+      min: 2
+      max: 500
+      default: 20
+      description:
+          R: >
+              Approximate number of bins for the histogram (used when
+              distPlotType is 'histogram' or 'both'). Passed as the
+              'breaks' argument to hist(); R may adjust the value to
+              produce a pleasing bin width.
+
+    - name: plotWidth
+      title: Plot width (px)
+      type: Number
+      min: 100
+      max: 1600
+      default: 600
+      description:
+          R: >
+              Total image width in pixels. Two side-by-side panels
+              (Weighted + Unweighted) share this width; a wider facet grid
+              (polytomous ROC/calibration) scales it up so each panel keeps its
+              size.
+
+    - name: plotHeight
+      title: Plot height (px)
+      type: Number
+      min: 100
+      max: 1600
+      default: 400
+      description:
+          R: >
+              Total image height in pixels. A multi-row facet grid
+              (polytomous ROC/calibration) scales it by the number of rows.
+
+    - name: caseLevel
+      title: Reference level
+      type: Level
+      variable: (responseCol)
+      description:
+          R: >
+              Level of the response variable to treat as the reference
+              (baseline) category. All logistic / polytomous ORs are expressed
+              relative to it, and it defines the control group for ROC and
+              calibration plots. Empty = first observed level. Using the
+              reference (rather than an event) level generalizes to the
+              polytomous case, where there is no single event.
+
+    - name: showPercentiles
+      title: Show percentile ranks
+      type: Bool
+      default: false
+      description:
+          R: Show percentile ranks for each individual and threshold table.
+
+    - name: percentileBreaks
+      title: Percentile thresholds
+      type: String
+      default: "20,40,60,80,90,95"
+      description:
+          R: >
+              Comma-separated list of percentile thresholds used to partition
+              individuals into categories (e.g. "20,40,60,80" creates five bands:
+              <P20, P20–P40, P40–P60, P60–P80, >P80).
+
+    - name: pgsRefCategory
+      title: Reference category
+      type: List
+      options:
+          - name: lowest
+            title: Lowest (<P_min)
+          - name: middle
+            title: Middle (nearest median)
+          - name: highest
+            title: Highest (>P_max)
+      default: middle
+      description:
+          R: >
+              The percentile category used as the reference group in logistic
+              (binary response) or linear (continuous response) regression.
+              'lowest' uses the bottom band (<lowest threshold), 'highest' uses
+              the top band (>highest threshold), and 'middle' uses the band
+              containing the median of the score distribution.
+
+    - name: showAssoc
+      title: Show PGS-response association
+      type: Bool
+      default: false
+      description:
+          R: >
+              Show the PGS-response association table (requires a response
+              variable to be selected).
+
+    - name: filterValidSnps
+      title: Show valid SNPs only
+      type: Bool
+      default: false
+      description:
+          R: >
+              If TRUE, the SNP Weights table is filtered to show only SNPs
+              that passed QC and were used in scoring. SNPs excluded due to
+              allele mismatch, missing data, or being monomorphic are hidden.
+
+    - name: snpGridSortBy
+      title: 'Sort by'
+      type: List
+      default: as_selected
+      options:
+        - title: Order as selected
+          name: as_selected
+        - title: Order as in PGS file
+          name: pgs_order
+        - title: Effect weight (descending)
+          name: effect_weight
+        - title: Allele frequency (descending)
+          name: effect_af
+        - title: Missingness % (descending)
+          name: pct_missing
+        - title: HWE p-value (ascending)
+          name: hwe_p
+        - title: QC status
+          name: allele_status
+
+    - name: snpGridSortField
+      title: Sort by extra PGS field
+      type: String
+      default: ''
+      description:
+          R: >
+              When set, sorts the SNP grid by the named extra column from the
+              PGS weights file (case-insensitive). Takes priority over the
+              Sort SNP grid by dropdown.
+
+    - name: showInteraction
+      title: Show PGS × covariate interaction
+      type: Bool
+      default: false
+      description:
+          R: >
+              If TRUE, fits an interaction model between the PGS and the first
+              selected covariate (pgs × cov1) and reports the interaction term
+              in a dedicated table. Requires both a response variable and at
+              least one covariate. For binary responses a logistic model is
+              used; for continuous responses a linear model is used.
+
+    - name: saveScores
+      title: Save scores to data
+      type: Output
+      description:
+          R: >
+              Appends PGS score column(s) to the dataset. One column is
+              added per active weighting mode (Weighted, Unweighted, or both).
+

@@ -1,0 +1,563 @@
+# snpPGS_r.yaml  — Results definition for SNPstats PGS module
+---
+name: snpPGS
+title: Polygenic Score (PGS)
+refs:
+  - snpstats
+  - bioinfo
+  - tutorial
+jrs: '1.1'
+
+items:
+  # ── Documentation link (shown only in the "Getting started" state) ─────────
+  - name: helpBanner
+    title: ''
+    type: Html
+
+  # ── Validation / info messages ─────────────────────────────────────────────
+  - name: validationMsg
+    title: ''
+    type: Html
+    visible: false
+
+  # ── SNP weights as loaded from file ───────────────────────────────────────
+  - name: snpGridTable
+    title: SNP Weights Used for Scoring
+    type: Table
+    visible: (showSnpGrid)
+    # The grid is refresh-safe: .init pre-creates its rows (positional keys) and
+    # dynamic columns and .run writes them with setRow (see .fillSnpGridTable /
+    # .writeRows). clearWith therefore holds EVERY option that changes the grid —
+    # the scored SNP set, the QC filters, and the sort/filter display — because
+    # jmvcore's isNotFilled() (driven by clearWith) is the only refill signal that
+    # survives protobuf restore. An unrelated click changes none of these, so the
+    # restored rows are shown untouched. (Instance state can't be used: it is lost
+    # on restore, which made the grid rebuild on every click.)
+    clearWith:
+        - snpCols
+        - weightsPath
+        - weightingMode
+        - qcFilterMissing
+        - qcMaxMissingPct
+        - qcFilterHwe
+        - qcHweP
+        - snpGridSortBy
+        - snpGridSortField
+        - filterValidSnps
+    columns:
+        - name: rsid
+          title: SNP
+          type: text
+        - name: chr
+          title: Chr
+          type: text
+          format: narrow
+        - name: pos
+          title: Position
+          type: text
+        - name: effect_allele
+          title: Effect
+          type: text
+          format: narrow
+        - name: other_allele
+          title: Other
+          type: text
+          format: narrow
+        - name: effect_weight
+          title: Weight
+          type: number
+          format: zto
+        - name: matched
+          title: In dataset
+          type: text
+        - name: allele_status
+          title: Allele QC
+          type: text
+        - name: n_missing
+          title: "N missing"
+          type: integer
+        - name: pct_missing
+          title: "% missing"
+          type: number
+          format: zto
+        - name: effect_af
+          title: "Effect AF"
+          type: number
+          format: zto
+        - name: hwe_p
+          title: "HWE p"
+          type: number
+          format: zto,pvalue
+        - name: qc_excl_reason
+          title: "QC filter"
+          type: text
+
+  # ── Coverage summary (key-value rows) ─────────────────────────────────────
+  - name: coverageTable
+    title: SNP Coverage Summary
+    type: Table
+    visible: (showCoverage)
+    clearWith:
+        - snpCols
+        - weightsPath
+        - weightingMode
+        - qcFilterMissing
+        - qcMaxMissingPct
+        - qcFilterHwe
+        - qcHweP
+        - missingStrategy
+        - responseCol
+        - covCols
+    columns:
+        - name: field
+          title: ''
+          type: text
+        - name: value
+          title: ''
+          type: text
+
+  # ── PGS summary statistics ──────────────────────────────────────────────────
+  - name: summaryTable
+    title: PGS Summary Statistics
+    type: Table
+    visible: (showSummary)
+    clearWith:
+        - snpCols
+        - weightsPath
+        - weightingMode
+        - qcFilterMissing
+        - qcMaxMissingPct
+        - qcFilterHwe
+        - qcHweP
+        - missingStrategy
+        - missingCorrection
+        - scaleMethod
+        - scaleFactor
+        - scaleWeights
+        - standardize
+        - responseCol
+        - covCols
+        - caseLevel
+        - showSummary
+        - summaryStratify
+    columns:
+        - name: score_type
+          title: Score type
+          type: text
+        - name: group
+          title: Group
+          type: text
+        - name: n
+          title: N
+          type: integer
+        - name: mean
+          title: Mean
+          type: number
+          format: zto
+        - name: sd
+          title: SD
+          type: number
+          format: zto
+        - name: ci_low
+          title: 95% CI low
+          type: number
+          format: zto
+        - name: ci_high
+          title: 95% CI high
+          type: number
+          format: zto
+        - name: min
+          title: Min
+          type: number
+          format: zto
+        - name: max
+          title: Max
+          type: number
+          format: zto
+        - name: skew
+          title: Skewness
+          type: number
+          format: zto
+
+  # ── Save scores to data ─────────────────────────────────────────────────────
+  - name: saveScores
+    title: PGS Scores
+    type: Output
+    initInRun: true
+    clearWith:
+        - snpCols
+        - weightsPath
+        - weightingMode
+        - qcFilterMissing
+        - qcMaxMissingPct
+        - qcFilterHwe
+        - qcHweP
+        - missingStrategy
+        - missingCorrection
+        - scaleMethod
+        - scaleFactor
+        - scaleWeights
+        - standardize
+
+  # ── Percentile category counts (N and % overall / by response) ─────────────
+  - name: percentileThreshTable
+    title: PGS Percentile Category Counts
+    type: Table
+    visible: (showPercentiles)
+    clearWith:
+        - snpCols
+        - weightsPath
+        - weightingMode
+        - qcFilterMissing
+        - qcMaxMissingPct
+        - qcFilterHwe
+        - qcHweP
+        - missingStrategy
+        - missingCorrection
+        - scaleMethod
+        - scaleFactor
+        - scaleWeights
+        - standardize
+        - percentileBreaks
+        - responseCol
+    columns:
+        - name: score_type
+          title: Score type
+          type: text
+        - name: category
+          title: Category
+          type: text
+        - name: score_range
+          title: Score range
+          type: text
+        - name: n_overall
+          title: "N (%)"
+          type: text
+
+  # ── Percentile category analysis (regression) ──────────────────────────────
+  - name: percentileTable
+    title: PGS Percentile Category Analysis
+    type: Table
+    visible: (showPercentiles)
+    clearWith:
+        - snpCols
+        - weightsPath
+        - weightingMode
+        - qcFilterMissing
+        - qcMaxMissingPct
+        - qcFilterHwe
+        - qcHweP
+        - missingStrategy
+        - missingCorrection
+        - scaleMethod
+        - scaleFactor
+        - scaleWeights
+        - standardize
+        - responseCol
+        - covCols
+        - caseLevel
+        - percentileBreaks
+        - pgsRefCategory
+    columns:
+        - name: score_type
+          title: Score type
+          type: text
+        - name: contrast
+          title: Contrast
+          type: text
+        - name: category
+          title: Category
+          type: text
+        - name: n
+          title: N
+          type: integer
+        - name: score_range
+          title: Score range
+          type: text
+        - name: estimate
+          title: Estimate
+          type: number
+          format: zto
+        - name: ci_low
+          title: 95% CI low
+          type: number
+          format: zto
+        - name: ci_high
+          title: 95% CI high
+          type: number
+          format: zto
+        - name: p
+          title: p-value
+          type: number
+          format: zto,pvalue
+    notes:
+        modelNote: ''
+        refNote: ''
+        covNote: ''
+
+  # ── PGS–response association ────────────────────────────────────────────────
+  - name: assocTable
+    title: PGS–Response Association
+    type: Table
+    visible: (showAssoc)
+    clearWith:
+        - snpCols
+        - weightsPath
+        - weightingMode
+        - qcFilterMissing
+        - qcMaxMissingPct
+        - qcFilterHwe
+        - qcHweP
+        - missingStrategy
+        - missingCorrection
+        - scaleMethod
+        - scaleFactor
+        - scaleWeights
+        - standardize
+        - responseCol
+        - covCols
+        - caseLevel
+    columns:
+        - name: score_type
+          title: Score type
+          type: text
+        - name: test
+          title: Test
+          type: text
+        - name: stat_label
+          title: Statistic
+          type: text
+        - name: estimate
+          title: Estimate
+          type: number
+          format: zto
+        - name: se
+          title: SE
+          type: number
+          format: zto
+        - name: ci_low
+          title: 95% CI low
+          type: number
+          format: zto
+        - name: ci_high
+          title: 95% CI high
+          type: number
+          format: zto
+        - name: stat
+          title: Value
+          type: number
+          format: zto
+          visible: false
+        - name: df
+          title: df
+          type: text
+          visible: false
+        - name: se
+          title: SE
+          type: number
+          format: zto
+          visible: false
+        - name: p
+          title: p-value
+          type: number
+          format: zto,pvalue
+    notes:
+        covNote: ''
+        respNote: ''
+
+  # ── PGS × covariate interaction ────────────────────────────────────────────
+  - name: interactionTable
+    title: PGS × Covariate Interaction
+    type: Table
+    visible: (showInteraction)
+    clearWith:
+        - snpCols
+        - weightsPath
+        - weightingMode
+        - qcFilterMissing
+        - qcMaxMissingPct
+        - qcFilterHwe
+        - qcHweP
+        - missingStrategy
+        - missingCorrection
+        - scaleMethod
+        - scaleFactor
+        - scaleWeights
+        - standardize
+        - responseCol
+        - covCols
+        - caseLevel
+    columns:
+        - name: score_type
+          title: Score type
+          type: text
+        - name: model
+          title: Model
+          type: text
+        - name: term
+          title: Term
+          type: text
+        - name: estimate
+          title: Estimate
+          type: number
+          format: zto
+        - name: ci_low
+          title: 95% CI low
+          type: number
+          format: zto
+        - name: ci_high
+          title: 95% CI high
+          type: number
+          format: zto
+        - name: p
+          title: p-value
+          type: number
+          format: zto,pvalue
+    notes:
+        intNote: ''
+
+  # ── Distribution plot ───────────────────────────────────────────────────────
+  - name: distPlot
+    title: Score Distribution
+    type: Image
+    visible: (showDistPlot)
+    renderFun: .plotDist
+    width: 600
+    height: 400
+    # distPlot draws the score distribution grouped by response — it does NOT use
+    # covariates or percentile options, so those are deliberately absent (their
+    # inclusion would re-render it on unrelated clicks).
+    clearWith:
+        - snpCols
+        - responseCol
+        - weightsPath
+        - weightingMode
+        - qcFilterMissing
+        - qcMaxMissingPct
+        - qcFilterHwe
+        - qcHweP
+        - missingStrategy
+        - missingCorrection
+        - scaleMethod
+        - scaleFactor
+        - scaleWeights
+        - standardize
+        - caseLevel
+        - distPlotType
+        - histBreaks
+        - plotWidth
+        - plotHeight
+
+  # ── Scatter plot: continuous response only (binary handled in distPlot) ──
+  - name: stratPlot
+    title: PGS vs Response
+    type: Image
+    visible: false
+    renderFun: .plotStrat
+    width: 600
+    height: 400
+    # stratPlot is a PGS-vs-continuous-response scatter with a simple lm fit — no
+    # covariates and no percentile categories, so those options are excluded.
+    clearWith:
+        - snpCols
+        - responseCol
+        - weightsPath
+        - weightingMode
+        - qcFilterMissing
+        - qcMaxMissingPct
+        - qcFilterHwe
+        - qcHweP
+        - missingStrategy
+        - missingCorrection
+        - scaleMethod
+        - scaleFactor
+        - scaleWeights
+        - standardize
+        - plotWidth
+        - plotHeight
+
+  # ── Forest plot: OR / β per percentile category ───────────────────────────
+  - name: forestPlot
+    title: PGS Percentile Forest Plot
+    type: Image
+    visible: false
+    renderFun: .plotForest
+    width: 600
+    height: 400
+    clearWith:
+        - snpCols
+        - weightsPath
+        - weightingMode
+        - qcFilterMissing
+        - qcMaxMissingPct
+        - qcFilterHwe
+        - qcHweP
+        - missingStrategy
+        - missingCorrection
+        - scaleMethod
+        - scaleFactor
+        - scaleWeights
+        - standardize
+        - responseCol
+        - covCols
+        - caseLevel
+        - percentileBreaks
+        - pgsRefCategory
+        - plotWidth
+        - plotHeight
+
+  # ── ROC curve (binary response only) ──────────────────────────────────────
+  - name: rocPlot
+    title: ROC Curve
+    type: Image
+    visible: false
+    renderFun: .plotROC
+    width: 600
+    height: 400
+    clearWith:
+        - snpCols
+        - weightsPath
+        - weightingMode
+        - qcFilterMissing
+        - qcMaxMissingPct
+        - qcFilterHwe
+        - qcHweP
+        - missingStrategy
+        - missingCorrection
+        - scaleMethod
+        - scaleFactor
+        - scaleWeights
+        - standardize
+        - responseCol
+        - covCols
+        - caseLevel
+        - plotWidth
+        - plotHeight
+
+  # ── Calibration plot (binary response only) ───────────────────────────────
+  - name: calibPlot
+    title: Calibration Plot
+    type: Image
+    visible: false
+    renderFun: .plotCalibration
+    width: 600
+    height: 400
+    clearWith:
+        - snpCols
+        - weightsPath
+        - weightingMode
+        - qcFilterMissing
+        - qcMaxMissingPct
+        - qcFilterHwe
+        - qcHweP
+        - missingStrategy
+        - missingCorrection
+        - scaleMethod
+        - scaleFactor
+        - scaleWeights
+        - standardize
+        - responseCol
+        - covCols
+        - caseLevel
+        - plotWidth
+        - plotHeight

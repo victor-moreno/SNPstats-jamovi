@@ -1,0 +1,23 @@
+---
+refs:
+    snpstats:
+        type: 'software'
+        author: Moreno V, et al.
+        year: 2006
+        title: 'SNPStats: analysis of association studies'
+        publisher: 'https://www.snpstats.net'
+        url: https://www.snpstats.net
+    bioinfo:
+        type: 'journal'
+        author: Sole, X., Guino, E., Valls, J., Iniesta, R., Moreno, V.
+        year: 2006
+        title: 'SNPStats: a web tool for the analysis of association studies'
+        publisher: 'Bioinformatics 22(15):1928-1929 https://doi.org/10.1093/bioinformatics/btl268'
+        url: https://doi.org/10.1093/bioinformatics/btl268
+    tutorial:
+        type: 'software'
+        author: Moreno V
+        year: 2026
+        title: 'SNPstats for jamovi — tutorial & documentation'
+        publisher: 'https://victor-moreno.github.io/SNPstats-jamovi/TUTORIAL.html'
+        url: https://victor-moreno.github.io/SNPstats-jamovi/TUTORIAL.html

@@ -1,0 +1,569 @@
+---
+name: snpStats
+title: SNP Analysis
+jrs: '1.1'
+refs:
+  - snpstats
+  - bioinfo
+  - tutorial
+
+items:
+
+  # ── Documentation link (shown only in the "Getting started" state) ─────────
+  - name: helpBanner
+    title: ''
+    type: Html
+
+  # ── Shared validation message ─────────────────────────────────────────────
+  - name: validationMsg
+    title: ''
+    type: Html
+    visible: false
+    clearWith:
+      - snps
+      - response
+      - covariates
+      - responseType
+      - rmSnpMissing
+      - completeCases
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Tab 1: Descriptive results
+  # ══════════════════════════════════════════════════════════════════════════
+  - name: descGroup
+    title: 'Descriptive'
+    type: Group
+    items:
+
+      # ── Covariate descriptives ──────────────────────────────────────────
+      - name: covDescGroup
+        title: Covariate Descriptives
+        type: Group
+        items:
+          - name: covDescTable
+            title: Covariate Summary
+            type: Table
+            visible: (covDesc)
+            rows: 0
+            clearWith:
+              - response
+              - covariates
+              - responseType
+              - subpop
+              - rmSnpMissing        # changes complete-case set → changes group counts
+              - completeCases
+            columns:
+              - {name: variable,     title: Variable,  type: text,   combineBelow: true}
+              - {name: level,        title: Level,     type: text}
+              - {name: stat_overall, title: Overall,   type: text}
+
+      # ── SNP summary ─────────────────────────────────────────────────────
+      - name: snpSummaryTablesGroup
+        title: SNP Descriptive
+        type: Group
+        visible: (snpSummary)
+        items:
+          - name: snpSummaryTable
+            title: SNP Summary Table
+            type: Table
+            visible: (snpSummary)
+            rows: (snps)
+            clearWith:
+              - snps                 # stratified path refills on fill-state; clear on SNP change
+              - response
+              - responseType
+              - subpop
+              - completeCases
+            columns:
+              - {name: snp,        title: SNP,           type: text,    content: ($key), combineBelow: true}
+              - {name: alleles,    title: Alleles (A/B),  type: text,    combineBelow: true}
+              - {name: group,      title: Group,          type: text,    visible: false}
+              - {name: n,          title: N,              type: integer}
+              - {name: missing,    title: Missing,        type: integer}
+              - {name: maf,        title: MAF (B),        type: number,  format: zto}
+              - {name: genoCounts, title: AA / AB / BB,   type: text}
+              - {name: hwePval,    title: HWE p-value,    type: number,  format: "zto,pvalue"}
+
+      # ── Per-SNP descriptive results ─────────────────────────────────────
+      - name: descSnpResults
+        title: SNP Results
+        visible: (allFreq || genoFreq || hweTest)
+        type: Array
+        description: Per-SNP descriptive results
+        # Array-level clearWith: only these change which SNP items exist / the
+        # underlying data. Without it the array defaults to '*' and every click
+        # purges all per-SNP items, flashing the whole section. subpop/showMissing
+        # are left to the child tables so they refresh granularly, not the array.
+        clearWith:
+          - snps
+          - response
+          - responseType
+          - completeCases
+        template:
+          title: $key
+          type: Group
+          items:
+            - name: typingRate
+              title: ''
+              type: Html
+              visible: (allFreq || genoFreq || hweTest)
+              clearWith:
+                - snps
+                - response
+                - responseType
+                - subpop
+                - completeCases
+
+            - name: allFreqTable
+              title: Allele Frequencies
+              type: Table
+              visible: (allFreq)
+              clearWith:
+                - snps
+                - response
+                - responseType      # gates subpop stratification eligibility
+                - subpop
+                - showMissing
+                - completeCases
+              columns:
+                - {name: allele, title: Allele,  type: text}
+                - {name: stat,   title: 'N (%)', type: text}
+
+            - name: genoFreqTable
+              title: Genotype Frequencies
+              type: Table
+              visible: (genoFreq)
+              clearWith:
+                - snps
+                - response
+                - responseType      # drives responseStat column and stratification eligibility
+                - subpop
+                - showMissing
+                - completeCases
+              columns:
+                - {name: genotype,     title: Genotype,           type: text}
+                - {name: stat,         title: 'N (%)',            type: text}
+                - {name: responseStat, title: Response (mean±SE), type: text, visible: false}
+
+            - name: hweTable
+              title: Hardy-Weinberg Equilibrium
+              type: Table
+              visible: (hweTest)
+              clearWith:
+                - snps
+                - response
+                - responseType      # gates subpop stratification eligibility
+                - subpop
+                - showMissing
+                - completeCases
+              columns:
+                - {name: group,   title: Group,   type: text}
+                - {name: n11,     title: AA,      type: integer}
+                - {name: n12,     title: AB,      type: integer}
+                - {name: n22,     title: BB,      type: integer}
+                - {name: missing, title: Missing, type: integer, visible: false}
+                - {name: pval,    title: P-value, type: number,  format: zto}
+
+      # ── Missingness plot ────────────────────────────────────────────────
+      - name: missingnessPlot
+        title: SNP Missingness
+        type: Image
+        visible: false
+        width: 560
+        height: 500
+        renderFun: .plotMissingness
+        clearWith:
+            - snps
+            - response             # needed for subpop group-level missingness
+            - subpop
+            - missingnessThreshold
+            - showMissingnessPlot
+            - completeCases        # forces image clear when complete-case mode toggles
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Tab 2: Association results
+  # ══════════════════════════════════════════════════════════════════════════
+  - name: assocGroup
+    title: Association
+    type: Group
+    items:
+
+      # ── Per-SNP association results ─────────────────────────────────────
+      - name: assocSnpResults
+        title: ''                       # no heading — SNP items sit directly
+                                         # under the Association tab (the group
+                                         # already says "Association")
+        type: Array
+        description: Per-SNP association results
+        # Container shows when EITHER association or interaction is requested and
+        # at least one genetic model is selected; the child assocTable and
+        # interaction tables each gate on their own option, so the two analyses
+        # are independent. (Previously required snpAssoc, which hid interaction
+        # results whenever association was off.)
+        visible: ((snpAssoc || snpInteraction) && (modelCodominant || modelDominant || modelRecessive || modelOverdominant || modelLogAdditive))
+        # Array-level clearWith: only these change which SNP items exist / the
+        # underlying data. Without it the array defaults to '*' and every click
+        # purges all per-SNP items, flashing the section. Model toggles, ciWidth
+        # and covariates change table content and are handled by assocTable's own
+        # clearWith, so they refresh individual tables instead of the whole array.
+        clearWith:
+          - snps
+          - response
+          - responseType
+          - completeCases
+        template:
+          title: $key
+          type: Group
+          items:
+            - name: typingRate
+              title: ''
+              type: Html
+              visible: false
+              clearWith:
+                - snps
+                - response
+                - covariates
+                - completeCases
+
+            - name: assocTable
+              title: Association with Response
+              type: Table
+              visible: (snpAssoc)
+              # clearWith lists every option that changes the table's content; the
+              # backend refills only when one of these fires (see .need_fill), so
+              # clicking an unrelated option neither recomputes nor blanks it. The
+              # model toggles and ciWidth DO change content, so they belong here.
+              clearWith:
+                - snps
+                - response
+                - covariates
+                - responseType
+                - completeCases
+                - ciWidth
+                - modelCodominant
+                - modelDominant
+                - modelRecessive
+                - modelOverdominant
+                - modelLogAdditive
+              columns:
+                - {name: model,    title: Model,     type: text}
+                - {name: genotype, title: Genotype,  type: text}
+                - {name: stat0,    title: Group 0,   type: text}
+                - {name: stat1,    title: Group 1,   type: text}
+                - {name: effect,   title: OR / β,    type: number, format: zto}
+                - {name: ciLow,    title: Lower CI,  type: number, format: zto}
+                - {name: ciHigh,   title: Upper CI,  type: number, format: zto}
+                - {name: pval,     title: P-value,   type: number, format: zto}
+                - {name: AIC,      title: AIC,       type: number, format: zto, visible: false}
+                - {name: BIC,      title: BIC,       type: number, format: zto, visible: false}
+
+            - name: interactionTable
+              title: SNP × Covariate Interaction
+              type: Table
+              visible: (snpInteraction && showInteractionTable)
+              clearWith:
+                - snps
+                - response
+                - covariates
+                - responseType
+                - interactionType
+                - showInteractionAdjVars
+                - completeCases
+                - ciWidth
+                - modelCodominant
+                - modelDominant
+                - modelRecessive
+                - modelOverdominant
+                - modelLogAdditive
+              columns:
+                - {name: model,  title: Model,    type: text, combineBelow: true}
+                - {name: term,   title: Term,     type: text}
+                - {name: effect, title: OR / β,   type: number, format: zto}
+                - {name: ciLow,  title: Lower CI, type: number, format: zto}
+                - {name: ciHigh, title: Upper CI, type: number, format: zto}
+                - {name: pval,   title: P-value,  type: number, format: zto}
+                - {name: AIC,    title: AIC,      type: number, format: zto, visible: false}
+                - {name: BIC,    title: BIC,      type: number, format: zto, visible: false}
+
+            # Stratified views: one table per view per SNP, Model and Stratum
+            # stacked (combineBelow) with a blank separator between models.
+            # grp1 = stratum, grp2 = inner factor; titles set at fill time.
+            - name: stratByCovariate
+              title: Stratified by Covariate
+              type: Table
+              visible: (snpInteraction && showStratByCovariate)
+              clearWith:
+                - snps
+                - response
+                - covariates
+                - responseType
+                - interactionType
+                - completeCases
+                - ciWidth
+                - modelCodominant
+                - modelDominant
+                - modelRecessive
+                - modelOverdominant
+                - modelLogAdditive
+              columns:
+                - {name: model, title: Model,     type: text, combineBelow: true}
+                - {name: grp1,  title: Stratum,   type: text, combineBelow: true}
+                - {name: grp2,  title: Genotype,  type: text}
+                - {name: stat0, title: Group 0,   type: text}
+                - {name: stat1, title: Group 1,   type: text}
+                - {name: effect, title: OR / β,   type: number, format: zto}
+                - {name: ciLow,  title: Lower CI, type: number, format: zto}
+                - {name: ciHigh, title: Upper CI, type: number, format: zto}
+                - {name: pval,   title: P-value,  type: number, format: zto}
+
+            - name: stratByGenotype
+              title: Stratified by Genotype
+              type: Table
+              visible: (snpInteraction && showStratByGenotype)
+              clearWith:
+                - snps
+                - response
+                - covariates
+                - responseType
+                - interactionType
+                - completeCases
+                - ciWidth
+                - modelCodominant
+                - modelDominant
+                - modelRecessive
+                - modelOverdominant
+                - modelLogAdditive
+              columns:
+                - {name: model, title: Model,     type: text, combineBelow: true}
+                - {name: grp1,  title: Genotype,  type: text, combineBelow: true}
+                - {name: grp2,  title: Stratum,   type: text}
+                - {name: stat0, title: Group 0,   type: text}
+                - {name: stat1, title: Group 1,   type: text}
+                - {name: effect, title: OR / β,   type: number, format: zto}
+                - {name: ciLow,  title: Lower CI, type: number, format: zto}
+                - {name: ciHigh, title: Upper CI, type: number, format: zto}
+                - {name: pval,   title: P-value,  type: number, format: zto}
+
+            - name: crossClassTable
+              title: Cross-Classification
+              type: Table
+              visible: (snpInteraction && showCrossClassTable)
+              clearWith:
+                - snps
+                - response
+                - covariates
+                - responseType
+                - completeCases
+                - ciWidth
+                - modelCodominant
+                - modelDominant
+                - modelRecessive
+                - modelOverdominant
+                - modelLogAdditive
+              columns:
+                - {name: model, title: Model,     type: text, combineBelow: true}
+                - {name: grp1,  title: Stratum,   type: text, combineBelow: true}
+                - {name: grp2,  title: Genotype,  type: text}
+                - {name: stat0, title: Group 0,   type: text}
+                - {name: stat1, title: Group 1,   type: text}
+                - {name: effect, title: OR / β,   type: number, format: zto}
+                - {name: ciLow,  title: Lower CI, type: number, format: zto}
+                - {name: ciHigh, title: Upper CI, type: number, format: zto}
+                - {name: pval,   title: P-value,  type: number, format: zto}
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Tab 3: LD and Haplotype results
+  # ══════════════════════════════════════════════════════════════════════════
+  - name: ldHaploGroup
+    title: LD / Haplotype
+    type: Group
+    items:
+
+      # ── Linkage disequilibrium ──────────────────────────────────────────
+      - name: ldGroup
+        title: Linkage Disequilibrium
+        type: Group
+        visible: (ldAnalysis || ldMatrix || ldPlot)
+        items:
+          - name: ldResults
+            title: ''
+            type: Array
+            # Only what changes the item SET (one group per response level).
+            # The sub-analysis toggles (ldAnalysis/ldMatrix/ldPlot) and ldMetric
+            # change individual child tables, not which groups exist, so they
+            # are handled by each child's own clearWith — keeping them here would
+            # clear the whole group and rebuild siblings that did not change.
+            clearWith:
+              - snps
+              - completeCases
+              - subpop
+              - response
+              - responseType
+            template:
+              title: $key
+              type: Group
+              items:
+                - name: ldTable
+                  title: Pairwise LD
+                  type: Table
+                  visible: (ldAnalysis)
+                  # Without an explicit clearWith a table defaults to '*' and its
+                  # cells are dropped on ANY click, so restore cannot refill the
+                  # .init-seeded rows and .run recomputes LD every time. List only
+                  # what changes THIS table: the pairwise table shows every metric
+                  # as a column, so ldMetric is irrelevant, and it must not clear
+                  # when a sibling (ldMatrix/ldPlot) is toggled.
+                  clearWith:
+                    - snps
+                    - completeCases
+                    - subpop
+                    - response
+                    - responseType
+                  columns:
+                    - {name: snp1,   title: SNP 1,   type: text}
+                    - {name: snp2,   title: SNP 2,   type: text}
+                    - {name: r2,     title: r²,      type: number, format: zto}
+                    - {name: Dprime, title: D',      type: number, format: zto}
+                    - {name: D,      title: D,       type: number, format: zto}
+                    - {name: pval,   title: P-value, type: number, format: zto}
+
+                - name: ldMatrixTable
+                  title: LD Matrix
+                  type: Table
+                  visible: (ldMatrix)
+                  # ldMetric selects the upper-triangle statistic, so it belongs
+                  # here; sibling toggles do not.
+                  clearWith:
+                    - snps
+                    - completeCases
+                    - subpop
+                    - response
+                    - responseType
+                    - ldMetric
+                  columns:
+                    - {name: snp, title: SNP, type: text}
+
+                - name: ldPlotImage
+                  title: LD Heatmap
+                  type: Image
+                  visible: (ldPlot)
+                  renderFun: .render_ld_plot
+                  clearWith:
+                    - snps
+                    - completeCases
+                    - subpop
+                    - response
+                    - responseType
+                    - ldMetric
+                  width: 500
+                  height: 450
+
+      # ── Haplotype analysis ──────────────────────────────────────────────
+      - name: haploGroup
+        title: Haplotype Analysis
+        type: Group
+        visible: (haploFreq || haploAssoc || haploInteraction)
+        items:
+          - name: haploNotImplMsg
+            title: ''
+            type: Html
+            visible: false
+
+          - name: haploFreqTable
+            title: Haplotype Frequencies
+            type: Table
+            visible: (haploFreq)
+            clearWith:
+              - snps
+              - response
+              - responseType         # stratification only for binary responses
+              - subpop               # drives per-group frequency columns
+              - haploFreqMin
+              - haploMinCount
+              - haploRareCriterion
+              - completeCases
+            columns:
+              - {name: haplotype, title: Haplotype, type: text}
+              - {name: freq,      title: Frequency, type: number, format: zto}
+              - {name: freq_g0,   title: Group 0,   type: number, format: zto, visible: false}
+              - {name: freq_g1,   title: Group 1,   type: number, format: zto, visible: false}
+
+          - name: haploAssocTable
+            title: Haplotype Association
+            type: Table
+            visible: (haploAssoc)
+            clearWith:
+              - snps
+              - response
+              - covariates
+              - responseType
+              - haploFreqMin
+              - haploEffect
+              - haploMinCount
+              - haploRareCriterion
+              - completeCases
+              - ciWidth
+            columns:
+              - {name: haplotype, title: Haplotype, type: text}
+              - {name: freq,      title: Frequency, type: number, format: zto}
+              - {name: effect,    title: OR / β,    type: number}
+              - {name: ciLow,     title: Lower CI,  type: number}
+              - {name: ciHigh,    title: Upper CI,  type: number}
+              - {name: pval,      title: P-value,   type: number, format: zto}
+
+          - name: haploInteractionTable
+            title: Haplotype × Covariate Interaction (cross-classification)
+            type: Table
+            visible: (haploInteraction)
+            clearWith:
+              - snps
+              - response
+              - covariates
+              - responseType
+              - haploFreqMin
+              - haploEffect
+              - haploMinCount
+              - haploRareCriterion
+              - completeCases
+              - ciWidth
+            columns:
+              - {name: term, title: Haplotype, type: text}
+              - {name: freq, title: Frequency, type: number, format: zto}
+
+          - name: haploCondCovarTable
+            title: Haplotype Effect within Covariate Levels
+            type: Table
+            visible: (haploInteraction)
+            clearWith:
+              - snps
+              - response
+              - covariates
+              - responseType
+              - haploFreqMin
+              - haploEffect
+              - haploMinCount
+              - haploRareCriterion
+              - completeCases
+              - ciWidth
+            columns:
+              - {name: term, title: Haplotype, type: text}
+              - {name: freq, title: Frequency, type: number, format: zto}
+
+          - name: haploCondHaploTable
+            title: Covariate Effect within Haplotypes
+            type: Table
+            visible: (haploInteraction)
+            clearWith:
+              - snps
+              - response
+              - covariates
+              - responseType
+              - haploFreqMin
+              - haploEffect
+              - haploMinCount
+              - haploRareCriterion
+              - completeCases
+              - ciWidth
+            columns:
+              - {name: term, title: Haplotype, type: text}
+              - {name: freq, title: Frequency, type: number, format: zto}

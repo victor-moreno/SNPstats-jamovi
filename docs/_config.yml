@@ -1,0 +1,8 @@
+title: SNPstats for jamovi
+description: >-
+  Tutorial and documentation for the SNPstats jamovi module —
+  SNP analysis and polygenic scores (PGS).
+theme: jekyll-theme-cayman
+# Only the documentation is published; keep build/source files out of the site.
+exclude:
+  - ENVIRONMENT.md

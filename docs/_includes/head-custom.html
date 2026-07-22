@@ -1,0 +1,23 @@
+<!-- Math rendering for the tutorial's formulas.
+     IMPORTANT: Jekyll's kramdown rewrites display math ($$…$$ in the source)
+     into \[ … \] delimiters before MathJax ever sees it, and leaves inline
+     $…$ as plain text. So the delimiter list below must cover BOTH:
+       \[ \]  — what kramdown emits for display math
+       $$ $$  — raw display math that kramdown left alone
+       $  $   — inline math (kramdown only treats $$ as math, not single $)
+       \( \)  — kramdown's inline form
+     Overriding displayMath with only [['$$','$$']] drops the \[ \] default and
+     silently breaks every formula, which is what happened here. -->
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath:  [['$', '$'], ['\\(', '\\)']],
+      displayMath: [['$$', '$$'], ['\\[', '\\]']],
+      processEscapes: true
+    },
+    options: {
+      skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+    }
+  };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>

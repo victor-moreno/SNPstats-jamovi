@@ -1,0 +1,567 @@
+group	sex	age	family	snp1	snp2	snp3	snp4	snp5	snp6	snp7	snp8
+Co	Female	67	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	70	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	70	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	72	No cancer	A>G	G>C	C>C	G>C	T>G	T>T	A>A	G>G
+Ca	Female	54	No cancer	A>A	NA	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Male	71	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	62	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	64	Other cancers	A>G	G>C	C>C	G>G	T>G	C>C	A>A	G>G
+Ca	Male	69	Colon	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	64	No cancer	A>A	G>C	C>C	G>G	T>G	T>C	A>G	G>A
+Co	Female	74	No cancer	NA	G>C	C>C	G>G	T>G	C>C	A>A	G>G
+Co	Male	83	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Male	58	Colon	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Male	68	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	82	Other cancers	NA	G>G	NA	C>C	G>G	T>T	A>A	NA
+Ca	Female	59	Other cancers	A>A	G>G	C>C	G>G	T>T	C>C	A>A	G>G
+Co	Female	74	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	60	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Male	56	No cancer	A>G	G>C	C>C	G>G	T>G	C>C	A>A	G>G
+Ca	Female	49	Other cancers	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Male	51	Other cancers	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Male	56	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Male	61	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Male	65	No cancer	A>G	NA	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	76	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Female	57	No cancer	A>G	NA	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Female	74	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	74	Other cancers	A>A	G>G	C>C	G>G	T>T	C>C	A>A	G>G
+Ca	Female	70	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Female	72	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	69	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	53	No cancer	NA	G>C	C>C	G>C	T>G	T>C	A>A	G>G
+Co	Male	74	Other cancers	A>A	NA	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	75	No cancer	G>G	C>C	C>C	G>G	G>G	C>C	A>A	G>G
+Ca	Male	71	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	50	Colon	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Male	78	Other cancers	A>A	G>G	C>G	C>C	T>T	T>T	A>A	G>G
+Co	Male	54	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	81	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	50	No cancer	A>A	NA	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Male	51	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	68	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Male	81	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Male	50	Other cancers	A>A	G>G	C>C	G>G	T>T	C>C	A>A	G>G
+Co	Male	79	Other cancers	A>A	G>G	C>C	C>C	T>T	T>T	A>A	G>G
+Co	Male	77	Other cancers	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Male	74	Colon	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	67	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Male	85	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Female	47	Other cancers	NA	NA	NA	G>G	T>G	T>C	NA	NA
+Ca	Male	64	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	74	Other cancers	G>G	C>C	C>C	G>G	G>G	C>C	A>A	G>G
+Co	Male	50	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	64	Colon	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	67	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Female	80	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	79	No cancer	A>G	G>C	C>C	G>G	T>G	C>C	A>A	G>G
+Co	Male	53	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	64	Other cancers	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Female	68	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	57	Other cancers	A>G	G>C	C>C	G>C	T>G	T>C	A>A	G>G
+Co	Male	54	No cancer	A>G	G>C	C>C	G>G	T>T	T>C	A>A	NA
+Co	Male	61	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	70	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Male	75	Other cancers	A>A	G>G	C>G	G>C	T>T	T>T	A>A	G>G
+Ca	Male	77	No cancer	A>A	NA	C>C	G>G	T>G	T>C	A>G	G>A
+Ca	Male	72	Other cancers	A>A	NA	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Male	62	Colon	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	87	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	52	No cancer	A>G	NA	C>C	G>C	T>G	T>C	A>A	G>G
+Ca	Female	73	No cancer	A>A	NA	C>C	G>C	T>G	T>C	A>G	G>A
+Ca	Male	68	Colon	A>G	G>C	C>C	G>G	T>G	C>C	A>A	G>G
+Co	Female	59	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	46	No cancer	A>A	NA	C>C	G>G	T>T	T>C	NA	G>G
+Ca	Male	67	Colon	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	61	Other cancers	A>G	G>C	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	76	No cancer	A>A	G>C	C>C	G>C	T>G	T>C	A>G	G>A
+Ca	Female	57	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	67	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Female	63	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	46	Other cancers	A>A	NA	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	73	No cancer	A>A	G>G	C>C	C>C	T>T	T>T	A>A	G>G
+Co	Female	53	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Male	70	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	83	No cancer	A>A	G>G	C>C	C>C	T>T	T>T	A>A	G>G
+Co	Female	78	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	37	No cancer	A>A	G>G	C>C	G>C	T>T	T>C	A>A	G>G
+Co	Male	83	Other cancers	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Female	74	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Female	81	No cancer	A>A	G>G	C>C	G>C	T>T	T>C	A>A	G>G
+Co	Male	49	No cancer	A>A	G>C	C>C	G>C	T>G	T>C	A>G	G>A
+Co	Female	62	Other cancers	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	62	No cancer	A>A	G>C	C>C	G>G	T>G	T>C	A>G	G>A
+Ca	Female	62	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	NA
+Co	Male	66	Other cancers	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Female	79	No cancer	A>G	G>C	C>C	G>G	T>G	C>C	A>A	G>G
+Co	Male	89	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Female	66	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Male	63	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Female	80	Other cancers	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	59	Colon	A>G	NA	C>C	G>C	T>G	T>C	A>A	G>G
+Ca	Male	70	No cancer	A>A	G>G	C>G	C>C	T>T	T>T	A>A	NA
+Ca	Female	77	Colon	NA	NA	C>C	G>G	T>T	T>T	A>G	G>G
+Ca	Male	72	Other cancers	A>A	NA	C>C	G>C	T>T	T>C	A>A	G>G
+Ca	Female	64	Other cancers	A>A	G>G	C>C	G>G	T>G	T>C	A>G	NA
+Ca	Female	70	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	86	Other cancers	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Male	72	No cancer	A>G	NA	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	66	Other cancers	G>G	C>C	C>C	G>G	G>G	C>C	A>A	G>G
+Ca	Male	66	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	NA
+Ca	Male	69	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	49	Colon	A>A	G>G	C>C	G>C	T>T	T>C	A>A	G>G
+Ca	Female	74	Other cancers	A>A	NA	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Male	74	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	56	No cancer	A>G	C>C	C>C	G>C	G>G	C>C	A>A	G>A
+Co	Female	70	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Male	74	Other cancers	A>A	G>C	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	52	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	66	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	72	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	62	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	60	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Male	63	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Male	61	No cancer	A>A	NA	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Male	48	Other cancers	A>G	G>C	C>C	G>C	T>G	T>C	A>A	G>G
+Co	Female	70	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	78	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	55	Colon	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	67	Colon	A>A	G>G	C>C	G>G	T>T	C>C	A>A	G>G
+Ca	Female	43	Colon	A>G	NA	C>C	G>C	T>G	T>C	A>A	G>G
+Co	Male	50	No cancer	G>G	G>G	C>C	G>G	G>G	C>C	A>A	G>G
+Ca	Male	68	Colon	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	61	Other cancers	G>G	C>C	C>C	G>G	T>G	T>C	A>A	NA
+Co	Female	58	Other cancers	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Female	64	Colon	A>A	G>G	C>C	G>C	T>T	T>T	A>A	NA
+Co	Male	60	No cancer	A>A	NA	C>C	G>G	T>G	T>C	A>G	G>A
+Co	Female	52	No cancer	A>A	G>G	C>C	G>C	T>T	T>C	A>A	G>G
+Co	Male	64	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Male	77	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	88	Other cancers	A>G	NA	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	81	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Male	64	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Female	59	Other cancers	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Male	69	Other cancers	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Female	66	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	67	Other cancers	G>G	C>C	C>C	G>G	G>G	C>C	A>A	G>G
+Co	Female	64	No cancer	A>G	G>C	C>C	G>C	T>T	T>C	A>A	G>G
+Ca	Female	90	No cancer	A>A	G>G	C>C	C>C	T>T	T>T	A>A	G>G
+Co	Female	62	Other cancers	A>A	G>G	C>C	G>C	T>T	T>C	A>A	G>G
+Ca	Female	79	No cancer	A>A	NA	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Male	84	Colon	A>A	G>G	C>G	G>C	T>T	T>T	A>A	G>G
+Ca	Male	73	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	NA
+Ca	Male	69	No cancer	A>A	G>G	C>C	G>G	T>T	C>C	A>A	G>G
+Co	Male	79	No cancer	NA	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Female	66	No cancer	A>A	NA	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Female	49	Other cancers	A>A	G>G	C>C	G>G	T>T	T>C	A>A	NA
+Co	Female	86	No cancer	A>A	G>G	C>C	C>C	T>T	T>T	A>A	G>G
+Ca	Female	73	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Male	72	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Female	86	Other cancers	A>G	G>C	C>C	G>G	T>G	C>C	A>A	G>G
+Ca	Male	72	Colon	A>A	G>G	C>C	G>G	T>T	C>C	A>A	G>G
+Ca	Male	64	No cancer	A>G	NA	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	77	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	50	Other cancers	A>A	G>C	C>C	G>G	T>G	T>C	A>G	G>A
+Co	Male	74	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Male	70	No cancer	NA	G>G	C>C	G>G	T>T	T>T	A>A	NA
+Ca	Male	69	Colon	NA	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Male	79	No cancer	A>A	G>G	C>G	G>C	T>T	T>T	A>A	G>G
+Co	Male	76	No cancer	A>G	G>C	C>C	G>C	T>G	T>C	A>A	G>G
+Co	Female	68	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	NA
+Co	Male	75	Other cancers	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Male	59	No cancer	A>G	G>C	C>C	G>C	T>G	T>C	A>A	G>G
+Co	Male	77	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	NA
+Ca	Female	63	Other cancers	G>G	C>C	C>C	G>G	G>G	C>C	A>A	G>G
+Co	Female	71	Other cancers	A>A	G>G	C>G	G>C	T>T	T>T	A>A	G>G
+Co	Male	76	No cancer	G>G	C>C	C>C	G>G	G>G	C>C	A>A	G>G
+Ca	Male	59	Other cancers	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	59	Other cancers	A>A	G>G	C>G	G>C	T>T	T>T	A>A	G>G
+Ca	Female	71	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	64	No cancer	A>A	G>G	C>C	C>C	T>T	T>T	A>A	G>G
+Co	Male	54	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Male	73	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	65	Other cancers	A>A	G>G	C>C	G>C	T>T	T>C	A>A	G>G
+Co	Female	80	Other cancers	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Female	59	Other cancers	A>G	NA	C>C	G>G	G>G	C>C	A>G	G>A
+Ca	Male	69	Other cancers	G>G	C>C	C>C	G>G	G>G	C>C	A>A	G>G
+Ca	Male	63	Other cancers	A>A	G>G	C>C	G>C	T>T	T>C	A>A	G>G
+Ca	Male	66	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	79	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	45	No cancer	A>A	G>G	C>C	G>C	T>T	T>C	A>A	G>G
+Co	Female	83	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Female	48	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	83	No cancer	A>A	G>G	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Female	56	Other cancers	A>A	NA	C>C	G>G	T>G	T>C	A>G	G>A
+Ca	Male	47	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Male	72	Other cancers	A>A	NA	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	67	Colon	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	61	No cancer	A>A	NA	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	66	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Male	56	Other cancers	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	61	Other cancers	A>A	G>G	C>C	G>C	T>T	T>C	A>A	G>G
+Ca	Female	61	Colon	A>A	NA	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	78	Other cancers	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	56	No cancer	A>G	G>C	C>C	G>C	T>G	T>C	A>A	G>G
+Ca	Female	56	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	74	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	75	Other cancers	A>G	G>C	C>C	G>C	T>G	T>C	A>A	G>G
+Co	Male	63	Other cancers	NA	G>C	C>C	G>G	T>G	T>C	A>A	NA
+Ca	Female	73	Colon	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	86	No cancer	A>G	G>C	C>C	G>G	T>G	C>C	A>A	G>G
+Co	Male	61	Other cancers	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Female	82	Other cancers	A>A	NA	C>G	G>C	T>T	T>T	A>A	G>G
+Co	Female	59	Other cancers	A>G	G>C	C>C	G>G	T>G	C>C	A>A	G>G
+Ca	Male	64	No cancer	A>A	NA	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	65	Other cancers	A>A	G>G	C>C	G>G	T>T	C>C	A>A	G>G
+Ca	Male	63	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	54	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	60	No cancer	A>A	NA	C>C	G>G	T>G	T>C	A>G	G>A
+Co	Male	79	No cancer	A>A	G>G	C>G	G>C	T>T	T>T	A>A	G>G
+Co	Male	55	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	62	Colon	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Male	57	Colon	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	72	No cancer	A>A	NA	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	78	Other cancers	A>A	G>G	NA	G>G	T>T	T>T	A>A	G>G
+Ca	Male	59	Other cancers	A>G	NA	C>C	G>C	T>G	T>C	A>A	G>G
+Ca	Male	63	Colon	A>G	G>C	C>C	G>G	T>G	T>C	A>A	NA
+Co	Female	57	Other cancers	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Male	73	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Female	76	No cancer	A>A	G>C	C>C	G>G	T>G	T>C	A>G	G>A
+Co	Female	53	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	59	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	79	Other cancers	A>A	G>G	C>C	C>C	T>T	T>T	A>A	G>G
+Ca	Female	77	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	65	Other cancers	A>G	G>C	C>C	G>G	T>G	C>C	A>A	G>G
+Co	Male	52	Other cancers	NA	C>C	C>C	NA	NA	NA	A>A	NA
+Co	Male	57	Colon	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	61	Other cancers	A>A	NA	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	60	Other cancers	NA	NA	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	74	No cancer	A>A	G>G	C>C	C>C	T>T	T>T	A>A	G>G
+Co	Male	62	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	80	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Male	61	Other cancers	G>G	C>C	C>C	G>G	G>G	C>C	A>A	G>G
+Co	Female	83	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Female	91	No cancer	NA	G>G	C>C	C>C	T>T	T>T	A>A	G>G
+Ca	Female	75	Other cancers	A>G	G>C	C>C	G>C	T>G	T>C	A>A	G>G
+Ca	Male	81	No cancer	A>A	G>C	C>C	G>G	T>G	T>C	A>G	G>A
+Co	Female	64	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	46	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	80	Colon	A>A	G>G	C>C	G>C	T>T	T>C	A>A	G>G
+Co	Female	65	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	67	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Male	80	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	77	Other cancers	A>G	NA	C>C	G>G	T>G	T>C	NA	NA
+Co	Female	44	Colon	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	71	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	66	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	NA
+Ca	Female	59	No cancer	A>A	G>G	C>C	G>C	T>T	T>C	A>A	G>G
+Ca	Male	66	Colon	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	66	Other cancers	NA	NA	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Male	75	No cancer	A>A	G>G	C>C	G>C	T>T	T>C	A>A	G>G
+Co	Male	63	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	71	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	NA	NA
+Co	Female	38	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	84	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Female	67	Colon	A>G	NA	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Female	76	No cancer	A>A	G>G	G>G	C>C	T>T	T>T	A>A	G>G
+Co	Female	61	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Male	50	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	58	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	62	Other cancers	NA	G>G	C>C	NA	NA	NA	A>A	NA
+Ca	Male	67	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	82	No cancer	A>G	C>C	C>C	G>G	G>G	C>C	A>G	G>A
+Ca	Female	61	Other cancers	A>G	NA	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Female	64	Colon	A>G	G>C	C>C	G>C	T>G	T>C	A>A	G>G
+Ca	Male	54	Other cancers	A>G	G>C	C>C	G>G	T>G	C>C	A>A	G>G
+Ca	Male	68	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	73	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	65	Other cancers	A>A	NA	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	74	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	59	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	49	Other cancers	A>G	G>C	C>C	G>G	T>G	T>T	A>A	G>G
+Ca	Female	51	Other cancers	A>A	NA	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Male	79	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Male	72	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Female	57	Other cancers	A>G	G>C	C>C	G>C	T>G	T>C	A>A	NA
+Ca	Male	76	No cancer	A>A	G>G	C>C	C>C	T>T	T>T	A>A	G>G
+Ca	Male	57	No cancer	A>A	NA	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	76	Other cancers	A>A	NA	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	72	No cancer	A>A	NA	C>C	G>G	T>G	C>C	G>G	G>A
+Ca	Male	83	Other cancers	A>A	NA	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	51	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Male	66	Other cancers	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Female	81	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Male	72	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	79	Colon	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Female	67	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Male	62	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Male	70	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	43	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	73	Other cancers	A>G	NA	C>C	G>G	T>G	C>C	NA	G>G
+Co	Male	61	Other cancers	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Female	59	Other cancers	A>A	G>G	C>C	G>C	T>T	T>C	A>A	G>G
+Ca	Male	83	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	87	Other cancers	A>G	G>C	C>C	G>C	T>G	T>C	A>A	G>G
+Ca	Female	88	Other cancers	A>A	C>C	C>C	G>G	G>G	C>C	G>G	A>A
+Ca	Male	71	No cancer	A>A	NA	C>C	G>G	T>T	T>T	NA	G>G
+Co	Male	57	Other cancers	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Female	82	Other cancers	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Female	65	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	85	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	31	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Female	78	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	42	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	74	Other cancers	G>G	C>C	C>C	G>G	G>G	C>C	A>A	G>G
+Ca	Male	78	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Female	70	No cancer	A>A	NA	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Male	64	No cancer	A>A	NA	C>C	C>C	T>T	T>T	A>A	G>G
+Co	Male	72	No cancer	A>A	G>G	C>G	G>C	T>T	T>T	A>A	G>G
+Co	Male	63	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Male	39	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Male	81	Other cancers	A>G	G>C	C>C	G>G	T>G	C>C	A>A	G>G
+Ca	Male	76	No cancer	A>A	G>G	C>G	G>G	T>T	T>C	A>A	G>G
+Co	Male	59	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	NA
+Co	Female	52	Other cancers	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Female	76	Other cancers	A>G	G>C	C>G	G>C	T>G	T>C	A>A	G>G
+Co	Male	63	Other cancers	A>A	G>C	C>C	G>G	T>G	T>C	A>G	NA
+Ca	Female	76	Other cancers	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Male	83	Other cancers	A>G	NA	C>C	G>G	T>G	T>C	NA	G>G
+Ca	Female	68	Colon	A>A	G>G	C>C	G>G	T>T	T>C	A>A	NA
+Ca	Male	80	No cancer	A>A	G>C	C>C	G>G	T>G	T>C	A>G	G>A
+Co	Female	40	No cancer	A>A	G>C	C>C	G>G	T>G	T>C	A>G	G>A
+Co	Female	76	Other cancers	A>A	NA	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	71	Colon	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Male	86	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	60	Colon	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	88	No cancer	A>A	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Male	68	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	75	No cancer	NA	G>C	C>C	G>G	T>G	C>C	A>A	G>G
+Ca	Male	74	No cancer	A>G	G>C	C>C	G>G	T>G	C>C	A>A	NA
+Ca	Male	58	No cancer	A>A	NA	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Female	64	Colon	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	61	Other cancers	A>A	G>G	C>C	G>C	T>T	T>C	A>A	G>G
+Co	Male	56	No cancer	A>A	NA	C>C	G>G	T>T	T>T	NA	G>G
+Ca	Female	63	Other cancers	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Female	62	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	NA
+Ca	Male	76	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	64	Other cancers	A>A	NA	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	79	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Male	66	No cancer	A>A	G>C	C>C	G>G	T>G	T>C	A>G	G>A
+Co	Male	60	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	82	Colon	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Male	72	Other cancers	NA	NA	C>C	G>G	T>T	T>C	G>G	G>G
+Co	Female	67	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Male	55	Other cancers	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Female	74	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	24	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Male	54	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	68	Other cancers	G>G	C>C	C>C	G>G	G>G	T>C	A>A	G>G
+Ca	Male	68	Colon	A>A	C>C	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	40	No cancer	NA	G>G	C>G	C>C	T>T	T>T	A>A	G>G
+Ca	Female	66	No cancer	A>G	NA	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Male	64	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Male	64	No cancer	G>G	NA	C>C	G>G	G>G	C>C	A>A	G>G
+Co	Female	87	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Female	55	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	58	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	31	Other cancers	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Male	55	Other cancers	A>G	G>C	C>C	G>C	T>G	T>C	A>A	G>G
+Ca	Male	61	Other cancers	A>A	G>G	C>C	G>C	T>T	T>C	A>A	G>G
+Ca	Female	30	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	73	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Male	66	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Female	58	Other cancers	A>A	G>C	C>C	C>C	T>T	T>T	A>A	G>G
+Co	Female	87	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Male	39	No cancer	A>G	G>C	C>C	G>C	T>G	T>C	A>A	G>G
+Co	Female	73	No cancer	A>A	NA	C>C	G>C	T>T	T>T	NA	G>G
+Co	Female	75	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Male	64	Colon	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	35	Other cancers	A>A	G>G	C>C	G>C	T>T	T>C	A>A	G>G
+Ca	Male	73	Other cancers	A>A	NA	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	38	Colon	A>A	NA	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Male	52	Other cancers	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	56	No cancer	A>G	G>C	C>C	G>C	T>G	T>C	A>A	NA
+Co	Female	72	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	72	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	75	No cancer	A>A	G>G	NA	G>G	T>T	T>C	A>A	G>G
+Ca	Male	86	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	75	No cancer	A>G	G>C	C>C	G>G	T>G	C>C	A>A	G>G
+Ca	Female	91	No cancer	A>G	G>C	C>C	G>C	T>G	T>C	A>A	G>G
+Co	Male	45	No cancer	G>G	C>C	C>C	G>G	G>G	C>C	A>A	G>G
+Co	Female	92	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	77	Colon	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Male	59	Other cancers	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Male	62	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	73	No cancer	A>G	NA	NA	G>C	T>G	T>C	A>A	G>G
+Co	Female	75	No cancer	A>G	G>C	C>C	G>C	T>G	T>C	A>A	G>G
+Co	Male	52	Colon	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	79	Colon	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	63	Other cancers	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	70	No cancer	A>A	NA	C>C	G>G	T>G	T>C	A>G	G>A
+Co	Male	81	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	45	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Female	54	Other cancers	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Female	79	No cancer	A>A	G>G	NA	G>G	T>T	T>C	A>A	NA
+Co	Male	51	Other cancers	NA	NA	C>C	G>G	T>G	C>C	NA	G>G
+Co	Male	65	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	55	No cancer	A>A	NA	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	79	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Female	84	Other cancers	A>A	G>G	NA	G>G	T>T	T>C	A>A	G>G
+Co	Female	77	No cancer	A>A	G>G	C>C	G>C	T>T	T>C	A>A	G>G
+Ca	Male	39	No cancer	A>A	G>G	C>C	G>G	T>T	C>C	A>A	G>G
+Co	Male	51	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Male	69	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	51	Other cancers	A>G	G>C	C>C	G>C	T>G	T>C	A>A	G>G
+Co	Male	88	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	67	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	55	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	NA
+Ca	Female	63	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	NA
+Ca	Female	72	Colon	A>A	NA	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	76	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Female	73	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Female	58	No cancer	A>A	G>C	C>C	G>C	T>G	T>C	A>G	NA
+Co	Female	59	No cancer	A>A	G>G	C>C	G>C	T>T	T>C	A>A	G>G
+Ca	Male	88	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	64	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	37	Other cancers	A>A	G>G	C>C	C>C	T>T	T>T	A>A	G>G
+Ca	Male	86	Other cancers	A>A	NA	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Male	78	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	77	No cancer	A>G	G>C	C>G	G>C	T>G	T>C	A>A	G>G
+Ca	Male	46	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	NA
+Ca	Female	51	Colon	NA	NA	C>C	G>C	T>G	T>C	NA	NA
+Ca	Male	56	Colon	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	76	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Male	75	No cancer	A>A	G>G	C>C	G>C	T>T	T>C	A>A	G>G
+Ca	Male	77	No cancer	NA	G>C	C>C	G>G	T>G	C>C	A>A	G>G
+Ca	Male	72	Other cancers	A>A	G>C	C>C	G>G	T>G	C>C	A>G	G>A
+Ca	Male	58	Other cancers	A>A	G>C	C>C	G>C	T>G	T>C	A>G	G>A
+Ca	Male	73	No cancer	G>G	C>C	C>C	G>G	G>G	C>C	A>A	NA
+Ca	Female	68	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	55	Other cancers	A>A	G>G	C>C	C>C	T>T	T>T	A>A	G>G
+Ca	Male	69	Colon	A>A	NA	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	78	No cancer	NA	G>G	C>C	NA	NA	NA	A>A	NA
+Ca	Male	57	No cancer	A>A	G>C	C>C	G>G	T>G	T>C	A>G	G>A
+Ca	Male	54	No cancer	A>G	G>C	C>C	G>C	T>G	T>C	A>A	G>G
+Ca	Male	37	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Male	82	No cancer	G>G	C>C	C>C	G>G	G>G	C>C	A>A	G>G
+Co	Female	36	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Male	77	No cancer	G>G	C>C	C>C	G>G	G>G	C>C	A>A	G>G
+Co	Female	73	No cancer	A>G	G>C	C>C	G>C	T>G	T>C	A>A	G>G
+Ca	Male	59	Colon	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	76	No cancer	NA	G>C	C>C	NA	NA	NA	A>A	NA
+Co	Female	75	Other cancers	A>G	NA	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	76	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	47	Other cancers	A>A	G>G	C>C	C>C	T>T	T>T	A>A	G>G
+Ca	Male	58	Other cancers	A>A	G>C	C>C	G>G	T>G	T>C	A>G	G>A
+Co	Male	58	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	78	No cancer	A>A	NA	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Male	68	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	60	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	68	Colon	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Male	59	Colon	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	56	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	NA
+Co	Male	75	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Female	86	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	62	Colon	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Male	79	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	65	Colon	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	69	Other cancers	A>G	NA	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	65	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	51	Other cancers	NA	NA	C>C	G>G	T>G	T>T	A>A	G>G
+Co	Male	81	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Female	74	Other cancers	A>A	NA	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	67	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	50	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	NA
+Co	Female	43	Other cancers	A>A	G>G	C>C	G>G	T>T	C>C	A>A	NA
+Co	Male	84	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	NA
+Ca	Female	71	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	69	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Male	74	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	72	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	56	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	74	No cancer	NA	NA	C>C	G>G	T>T	T>T	A>A	NA
+Ca	Male	83	Other cancers	A>G	NA	C>C	G>G	G>G	C>C	A>A	G>G
+Ca	Male	91	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Female	63	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Female	66	Other cancers	A>A	G>G	C>C	G>C	T>T	T>C	A>G	NA
+Co	Male	81	No cancer	A>A	G>G	C>C	C>C	T>T	T>T	A>A	G>G
+Ca	Male	70	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	52	Colon	NA	NA	C>C	G>C	T>G	T>C	NA	G>G
+Co	Male	67	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Male	57	Colon	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	83	Other cancers	A>A	NA	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	57	Other cancers	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Male	54	No cancer	NA	G>G	C>C	G>G	T>G	T>T	A>A	G>G
+Ca	Female	51	No cancer	A>A	G>G	C>C	G>C	T>T	T>C	A>A	G>G
+Ca	Male	62	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Female	37	Other cancers	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Female	62	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	62	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Male	70	Other cancers	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Male	77	Other cancers	G>G	C>C	C>C	G>G	G>G	C>C	A>A	G>G
+Ca	Male	75	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	NA
+Ca	Female	59	Other cancers	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Female	50	Other cancers	A>G	G>C	C>C	G>C	T>G	T>C	A>A	G>G
+Co	Male	72	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	82	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	76	Other cancers	A>A	G>C	C>C	G>C	T>G	T>C	A>A	G>G
+Co	Male	67	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	49	Other cancers	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Female	82	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	46	No cancer	A>A	G>C	C>C	G>C	T>G	T>C	A>G	G>A
+Ca	Male	61	No cancer	A>G	NA	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Female	75	No cancer	A>G	NA	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	63	Colon	NA	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Male	51	No cancer	A>A	G>G	C>C	G>G	T>T	C>C	A>A	G>G
+Co	Female	59	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	78	No cancer	A>A	G>C	C>C	G>C	T>G	T>C	A>G	G>A
+Co	Male	82	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Male	81	Other cancers	A>A	G>G	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Female	68	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Female	42	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	58	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Male	62	No cancer	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Female	77	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Male	62	Other cancers	A>A	NA	C>C	G>G	T>T	T>T	NA	G>G
+Co	Female	64	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	68	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Female	66	Other cancers	A>A	G>G	C>C	G>G	T>T	T>C	A>A	NA
+Co	Male	67	Colon	NA	G>G	C>C	G>G	NA	NA	A>A	NA
+Co	Female	30	Other cancers	A>A	G>G	C>C	G>G	T>G	T>C	A>A	G>A
+Co	Male	53	Other cancers	A>G	NA	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Female	44	Other cancers	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Female	74	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	NA
+Co	Male	64	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Co	Male	63	No cancer	A>G	NA	C>C	G>G	T>G	C>C	A>A	G>G
+Ca	Female	74	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	73	Colon	A>A	G>G	C>C	G>G	T>T	T>T	NA	G>G
+Co	Female	75	No cancer	A>A	G>G	C>C	C>C	T>T	T>T	A>A	G>G
+Ca	Male	56	Other cancers	A>A	G>C	C>C	G>C	T>G	T>C	A>G	G>A
+Co	Female	51	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	77	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	74	No cancer	A>A	G>G	C>C	C>C	T>T	T>T	A>A	G>G
+Ca	Male	75	No cancer	NA	NA	C>C	G>C	T>T	T>T	NA	G>G
+Ca	Female	61	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Co	Male	57	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	NA
+Co	Male	54	No cancer	A>A	G>G	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Male	81	Other cancers	A>G	G>C	C>C	G>C	T>G	T>C	A>A	G>G
+Ca	Female	66	No cancer	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	74	No cancer	A>G	NA	C>C	G>G	T>G	T>C	NA	G>G
+Ca	Female	63	No cancer	A>G	G>G	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Male	74	No cancer	NA	NA	C>C	G>G	T>T	T>C	A>A	G>G
+Ca	Male	50	Other cancers	A>G	G>C	C>C	G>G	T>G	C>C	A>A	NA
+Ca	Male	72	Colon	A>G	NA	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Female	58	Colon	A>A	G>G	C>G	G>C	T>T	T>C	A>A	G>G
+Ca	Male	75	Other cancers	A>G	G>C	C>C	G>G	T>G	T>C	A>A	G>G
+Ca	Female	81	No cancer	A>G	G>C	C>C	G>G	T>G	C>C	A>A	G>G
+Ca	Male	72	Colon	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	45	No cancer	A>A	G>G	C>C	G>C	T>T	T>T	A>A	NA
+Ca	Male	87	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Female	73	Other cancers	A>A	G>G	C>C	G>G	T>G	T>C	A>A	G>G
+Co	Male	56	No cancer	A>A	NA	C>C	G>G	T>T	T>C	A>A	G>G
+Co	Male	71	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G
+Ca	Male	81	Other cancers	A>A	G>G	C>C	G>C	T>T	T>T	A>A	G>G
+Ca	Female	69	Other cancers	A>G	NA	C>C	G>G	T>G	T>C	NA	G>G
+Ca	Male	69	No cancer	A>A	G>C	C>C	G>G	T>G	T>C	A>G	G>A
+Co	Male	59	Other cancers	A>A	G>G	C>C	G>G	T>T	T>T	A>A	G>G

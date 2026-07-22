@@ -1,0 +1,707 @@
+group	sex	age	age.cat	colon.r	snp1	snp2	snp3
+Co	Female	74	[68,76)	Other cancers	CC	GG	AG
+Co	Male	50	[23,59)	No cancer	CC	GG	AA
+Co	Female	64	[59,68)	Colon	CC	GG	AG
+Ca	Male	67	[59,68)	No cancer	CC	GG	AA
+Co	Female	80	[76,92]	No cancer	CC	GG	GG
+Co	Male	79	[76,92]	No cancer	CC	GG	AG
+Ca	Male	83	[76,92]	No cancer	CC	GG	AG
+Co	Male	53	[23,59)	No cancer	CC	GG	GG
+Ca	Male	70	[68,76)	No cancer	CC	NA	GG
+Ca	Male	62	[59,68)	No cancer	CT	GG	GG
+Co	Female	64	[59,68)	Other cancers	CC	GG	AG
+Co	Male	68	[68,76)	No cancer	CC	GG	GG
+Co	Male	42	[23,59)	No cancer	CC	GG	GG
+Ca	Female	68	[68,76)	No cancer	CC	AG	GG
+Co	Female	57	[23,59)	Other cancers	CC	GG	AG
+Ca	Female	47	[23,59)	Other cancers	CC	NA	AG
+Co	Male	54	[23,59)	No cancer	CC	GG	GG
+Co	Male	61	[59,68)	No cancer	CC	GG	AG
+Co	Female	70	[68,76)	No cancer	CC	GG	AG
+Co	Male	75	[68,76)	Other cancers	CC	GG	GG
+Ca	Male	77	[76,92]	No cancer	CC	GG	AG
+Ca	Male	72	[68,76)	Other cancers	CT	GG	AG
+Ca	Male	62	[59,68)	Colon	CC	GG	NA
+Ca	Female	87	[76,92]	No cancer	CC	GG	AG
+Co	Female	82	[76,92]	Other cancers	CC	AG	GG
+Ca	Male	52	[23,59)	No cancer	CC	GG	AG
+Ca	Female	73	[68,76)	No cancer	CC	GG	AA
+Ca	Male	68	[68,76)	Colon	CC	GG	AG
+Ca	Female	78	[76,92]	Other cancers	CC	GG	AG
+Co	Female	59	[59,68)	No cancer	CC	GG	NA
+Ca	Male	46	[23,59)	No cancer	CC	GG	GG
+Ca	Male	67	[59,68)	Colon	CC	GG	GG
+Ca	Female	61	[59,68)	Other cancers	CC	AG	GG
+Ca	Male	76	[76,92]	No cancer	CC	GG	AG
+Ca	Female	57	[23,59)	No cancer	CC	GG	GG
+Co	Male	67	[59,68)	No cancer	CC	GG	GG
+Co	Female	64	[59,68)	Other cancers	CC	GG	AG
+Co	Male	68	[68,76)	Other cancers	CC	GG	GG
+Ca	Female	63	[59,68)	No cancer	CC	GG	AG
+Ca	Female	46	[23,59)	Other cancers	CC	GG	GG
+Ca	Female	73	[68,76)	No cancer	CC	GG	GG
+Co	Female	53	[23,59)	Other cancers	CC	GG	AA
+Ca	Male	69	[68,76)	Colon	CC	GG	GG
+Ca	Male	70	[68,76)	No cancer	CC	GG	GG
+Co	Female	78	[76,92]	Other cancers	CC	GG	AG
+Ca	Male	54	[23,59)	Other cancers	CC	GG	AA
+Co	Female	83	[76,92]	No cancer	CC	GG	AA
+Ca	Male	78	[76,92]	Other cancers	CC	GG	AG
+Co	Female	78	[76,92]	Other cancers	CC	GG	GG
+Co	Female	37	[23,59)	No cancer	CC	GG	AG
+Co	Male	83	[76,92]	Other cancers	CC	GG	GG
+Co	Female	74	[68,76)	No cancer	CC	GG	GG
+Co	Female	81	[76,92]	No cancer	CC	GG	AA
+Co	Male	49	[23,59)	No cancer	CC	GG	AG
+Co	Female	62	[59,68)	Other cancers	CC	GG	AG
+Ca	Male	62	[59,68)	No cancer	CC	GG	GG
+Ca	Female	62	[59,68)	No cancer	CC	GG	AG
+Co	Male	66	[59,68)	Other cancers	CC	AG	GG
+Co	Female	79	[76,92]	No cancer	CC	GG	AG
+Co	Male	89	[76,92]	No cancer	CC	GG	GG
+Co	Female	66	[59,68)	No cancer	CC	GG	AA
+Ca	Male	63	[59,68)	No cancer	CC	AG	GG
+Ca	Female	80	[76,92]	Other cancers	CC	GG	AG
+Ca	Male	59	[59,68)	Colon	CC	GG	GG
+Ca	Male	70	[68,76)	No cancer	CT	GG	GG
+Ca	Female	49	[23,59)	Colon	CT	GG	GG
+Ca	Male	69	[68,76)	No cancer	CC	GG	GG
+Ca	Female	77	[76,92]	Colon	CC	GG	GG
+Ca	Female	60	[59,68)	Colon	CC	GG	GG
+Ca	Male	72	[68,76)	Other cancers	CC	GG	GG
+Ca	Female	64	[59,68)	Other cancers	CC	GG	AA
+Ca	Female	70	[68,76)	Other cancers	CC	GG	GG
+Co	Male	74	[68,76)	Other cancers	CC	GG	AG
+Co	Female	86	[76,92]	Other cancers	CC	AG	AG
+Ca	Male	72	[68,76)	No cancer	CC	GG	GG
+Ca	Male	66	[59,68)	Other cancers	CT	GG	GG
+Ca	Male	66	[59,68)	No cancer	CC	GG	AG
+Ca	Female	69	[68,76)	No cancer	CC	GG	GG
+Ca	Male	69	[68,76)	No cancer	CC	GG	AG
+Ca	Female	70	[68,76)	Colon	CC	GG	AG
+Co	Female	49	[23,59)	Colon	CC	AG	GG
+Ca	Female	74	[68,76)	Other cancers	CC	AG	GG
+Ca	Male	74	[68,76)	Other cancers	CC	GG	AA
+Ca	Female	56	[23,59)	No cancer	CC	GG	AG
+Co	Female	51	[23,59)	No cancer	CC	GG	AA
+Co	Female	70	[68,76)	No cancer	CC	GG	GG
+Co	Male	74	[68,76)	Other cancers	CC	GG	GG
+Ca	Female	52	[23,59)	No cancer	CC	GG	GG
+Co	Male	51	[23,59)	No cancer	CC	GG	AG
+Co	Female	66	[59,68)	Other cancers	CC	GG	AG
+Co	Male	72	[68,76)	No cancer	CC	GG	AA
+Co	Female	62	[59,68)	No cancer	CC	GG	GG
+Ca	Male	60	[59,68)	No cancer	CC	GG	AG
+Co	Male	63	[59,68)	No cancer	CT	AG	AG
+Co	Female	67	[59,68)	Other cancers	CT	GG	GG
+Co	Male	61	[59,68)	No cancer	CC	AA	GG
+Co	Male	66	[59,68)	No cancer	CC	GG	GG
+Co	Male	70	[68,76)	Other cancers	CC	GG	AA
+Co	Male	48	[23,59)	Other cancers	CC	AG	GG
+Co	Female	64	[59,68)	No cancer	CC	GG	AG
+Co	Male	80	[76,92]	No cancer	CC	GG	AG
+Ca	Female	74	[68,76)	No cancer	CC	GG	AG
+Co	Female	70	[68,76)	Other cancers	CC	GG	GG
+Co	Female	78	[76,92]	Other cancers	CC	GG	GG
+Co	Male	49	[23,59)	Other cancers	CC	AG	AG
+Ca	Female	55	[23,59)	Colon	CC	GG	AA
+Co	Male	70	[68,76)	Other cancers	CC	GG	AG
+Ca	Female	67	[59,68)	Colon	CT	AG	GG
+Ca	Female	43	[23,59)	Colon	CT	GG	GG
+Co	Female	72	[68,76)	No cancer	CC	GG	GG
+Co	Male	50	[23,59)	No cancer	CC	AG	GG
+Ca	Male	68	[68,76)	Colon	CC	GG	NA
+Ca	Male	54	[23,59)	No cancer	CC	GG	AG
+Co	Female	61	[59,68)	Other cancers	CC	GG	AG
+Co	Female	58	[23,59)	Other cancers	CC	AG	GG
+Ca	Female	64	[59,68)	Colon	CT	GG	AG
+Ca	Male	54	[23,59)	No cancer	CC	GG	GG
+Co	Male	60	[59,68)	No cancer	CT	GG	AG
+Co	Female	52	[23,59)	No cancer	CT	GG	AG
+Co	Male	64	[59,68)	Other cancers	CC	GG	AG
+Co	Male	77	[76,92]	No cancer	CC	GG	GG
+Co	Female	74	[68,76)	No cancer	CC	GG	AA
+Ca	Female	88	[76,92]	Other cancers	CC	GG	NA
+Ca	Male	81	[76,92]	No cancer	CT	GG	GG
+Co	Male	64	[59,68)	No cancer	CC	GG	AA
+Co	Male	83	[76,92]	No cancer	CC	GG	GG
+Ca	Female	59	[59,68)	Other cancers	CT	GG	AG
+Ca	Male	69	[68,76)	Other cancers	CC	GG	AG
+Co	Female	66	[59,68)	No cancer	CC	GG	AG
+Co	Male	67	[59,68)	Other cancers	CC	GG	AG
+Co	Female	64	[59,68)	No cancer	CC	GG	GG
+Ca	Female	90	[76,92]	No cancer	CC	AG	GG
+Ca	Male	71	[68,76)	Other cancers	CC	GG	AG
+Ca	Male	77	[76,92]	Other cancers	CC	GG	AG
+Co	Female	62	[59,68)	Other cancers	CC	GG	AG
+Ca	Female	79	[76,92]	No cancer	NA	NA	NA
+Ca	Male	84	[76,92]	Colon	CC	GG	AG
+Ca	Male	73	[68,76)	No cancer	CT	GG	GG
+Ca	Male	69	[68,76)	No cancer	NA	NA	NA
+Co	Male	79	[76,92]	No cancer	CT	GG	GG
+Ca	Female	66	[59,68)	No cancer	CC	GG	AA
+Ca	Female	73	[68,76)	Other cancers	CC	GG	GG
+Co	Female	49	[23,59)	Other cancers	CC	GG	GG
+Co	Male	77	[76,92]	No cancer	NA	NA	NA
+Co	Female	64	[59,68)	No cancer	CC	GG	AG
+Co	Female	86	[76,92]	No cancer	NA	NA	NA
+Ca	Male	67	[59,68)	No cancer	CC	GG	AG
+Ca	Female	73	[68,76)	No cancer	CT	GG	AG
+Co	Male	70	[68,76)	Colon	CC	GG	AG
+Ca	Male	72	[68,76)	No cancer	CC	GG	GG
+Co	Female	86	[76,92]	Other cancers	TT	GG	GG
+Ca	Male	72	[68,76)	Colon	CC	GG	AG
+Ca	Male	64	[59,68)	No cancer	CC	GG	AG
+Ca	Male	77	[76,92]	No cancer	CC	GG	AG
+Co	Male	74	[68,76)	Other cancers	CC	GG	GG
+Ca	Female	76	[76,92]	No cancer	CC	AG	GG
+Co	Female	52	[23,59)	Other cancers	CC	GG	AG
+Co	Female	50	[23,59)	Other cancers	CT	NA	GG
+Co	Male	74	[68,76)	No cancer	CC	GG	AG
+Co	Female	66	[59,68)	Other cancers	CC	AA	GG
+Ca	Male	58	[23,59)	Colon	CC	GG	GG
+Ca	Female	71	[68,76)	Other cancers	CC	GG	AG
+Ca	Male	76	[76,92]	Other cancers	CC	AG	GG
+Ca	Male	68	[68,76)	Other cancers	CC	AG	AG
+Co	Male	70	[68,76)	No cancer	CC	GG	AG
+Ca	Male	69	[68,76)	Colon	CC	GG	AA
+Ca	Female	49	[23,59)	Colon	CC	GG	AA
+Ca	Male	79	[76,92]	No cancer	CC	AG	GG
+Co	Male	76	[76,92]	No cancer	CT	GG	GG
+Co	Female	68	[68,76)	No cancer	CC	GG	GG
+Co	Male	75	[68,76)	Other cancers	CT	GG	GG
+Ca	Male	64	[59,68)	No cancer	CC	GG	GG
+Co	Male	59	[59,68)	No cancer	CC	GG	AA
+Co	Male	77	[76,92]	No cancer	CC	AG	GG
+Ca	Female	63	[59,68)	Other cancers	CC	GG	AG
+Co	Female	71	[68,76)	Other cancers	CC	GG	AA
+Co	Female	82	[76,92]	Other cancers	CC	GG	GG
+Co	Male	76	[76,92]	No cancer	CC	GG	AG
+Ca	Male	59	[59,68)	Other cancers	CT	GG	GG
+Ca	Male	59	[59,68)	Other cancers	CC	AG	AG
+Ca	Female	71	[68,76)	No cancer	CC	GG	GG
+Co	Male	64	[59,68)	No cancer	CT	GG	GG
+Co	Male	54	[23,59)	Other cancers	CC	GG	GG
+Co	Male	73	[68,76)	No cancer	CC	GG	AG
+Ca	Female	65	[59,68)	Other cancers	CC	GG	AG
+Co	Female	72	[68,76)	No cancer	CC	GG	GG
+Co	Female	57	[23,59)	No cancer	CC	GG	GG
+Co	Male	88	[76,92]	No cancer	CC	GG	GG
+Co	Female	80	[76,92]	Other cancers	CC	GG	AG
+Co	Female	59	[59,68)	Other cancers	CT	GG	AG
+Ca	Male	69	[68,76)	Other cancers	CC	GG	AG
+Ca	Male	63	[59,68)	Other cancers	CC	GG	AG
+Ca	Male	66	[59,68)	Other cancers	CC	GG	AG
+Ca	Male	79	[76,92]	No cancer	CC	GG	AG
+Co	Male	45	[23,59)	No cancer	CT	GG	AG
+Co	Female	83	[76,92]	No cancer	CC	GG	GG
+Ca	Female	59	[59,68)	Other cancers	CC	GG	GG
+Ca	Female	67	[59,68)	Colon	CC	GG	GG
+Co	Female	48	[23,59)	Other cancers	CC	GG	AG
+Co	Male	83	[76,92]	No cancer	CC	GG	AA
+Ca	Female	56	[23,59)	Other cancers	CC	GG	AA
+Ca	Male	47	[23,59)	No cancer	CC	GG	AG
+Ca	Male	72	[68,76)	Other cancers	CC	GG	AG
+Ca	Male	67	[59,68)	Colon	CC	GG	AG
+Ca	Female	61	[59,68)	No cancer	CC	GG	GG
+Ca	Male	66	[59,68)	No cancer	CC	GG	AG
+Co	Male	56	[23,59)	Other cancers	CC	GG	AG
+Ca	Male	61	[59,68)	Other cancers	CC	GG	AG
+Ca	Female	74	[68,76)	No cancer	CC	GG	AA
+Ca	Female	61	[59,68)	Colon	CC	GG	AG
+Co	Female	78	[76,92]	Other cancers	CC	GG	AA
+Co	Female	74	[68,76)	No cancer	CC	GG	GG
+Ca	Male	56	[23,59)	No cancer	CC	GG	GG
+Ca	Female	56	[23,59)	Other cancers	CC	GG	GG
+Ca	Female	74	[68,76)	No cancer	CC	GG	AA
+Co	Female	75	[68,76)	Other cancers	CC	AG	AG
+Co	Male	63	[59,68)	Other cancers	CC	GG	GG
+Ca	Female	44	[23,59)	Colon	CC	GG	AG
+Co	Female	61	[59,68)	No cancer	CC	GG	GG
+Co	Female	66	[59,68)	No cancer	CC	GG	AG
+Ca	Female	73	[68,76)	Colon	CC	AG	GG
+Co	Female	86	[76,92]	No cancer	CC	GG	AA
+Co	Male	61	[59,68)	Other cancers	CC	GG	AG
+Ca	Female	82	[76,92]	Other cancers	NA	NA	NA
+Co	Male	72	[68,76)	Other cancers	CC	GG	AG
+Co	Female	59	[59,68)	Other cancers	CC	GG	AG
+Co	Female	72	[68,76)	No cancer	NA	GG	AG
+Ca	Male	64	[59,68)	No cancer	CC	GG	AG
+Co	Female	65	[59,68)	Other cancers	CC	GG	AA
+Co	Male	58	[23,59)	Other cancers	CC	GG	AG
+Ca	Male	63	[59,68)	No cancer	CC	GG	AG
+Co	Male	54	[23,59)	No cancer	CC	GG	AG
+Ca	Female	60	[59,68)	No cancer	CT	GG	GG
+Ca	Male	59	[59,68)	No cancer	CC	GG	AG
+Co	Male	79	[76,92]	No cancer	CC	GG	GG
+Co	Male	55	[23,59)	No cancer	CC	GG	AG
+Co	Female	62	[59,68)	Colon	CC	GG	AG
+Ca	Male	57	[23,59)	Colon	CC	GG	AG
+Co	Male	72	[68,76)	No cancer	CC	AG	AG
+Ca	Male	78	[76,92]	Other cancers	CC	AG	AG
+Ca	Male	59	[59,68)	Other cancers	CC	GG	AA
+Ca	Male	63	[59,68)	Colon	CC	GG	AG
+Co	Female	57	[23,59)	Other cancers	CC	GG	GG
+Co	Female	60	[59,68)	Other cancers	CC	GG	AG
+Co	Male	73	[68,76)	No cancer	CC	GG	AG
+Ca	Male	60	[59,68)	No cancer	CC	GG	AA
+Co	Female	76	[76,92]	No cancer	CC	GG	AA
+Co	Female	53	[23,59)	No cancer	CC	GG	GG
+Co	Male	59	[59,68)	No cancer	CC	GG	GG
+Ca	Male	79	[76,92]	Other cancers	CC	AG	AG
+Co	Male	76	[76,92]	No cancer	CC	GG	AA
+Ca	Female	77	[76,92]	No cancer	CC	GG	AG
+Ca	Male	65	[59,68)	Other cancers	CC	GG	AA
+Co	Male	52	[23,59)	Other cancers	CC	GG	GG
+Co	Male	57	[23,59)	Colon	CC	GG	GG
+Ca	Male	61	[59,68)	Other cancers	CC	AG	GG
+Co	Male	60	[59,68)	Other cancers	CC	GG	GG
+Ca	Male	65	[59,68)	No cancer	CC	GG	GG
+Ca	Male	74	[68,76)	No cancer	CC	AG	GG
+Co	Male	62	[59,68)	Other cancers	CC	GG	GG
+Co	Female	80	[76,92]	No cancer	CC	AG	GG
+Co	Male	61	[59,68)	Other cancers	CC	GG	AA
+Co	Male	56	[23,59)	No cancer	CC	GG	AG
+Co	Female	83	[76,92]	No cancer	CT	GG	GG
+Ca	Female	89	[76,92]	Other cancers	CC	GG	AG
+Co	Female	91	[76,92]	No cancer	CC	GG	AG
+Ca	Female	75	[68,76)	Other cancers	CC	GG	GG
+Ca	Male	81	[76,92]	No cancer	CC	GG	AA
+Co	Female	64	[59,68)	Other cancers	CC	GG	AA
+Ca	Male	86	[76,92]	Colon	CC	GG	AG
+Co	Male	46	[23,59)	Other cancers	CC	GG	GG
+Ca	Male	80	[76,92]	Colon	CC	GG	GG
+Ca	Female	49	[23,59)	Other cancers	CC	GG	AG
+Co	Female	65	[59,68)	No cancer	CC	GG	AA
+Ca	Female	67	[59,68)	Other cancers	CC	GG	AG
+Ca	Male	49	[23,59)	Other cancers	CT	GG	AG
+Co	Female	57	[23,59)	Other cancers	CC	GG	GG
+Co	Male	51	[23,59)	Other cancers	CC	AG	GG
+Ca	Male	75	[68,76)	No cancer	CC	GG	AG
+Ca	Male	80	[76,92]	Other cancers	CC	GG	AG
+Ca	Male	71	[68,76)	No cancer	CC	GG	GG
+Ca	Female	77	[76,92]	Other cancers	CC	GG	AG
+Co	Female	44	[23,59)	Colon	CT	GG	GG
+Co	Female	71	[68,76)	No cancer	CC	GG	GG
+Co	Female	66	[59,68)	No cancer	CC	GG	AA
+Ca	Male	56	[23,59)	Other cancers	CC	GG	AG
+Ca	Female	59	[59,68)	No cancer	CC	GG	AA
+Ca	Male	66	[59,68)	Colon	CC	GG	AG
+Co	Male	61	[59,68)	No cancer	CC	GG	AG
+Ca	Female	66	[59,68)	Other cancers	CC	GG	AA
+Co	Male	75	[68,76)	No cancer	CC	GG	GG
+Ca	Female	54	[23,59)	No cancer	CC	AG	AG
+Co	Male	63	[59,68)	No cancer	CC	GG	GG
+Co	Male	71	[68,76)	No cancer	CC	AG	AG
+Ca	Male	69	[68,76)	No cancer	CC	GG	AG
+Ca	Male	65	[59,68)	No cancer	CC	GG	AG
+Co	Female	38	[23,59)	Other cancers	CC	GG	GG
+Ca	Female	85	[76,92]	Other cancers	CC	AG	NA
+Co	Female	84	[76,92]	No cancer	CC	AG	AG
+Ca	Male	48	[23,59)	Other cancers	CC	NA	AG
+Ca	Male	76	[76,92]	No cancer	CC	AG	GG
+Ca	Female	57	[23,59)	No cancer	NA	NA	NA
+Ca	Female	67	[59,68)	Colon	CC	GG	GG
+Ca	Female	67	[59,68)	No cancer	CC	GG	AA
+Ca	Female	76	[76,92]	No cancer	CC	AG	GG
+Co	Female	61	[59,68)	Other cancers	CC	AG	AG
+Co	Male	50	[23,59)	No cancer	CC	GG	AG
+Ca	Male	69	[68,76)	No cancer	CC	GG	AG
+Co	Female	74	[68,76)	Other cancers	CC	GG	AG
+Co	Female	58	[23,59)	Other cancers	CC	AG	AG
+Co	Female	62	[59,68)	Other cancers	CC	GG	AG
+Ca	Female	74	[68,76)	Other cancers	CC	GG	GG
+Ca	Male	76	[76,92]	No cancer	CC	GG	AG
+Ca	Male	67	[59,68)	Other cancers	CT	GG	AG
+Co	Female	82	[76,92]	No cancer	CC	GG	AG
+Ca	Female	61	[59,68)	Other cancers	CT	GG	GG
+Ca	Male	73	[68,76)	Other cancers	NA	NA	NA
+Ca	Female	64	[59,68)	Colon	CC	AG	GG
+Ca	Male	79	[76,92]	Other cancers	CC	GG	GG
+Ca	Male	54	[23,59)	Other cancers	CC	GG	AG
+Ca	Male	68	[68,76)	No cancer	CC	GG	AG
+Ca	Male	73	[68,76)	No cancer	CC	GG	GG
+Ca	Male	65	[59,68)	Other cancers	CC	AG	GG
+Ca	Male	84	[76,92]	Other cancers	CC	GG	GG
+Ca	Female	74	[68,76)	No cancer	CC	GG	AG
+Ca	Male	59	[59,68)	No cancer	CC	GG	AG
+Co	Female	49	[23,59)	Other cancers	CC	GG	AA
+Ca	Male	70	[68,76)	No cancer	CC	GG	GG
+Co	Male	64	[59,68)	No cancer	CC	GG	AG
+Ca	Female	51	[23,59)	Other cancers	CC	GG	AG
+Co	Male	79	[76,92]	No cancer	CT	GG	GG
+Co	Male	72	[68,76)	No cancer	CC	GG	GG
+Ca	Female	70	[68,76)	No cancer	CC	GG	GG
+Co	Female	57	[23,59)	Other cancers	CC	GG	AG
+Ca	Male	76	[76,92]	No cancer	CC	GG	GG
+Ca	Male	57	[23,59)	No cancer	CC	GG	AG
+Ca	Female	76	[76,92]	Other cancers	CC	GG	AG
+Co	Male	67	[59,68)	No cancer	CC	GG	GG
+Ca	Male	72	[68,76)	No cancer	NA	NA	NA
+Ca	Male	83	[76,92]	Other cancers	CT	GG	GG
+Ca	Female	51	[23,59)	No cancer	CC	GG	GG
+Co	Male	66	[59,68)	Other cancers	CC	GG	AG
+Co	Male	75	[68,76)	Other cancers	CC	GG	GG
+Co	Female	72	[68,76)	Other cancers	CC	GG	AA
+Co	Female	65	[59,68)	Other cancers	CC	GG	AG
+Co	Female	81	[76,92]	No cancer	CC	GG	AG
+Ca	Male	72	[68,76)	No cancer	CC	AG	GG
+Co	Female	79	[76,92]	Colon	CC	GG	AA
+Co	Female	67	[59,68)	No cancer	CC	GG	AA
+Ca	Male	62	[59,68)	No cancer	CC	GG	GG
+Co	Male	70	[68,76)	No cancer	CC	GG	AG
+Co	Male	43	[23,59)	Other cancers	TT	GG	GG
+Ca	Male	73	[68,76)	Other cancers	CC	GG	GG
+Co	Male	61	[59,68)	Other cancers	CT	GG	GG
+Co	Female	59	[59,68)	Other cancers	CC	GG	GG
+Ca	Male	59	[59,68)	No cancer	CC	GG	GG
+Ca	Male	83	[76,92]	Other cancers	CC	GG	AG
+Ca	Female	87	[76,92]	Other cancers	NA	NA	NA
+Ca	Female	64	[59,68)	Other cancers	CT	GG	AG
+Ca	Female	88	[76,92]	Other cancers	CT	GG	GG
+Ca	Male	71	[68,76)	No cancer	CC	GG	GG
+Co	Male	70	[68,76)	Other cancers	CT	GG	AG
+Co	Male	57	[23,59)	Other cancers	CC	GG	AA
+Co	Female	54	[23,59)	Other cancers	CC	GG	GG
+Ca	Female	82	[76,92]	Other cancers	CC	GG	GG
+Ca	Female	65	[59,68)	No cancer	CC	GG	AG
+Co	Female	85	[76,92]	No cancer	CC	GG	AG
+Co	Male	31	[23,59)	No cancer	CT	GG	GG
+Ca	Female	68	[68,76)	No cancer	CC	AG	GG
+Co	Female	78	[76,92]	No cancer	CC	GG	GG
+Co	Female	42	[23,59)	Other cancers	CC	GG	AA
+Ca	Male	49	[23,59)	Other cancers	CC	GG	AG
+Ca	Male	74	[68,76)	Other cancers	CC	GG	AA
+Ca	Male	78	[76,92]	No cancer	CC	GG	AA
+Ca	Female	70	[68,76)	No cancer	CC	GG	GG
+Ca	Female	83	[76,92]	Other cancers	CC	AG	GG
+Ca	Male	64	[59,68)	No cancer	CC	GG	AG
+Co	Male	72	[68,76)	No cancer	CC	GG	AG
+Co	Male	63	[59,68)	Other cancers	CC	GG	GG
+Co	Male	39	[23,59)	Other cancers	CT	GG	AG
+Co	Male	57	[23,59)	No cancer	CC	GG	AG
+Co	Male	81	[76,92]	Other cancers	CC	GG	GG
+Ca	Male	76	[76,92]	No cancer	CC	GG	AG
+Co	Female	69	[68,76)	No cancer	CT	GG	AG
+Co	Male	59	[59,68)	No cancer	CC	GG	GG
+Co	Female	54	[23,59)	Other cancers	CC	GG	GG
+Co	Female	52	[23,59)	Other cancers	CC	GG	GG
+Ca	Female	76	[76,92]	Other cancers	CC	GG	GG
+Co	Male	63	[59,68)	Other cancers	CC	GG	AG
+Co	Female	53	[23,59)	No cancer	CC	GG	GG
+Ca	Female	76	[76,92]	Other cancers	CC	GG	GG
+Ca	Male	83	[76,92]	Other cancers	CC	GG	AG
+Ca	Female	68	[68,76)	Colon	CC	GG	GG
+Ca	Male	80	[76,92]	No cancer	CC	GG	AA
+Ca	Female	42	[23,59)	No cancer	CT	GG	GG
+Co	Male	74	[68,76)	Other cancers	CC	GG	AG
+Co	Female	40	[23,59)	No cancer	CC	GG	GG
+Co	Female	76	[76,92]	Other cancers	CC	GG	AG
+Co	Female	71	[68,76)	Colon	CC	GG	AG
+Co	Male	86	[76,92]	No cancer	CT	GG	GG
+Ca	Male	60	[59,68)	Colon	CT	GG	GG
+Co	Male	59	[59,68)	Other cancers	CT	GG	GG
+Ca	Male	81	[76,92]	Colon	CC	AG	GG
+Co	Female	88	[76,92]	No cancer	CC	GG	AA
+Co	Male	68	[68,76)	Other cancers	CC	GG	AA
+Co	Female	75	[68,76)	No cancer	CC	AG	GG
+Ca	Male	74	[68,76)	No cancer	CC	GG	AA
+Ca	Male	58	[23,59)	No cancer	CC	GG	AA
+Co	Female	64	[59,68)	Colon	CC	AG	AG
+Ca	Male	61	[59,68)	Other cancers	CC	GG	AG
+Co	Male	56	[23,59)	No cancer	CC	GG	AG
+Ca	Female	63	[59,68)	Other cancers	CC	AG	AG
+Co	Female	62	[59,68)	Other cancers	CC	GG	GG
+Ca	Male	76	[76,92]	Other cancers	CT	GG	GG
+Ca	Female	64	[59,68)	Other cancers	CC	AG	AG
+Co	Female	79	[76,92]	Other cancers	CC	GG	AG
+Ca	Female	75	[68,76)	No cancer	CC	GG	AA
+Co	Male	66	[59,68)	No cancer	CC	GG	AG
+Ca	Male	71	[68,76)	Other cancers	CC	GG	GG
+Co	Male	60	[59,68)	Other cancers	CT	GG	AG
+Ca	Female	82	[76,92]	Colon	CC	GG	AG
+Co	Female	50	[23,59)	Colon	CC	GG	GG
+Ca	Male	55	[23,59)	No cancer	CC	GG	GG
+Ca	Male	72	[68,76)	Other cancers	CC	GG	AG
+Co	Female	67	[59,68)	No cancer	CT	GG	GG
+Co	Male	55	[23,59)	Other cancers	CC	GG	GG
+Co	Female	74	[68,76)	No cancer	CC	GG	AG
+Co	Female	24	[23,59)	Other cancers	CT	GG	AG
+Ca	Male	54	[23,59)	Other cancers	CT	GG	GG
+Ca	Male	78	[76,92]	Other cancers	CC	GG	AA
+Ca	Male	68	[68,76)	Other cancers	CC	GG	GG
+Ca	Male	68	[68,76)	Colon	CT	GG	GG
+Co	Female	40	[23,59)	No cancer	CT	GG	AG
+Ca	Female	66	[59,68)	No cancer	CC	GG	AG
+Co	Male	64	[59,68)	No cancer	CC	AG	GG
+Ca	Female	68	[68,76)	Other cancers	CC	GG	GG
+Ca	Male	64	[59,68)	No cancer	NA	GG	NA
+Ca	Male	78	[76,92]	No cancer	CC	GG	GG
+Co	Female	87	[76,92]	No cancer	CC	GG	NA
+Co	Female	55	[23,59)	No cancer	CC	GG	GG
+Co	Female	58	[23,59)	Other cancers	CC	GG	AG
+Ca	Female	31	[23,59)	Other cancers	CC	GG	GG
+Co	Male	44	[23,59)	No cancer	CT	GG	AG
+Co	Male	55	[23,59)	Other cancers	NA	NA	NA
+Ca	Male	61	[59,68)	Other cancers	CC	GG	GG
+Ca	Female	30	[23,59)	No cancer	CC	GG	AG
+Ca	Male	64	[59,68)	No cancer	CC	GG	AG
+Ca	Male	71	[68,76)	No cancer	CC	GG	GG
+Ca	Male	47	[23,59)	Other cancers	CC	GG	GG
+Ca	Male	64	[59,68)	No cancer	CC	GG	AG
+Co	Female	73	[68,76)	No cancer	CC	GG	AG
+Co	Male	66	[59,68)	No cancer	CC	GG	AG
+Ca	Female	58	[23,59)	Other cancers	CC	GG	AG
+Co	Female	87	[76,92]	No cancer	CC	GG	AG
+Co	Male	65	[59,68)	Other cancers	CC	GG	AG
+Co	Male	39	[23,59)	No cancer	CC	AG	AG
+Ca	Female	70	[68,76)	Other cancers	CC	AG	AG
+Ca	Male	61	[59,68)	Colon	CC	GG	AG
+Ca	Male	65	[59,68)	No cancer	CC	GG	GG
+Ca	Female	51	[23,59)	No cancer	CC	GG	AA
+Co	Female	63	[59,68)	Other cancers	CC	GG	GG
+Co	Female	73	[68,76)	No cancer	CT	AG	GG
+Co	Female	75	[68,76)	No cancer	CC	GG	GG
+Co	Male	64	[59,68)	Colon	CC	GG	GG
+Co	Male	35	[23,59)	Other cancers	CC	GG	AG
+Ca	Male	73	[68,76)	Other cancers	CC	GG	AA
+Ca	Male	48	[23,59)	Other cancers	CC	GG	AG
+Co	Male	54	[23,59)	No cancer	CC	GG	AG
+Ca	Male	53	[23,59)	Colon	CC	GG	AG
+Ca	Female	38	[23,59)	Colon	CC	GG	GG
+Ca	Male	52	[23,59)	Other cancers	CC	AG	GG
+Ca	Male	56	[23,59)	No cancer	CC	GG	AG
+Co	Female	72	[68,76)	Other cancers	CC	GG	AA
+Ca	Male	72	[68,76)	Other cancers	CC	GG	GG
+Co	Male	75	[68,76)	No cancer	CC	GG	GG
+Ca	Male	86	[76,92]	Other cancers	TT	GG	GG
+Ca	Male	75	[68,76)	No cancer	CC	GG	GG
+Ca	Female	91	[76,92]	No cancer	CC	GG	GG
+Co	Male	45	[23,59)	No cancer	CC	GG	GG
+Co	Female	92	[76,92]	No cancer	CT	GG	AG
+Co	Male	89	[76,92]	No cancer	CC	GG	AG
+Co	Female	77	[76,92]	Colon	CC	GG	AG
+Co	Male	59	[59,68)	Other cancers	CC	GG	GG
+Ca	Male	62	[59,68)	No cancer	CC	GG	AG
+Co	Female	73	[68,76)	No cancer	CC	GG	AA
+Co	Female	75	[68,76)	No cancer	CC	GG	AG
+Co	Male	52	[23,59)	Colon	CT	AG	GG
+Ca	Female	79	[76,92]	Colon	CC	AG	GG
+Co	Female	54	[23,59)	No cancer	CT	GG	GG
+Co	Male	63	[59,68)	Other cancers	CC	GG	GG
+Ca	Male	70	[68,76)	No cancer	CC	GG	AG
+Co	Male	81	[76,92]	No cancer	CC	GG	AG
+Co	Male	45	[23,59)	No cancer	CT	GG	AG
+Ca	Female	54	[23,59)	Other cancers	CC	GG	AG
+Co	Female	79	[76,92]	No cancer	CC	GG	AA
+Co	Male	51	[23,59)	Other cancers	NA	NA	NA
+Co	Male	65	[59,68)	No cancer	CC	GG	GG
+Ca	Male	55	[23,59)	No cancer	CC	GG	GG
+Co	Male	79	[76,92]	No cancer	CC	GG	AG
+Co	Female	84	[76,92]	Other cancers	CC	GG	GG
+Co	Female	77	[76,92]	No cancer	CC	GG	AG
+Ca	Female	74	[68,76)	No cancer	CC	GG	GG
+Ca	Male	39	[23,59)	No cancer	CC	GG	AG
+Ca	Male	58	[23,59)	Other cancers	CC	GG	GG
+Co	Male	51	[23,59)	No cancer	CT	GG	GG
+Co	Male	69	[68,76)	No cancer	CC	GG	GG
+Ca	Female	51	[23,59)	Other cancers	CC	GG	AG
+Co	Male	88	[76,92]	No cancer	CC	GG	GG
+Co	Male	67	[59,68)	No cancer	CC	GG	AG
+Ca	Female	55	[23,59)	No cancer	CC	GG	GG
+Ca	Male	81	[76,92]	No cancer	CC	GG	AG
+Ca	Female	63	[59,68)	No cancer	CC	GG	AG
+Ca	Female	72	[68,76)	Colon	CC	AG	GG
+Ca	Female	76	[76,92]	No cancer	CC	GG	AG
+Ca	Female	73	[68,76)	No cancer	CC	GG	AG
+Ca	Female	58	[23,59)	No cancer	CC	AG	GG
+Co	Female	59	[59,68)	No cancer	CC	GG	AA
+Co	Male	69	[68,76)	No cancer	CC	GG	AG
+Ca	Male	88	[76,92]	No cancer	CC	GG	GG
+Ca	Male	64	[59,68)	No cancer	CC	GG	AA
+Ca	Female	37	[23,59)	Other cancers	CC	GG	AG
+Ca	Female	65	[59,68)	Other cancers	CC	GG	AG
+Ca	Male	86	[76,92]	Other cancers	CC	GG	AA
+Ca	Male	78	[76,92]	Other cancers	CC	GG	AG
+Co	Male	77	[76,92]	No cancer	CC	GG	AG
+Ca	Male	46	[23,59)	No cancer	CC	GG	GG
+Ca	Female	23	[23,59)	Other cancers	CC	GG	AG
+Ca	Female	51	[23,59)	Colon	NA	NA	NA
+Ca	Male	56	[23,59)	Colon	CC	GG	GG
+Ca	Male	45	[23,59)	No cancer	CC	GG	GG
+Co	Male	60	[59,68)	No cancer	CC	GG	AG
+Co	Female	76	[76,92]	No cancer	CC	GG	AG
+Ca	Male	75	[68,76)	No cancer	CC	GG	AA
+Ca	Male	77	[76,92]	No cancer	CC	GG	AG
+Ca	Male	72	[68,76)	Other cancers	CT	GG	AG
+Ca	Male	58	[23,59)	Other cancers	CC	AG	GG
+Ca	Male	73	[68,76)	No cancer	CC	GG	GG
+Ca	Male	82	[76,92]	Other cancers	CC	GG	GG
+Ca	Male	49	[23,59)	Other cancers	CC	GG	AG
+Co	Male	61	[59,68)	Other cancers	CC	GG	GG
+Ca	Female	68	[68,76)	No cancer	CC	GG	GG
+Co	Male	55	[23,59)	Other cancers	CC	AG	AG
+Ca	Male	69	[68,76)	Colon	CC	GG	AG
+Ca	Female	78	[76,92]	No cancer	CC	GG	AG
+Ca	Male	57	[23,59)	No cancer	CC	AG	GG
+Ca	Male	54	[23,59)	No cancer	CC	GG	AG
+Ca	Male	37	[23,59)	No cancer	CC	GG	AG
+Ca	Male	82	[76,92]	No cancer	CT	GG	NA
+Co	Female	36	[23,59)	No cancer	CC	GG	AG
+Co	Male	77	[76,92]	No cancer	CC	GG	AG
+Co	Female	73	[68,76)	No cancer	CC	GG	NA
+Ca	Male	59	[59,68)	Colon	CC	GG	AA
+Ca	Male	76	[76,92]	No cancer	CC	GG	AG
+Co	Female	75	[68,76)	Other cancers	CC	GG	GG
+Ca	Male	76	[76,92]	No cancer	CC	GG	AG
+Ca	Female	47	[23,59)	Other cancers	CC	GG	GG
+Ca	Male	58	[23,59)	Other cancers	CT	GG	AG
+Co	Male	58	[23,59)	No cancer	CC	GG	AG
+Ca	Male	78	[76,92]	No cancer	CT	GG	GG
+Ca	Male	68	[68,76)	No cancer	CC	GG	AG
+Co	Male	60	[59,68)	No cancer	CC	GG	GG
+Ca	Female	49	[23,59)	No cancer	NA	NA	NA
+Ca	Male	68	[68,76)	Colon	CC	GG	GG
+Co	Male	59	[59,68)	Colon	CC	GG	AG
+Ca	Male	56	[23,59)	Other cancers	CC	AG	AG
+Co	Male	75	[68,76)	No cancer	CC	GG	AG
+Ca	Male	43	[23,59)	Colon	CC	GG	GG
+Ca	Female	86	[76,92]	Other cancers	CC	GG	GG
+Co	Male	62	[59,68)	No cancer	CC	GG	AG
+Ca	Female	62	[59,68)	Colon	CC	GG	GG
+Co	Male	79	[76,92]	No cancer	CC	GG	GG
+Co	Male	65	[59,68)	Colon	CC	GG	AA
+Ca	Male	69	[68,76)	Other cancers	NA	NA	NA
+Ca	Female	55	[23,59)	Colon	CC	GG	GG
+Ca	Male	65	[59,68)	Other cancers	CT	GG	AG
+Ca	Male	51	[23,59)	Other cancers	CC	GG	AA
+Co	Male	81	[76,92]	No cancer	CC	GG	GG
+Ca	Male	47	[23,59)	No cancer	CC	AG	GG
+Ca	Female	74	[68,76)	Other cancers	CC	GG	AG
+Ca	Male	65	[59,68)	No cancer	CC	AG	AG
+Ca	Female	67	[59,68)	No cancer	CT	GG	GG
+Ca	Male	50	[23,59)	Other cancers	CC	GG	AA
+Co	Female	43	[23,59)	Other cancers	CC	GG	AA
+Co	Male	84	[76,92]	No cancer	CT	AG	GG
+Co	Male	51	[23,59)	No cancer	CC	GG	AG
+Ca	Female	71	[68,76)	No cancer	CC	GG	GG
+Ca	Female	69	[68,76)	No cancer	CC	GG	AG
+Ca	Male	74	[68,76)	No cancer	CC	GG	NA
+Ca	Male	72	[68,76)	Other cancers	CT	GG	GG
+Ca	Female	56	[23,59)	Other cancers	CC	AA	GG
+Ca	Female	74	[68,76)	No cancer	CT	GG	AG
+Co	Male	68	[68,76)	No cancer	CC	GG	AG
+Ca	Male	83	[76,92]	Other cancers	CT	GG	GG
+Ca	Male	91	[76,92]	No cancer	CC	GG	AG
+Co	Female	63	[59,68)	No cancer	CC	GG	AG
+Ca	Female	66	[59,68)	Other cancers	CC	GG	AG
+Co	Female	50	[23,59)	No cancer	CC	GG	GG
+Co	Male	81	[76,92]	No cancer	CC	GG	AG
+Ca	Male	54	[23,59)	No cancer	CC	GG	NA
+Ca	Male	70	[68,76)	No cancer	CC	GG	AA
+Ca	Female	52	[23,59)	Colon	NA	NA	NA
+Co	Male	67	[59,68)	No cancer	NA	GG	AA
+Co	Male	59	[59,68)	Other cancers	CC	GG	GG
+Ca	Male	57	[23,59)	Colon	CC	GG	AG
+Ca	Female	83	[76,92]	Other cancers	CT	GG	AG
+Co	Female	57	[23,59)	Other cancers	CT	GG	GG
+Co	Female	66	[59,68)	Colon	CT	GG	AG
+Co	Male	54	[23,59)	No cancer	CC	AG	AG
+Ca	Female	51	[23,59)	No cancer	CC	GG	GG
+Ca	Male	62	[59,68)	No cancer	CC	GG	AG
+Co	Male	51	[23,59)	Other cancers	CC	GG	GG
+Co	Female	37	[23,59)	Other cancers	CC	AG	GG
+Co	Female	62	[59,68)	No cancer	CC	GG	AG
+Ca	Female	67	[59,68)	Colon	CC	GG	AG
+Ca	Female	76	[76,92]	No cancer	CC	GG	AG
+Ca	Female	62	[59,68)	No cancer	CC	GG	GG
+Ca	Male	70	[68,76)	Other cancers	CC	GG	NA
+Ca	Male	52	[23,59)	Other cancers	CC	NA	GG
+Co	Male	77	[76,92]	Other cancers	CC	GG	GG
+Ca	Male	75	[68,76)	Other cancers	CT	GG	AG
+Ca	Female	59	[59,68)	Other cancers	CC	GG	AG
+Co	Female	50	[23,59)	Other cancers	CT	GG	AG
+Co	Male	72	[68,76)	No cancer	CC	AG	AG
+Ca	Male	82	[76,92]	No cancer	CC	AG	GG
+Co	Female	76	[76,92]	Other cancers	CC	GG	AG
+Co	Male	67	[59,68)	No cancer	CC	GG	AG
+Co	Male	49	[23,59)	Other cancers	CC	GG	AG
+Ca	Female	82	[76,92]	Other cancers	CC	GG	AG
+Ca	Male	46	[23,59)	No cancer	CC	GG	GG
+Ca	Male	56	[23,59)	Other cancers	CC	GG	GG
+Ca	Male	61	[59,68)	No cancer	NA	NA	NA
+Ca	Female	75	[68,76)	No cancer	CC	GG	AG
+Ca	Male	63	[59,68)	Colon	CC	AG	AG
+Ca	Male	51	[23,59)	No cancer	CC	GG	AA
+Co	Female	59	[59,68)	Other cancers	CC	GG	AG
+Ca	Male	78	[76,92]	No cancer	CC	GG	AA
+Co	Male	82	[76,92]	No cancer	CC	GG	AG
+Ca	Male	81	[76,92]	Other cancers	CC	GG	AA
+Co	Female	68	[68,76)	Other cancers	CC	AG	GG
+Co	Female	42	[23,59)	No cancer	CC	GG	AG
+Ca	Male	68	[68,76)	No cancer	CC	GG	AG
+Ca	Male	58	[23,59)	No cancer	CC	GG	AG
+Ca	Male	62	[59,68)	No cancer	CC	GG	AA
+Co	Female	77	[76,92]	No cancer	CC	GG	AG
+Co	Male	62	[59,68)	Other cancers	CC	GG	GG
+Co	Female	64	[59,68)	No cancer	CC	NA	AA
+Ca	Female	68	[68,76)	Other cancers	CT	GG	GG
+Co	Female	66	[59,68)	Other cancers	CT	GG	GG
+Co	Male	67	[59,68)	Colon	CC	GG	GG
+Co	Female	30	[23,59)	Other cancers	CC	AG	GG
+Co	Male	53	[23,59)	Other cancers	CC	GG	AA
+Co	Male	81	[76,92]	No cancer	CC	GG	AG
+Ca	Female	44	[23,59)	Other cancers	CC	GG	GG
+Co	Female	74	[68,76)	No cancer	CT	GG	AG
+Co	Male	64	[59,68)	No cancer	CC	GG	AG
+Co	Male	63	[59,68)	No cancer	CC	AG	GG
+Ca	Female	74	[68,76)	Other cancers	CT	AG	GG
+Co	Male	73	[68,76)	Colon	CC	GG	AG
+Co	Male	50	[23,59)	Other cancers	CT	GG	GG
+Co	Male	56	[23,59)	No cancer	CC	GG	GG
+Co	Female	75	[68,76)	No cancer	CC	GG	GG
+Ca	Male	76	[76,92]	Colon	CT	GG	GG
+Ca	Male	56	[23,59)	Other cancers	CC	GG	AG
+Ca	Male	47	[23,59)	No cancer	CC	GG	AG
+Co	Female	51	[23,59)	No cancer	CT	GG	GG
+Co	Male	47	[23,59)	Other cancers	CC	GG	AG
+Co	Male	77	[76,92]	No cancer	CC	GG	GG
+Ca	Female	74	[68,76)	No cancer	CC	GG	AG
+Ca	Male	75	[68,76)	No cancer	CC	GG	AG
+Ca	Female	51	[23,59)	No cancer	CC	GG	AG
+Ca	Female	61	[59,68)	Other cancers	CC	GG	GG
+Co	Male	57	[23,59)	No cancer	CC	GG	AG
+Co	Male	54	[23,59)	No cancer	CC	AG	GG
+Co	Male	81	[76,92]	Other cancers	CC	GG	GG
+Co	Female	68	[68,76)	No cancer	CC	GG	AG
+Co	Male	79	[76,92]	Other cancers	CT	GG	AG
+Ca	Female	66	[59,68)	No cancer	CT	GG	GG
+Ca	Male	74	[68,76)	No cancer	CT	GG	GG
+Co	Male	77	[76,92]	Other cancers	CC	GG	AG
+Ca	Female	63	[59,68)	No cancer	CC	GG	AA
+Ca	Male	74	[68,76)	No cancer	CC	GG	AG
+Ca	Male	50	[23,59)	Other cancers	CC	GG	AG
+Ca	Male	72	[68,76)	Colon	CT	GG	GG
+Ca	Female	58	[23,59)	Colon	CC	GG	AA
+Ca	Male	75	[68,76)	Other cancers	CC	GG	GG
+Ca	Female	81	[76,92]	No cancer	CC	GG	AG
+Ca	Male	72	[68,76)	Colon	CT	GG	AG
+Ca	Female	45	[23,59)	No cancer	CC	GG	AG
+Ca	Male	87	[76,92]	Other cancers	CT	GG	AG
+Ca	Female	73	[68,76)	Other cancers	CC	GG	AG
+Co	Male	56	[23,59)	No cancer	CC	AA	GG
+Ca	Male	64	[59,68)	Other cancers	CC	GG	GG
+Co	Male	71	[68,76)	Other cancers	CT	GG	AG
+Ca	Male	81	[76,92]	Other cancers	CC	GG	AG
+Co	Male	71	[68,76)	No cancer	CT	GG	GG
+Ca	Female	69	[68,76)	Other cancers	NA	NA	NA
+Ca	Male	69	[68,76)	No cancer	CC	GG	AG
+Co	Male	77	[76,92]	Other cancers	CC	AG	AG
+Co	Male	61	[59,68)	No cancer	CC	GG	AA
+Co	Male	71	[68,76)	No cancer	CT	GG	GG
+Ca	Female	64	[59,68)	No cancer	CC	GG	AG
+Ca	Male	74	[68,76)	Colon	CC	AG	GG
+Ca	Female	67	[59,68)	No cancer	CC	GG	GG
+Ca	Male	85	[76,92]	No cancer	CC	GG	GG
+Ca	Female	47	[23,59)	Other cancers	CC	GG	GG
+Ca	Male	64	[59,68)	Other cancers	CC	AA	GG

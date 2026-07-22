@@ -1,0 +1,20 @@
+import(jmvcore)
+import(R6)
+importFrom(genetics, genotype, allele, HWE.exact, LD)
+importFrom(haplo.stats, setupGeno, haplo.em, haplo.glm, haplo.glm.control)
+importFrom(nnet, multinom)
+importFrom(stats, AIC, BIC, anova, aov, as.formula, binomial, chisq.test,
+           coef, complete.cases, confint, confint.default, density, glm, lm,
+           loess, median, na.omit, pchisq, pnorm, predict, qnorm, qt, quantile,
+           relevel, sd, setNames, t.test, vcov, deviance, df.residual, logLik,
+           cor.test, kruskal.test, wilcox.test)
+importFrom(graphics, abline, axis, hist, legend, lines, mtext, par, plot.new,
+           points, polygon, rect, text, title)
+importFrom(grDevices, adjustcolor)
+export(snpStats, snpPGS)
+
+export(snpStatsClass)
+export(snpStatsOptions)
+
+export(snpPGSClass)
+export(snpPGSOptions)

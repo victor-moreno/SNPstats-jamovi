@@ -1,0 +1,22 @@
+Package: SNPstats
+Type: Package
+Title: SNP Statistics for Genetic Epidemiology
+Version: 0.5.0
+Date: 2026-07-22
+Authors@R: person("Victor", "Moreno", role = c("aut", "cre"), email = "v.moreno@iconcologia.net")
+Description: Performs SNP analysis for genetic epidemiology studies. Computes allele and genotype 
+    frequencies, Hardy-Weinberg equilibrium tests, SNP-response association, linkage disequilibrium, 
+    haplotype analysis and polygenic risk score calculation. Based on the SNPstats web tool (https://www.snpstats.net).
+License: GPL-3
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.2.3
+Depends: genetics, haplo.stats
+Imports:
+    jmvcore (>= 1.2.0),
+    R6,
+    nnet
+Suggests:
+    testthat (>= 3.0.0)
+References:
+    Sole X, Guino E, Valls J, Iniesta R, Moreno V (2006). SNPStats: a web tool for the analysis of association studies. <em>Bioinformatics</em> 22(15):1928–1929.
