@@ -108,6 +108,7 @@ options:
       title: Weights file contents (base64, set by the UI)
       type: String
       default: ""
+      hidden: true
       description:
           R: >
               Base64-encoded contents of the selected weights file, embedded by
@@ -121,6 +122,7 @@ options:
       title: Weights file name (set by the UI)
       type: String
       default: ""
+      hidden: true
       description:
           R: >
               Original name of the embedded weights file. Used for display and

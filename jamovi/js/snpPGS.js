@@ -3,42 +3,34 @@
 module.exports = {
 
     view_updated: function(ui, event) {
-        _hideCarrierControls(ui);
         _injectBrowseButton(ui);
     },
 
     view_loaded: function(ui, event) {
-        _hideCarrierControls(ui);
         _injectBrowseButton(ui);
     }
 
 };
 
-// ── Hide the option "carrier" TextBoxes ───────────────────────────────────────
-// weightsFilename / weightsContent are option carriers, not user inputs: the
-// browse button writes the picked file's name and its base64 contents into them
-// so the file travels to the R engine even in jamovi cloud (where the engine
-// runs on a different machine than the browser and a local path is useless).
-// They must exist as controls (so ui.<name>.setValue works) but never show.
-
-function _hideCarrierControls(ui) {
-    ['weightsFilename', 'weightsContent'].forEach(function(name) {
-        var ctrl = ui[name];
-        if (!ctrl || !ctrl.$input || ctrl.$input.length === 0) return;
-        // The control root holds both the title label and a sub-element that
-        // wraps the input, so hiding the input's parent leaves the label
-        // showing. Climb to the ancestor that actually contains the label and
-        // hide it, so neither the label nor the input appears.
-        var $node = ctrl.$input;
-        for (var i = 0; i < 6 && $node.length; i++) {
-            if ($node.children('.silky-option-text-label').length) {
-                $node.css({ display: 'none' });
-                return;
-            }
-            $node = $node.parent();
-        }
-        ctrl.$input.parent().parent().css({ display: 'none' });
-    });
+// Set an option by name. weightsContent / weightsFilename are hidden options
+// (hidden: true in snpPGS.a.yaml) so they render no control. Try, in order:
+// a real control's setValue (visible options like weightsPath), the view-level
+// setOptionValue(name, value), then resolving the option object via getOption().
+// One of these is available depending on the jamovi version; hidden options have
+// no control so they go through setOptionValue/getOption.
+function _setOpt(ui, name, value) {
+    if (ui[name] && typeof ui[name].setValue === 'function') {
+        ui[name].setValue(value);
+        return;
+    }
+    if (typeof ui.setOptionValue === 'function') {
+        ui.setOptionValue(name, value);
+        return;
+    }
+    if (typeof ui.getOption === 'function') {
+        var opt = ui.getOption(name);
+        if (opt && typeof opt.setValue === 'function') opt.setValue(value);
+    }
 }
 
 // ── File-browse button for the weights path TextBox ───────────────────────────
@@ -92,21 +84,22 @@ function _injectBrowseButton(ui) {
     });
 }
 
-// Read `file` as base64 and stash it into the carrier options so the R backend
-// can decode it (see R/snpPGS.b.R .weightsRawLines). weightsPath is set to the
-// name for display; a manually-typed path (no content) still works on desktop.
+// Read `file` as base64 and stash it into the hidden carrier options so the R
+// backend can decode it (see R/snpPGS.b.R .weightsRawLines). weightsPath is set
+// to the name for display; a manually-typed path (no content) still works on
+// desktop.
 function _embedFile(ui, file) {
     var reader = new FileReader();
     reader.onload = function() {
         var result = reader.result || '';
         var comma = result.indexOf(',');
         var b64 = comma >= 0 ? result.slice(comma + 1) : result;
-        if (ui.weightsFilename) ui.weightsFilename.setValue(file.name);
-        if (ui.weightsContent)  ui.weightsContent.setValue(b64);
-        if (ui.weightsPath)     ui.weightsPath.setValue(file.name);
+        _setOpt(ui, 'weightsFilename', file.name);
+        _setOpt(ui, 'weightsContent', b64);
+        _setOpt(ui, 'weightsPath', file.name);
     };
     reader.onerror = function() {
-        if (ui.weightsPath) ui.weightsPath.setValue(file.path || file.name);
+        _setOpt(ui, 'weightsPath', file.path || file.name);
     };
     reader.readAsDataURL(file);
 }
