@@ -321,6 +321,8 @@ The **SNP weighting mode** dropdown controls which score variants are computed:
 
 When no weights file is provided, the module automatically falls back to unweighted scoring regardless of the dropdown selection.
 
+> **Important — the weights file also orders the alleles.** Beyond supplying effect sizes, the weights file defines each SNP's **effect (risk) allele**, which is the allele the dosage counts. Without a file the module cannot know which allele is the risk allele, so it assigns one from the data itself (the alphabetically-later observed allele). That orientation is arbitrary: for roughly half the SNPs the dosage will point the wrong way, so the unweighted score sums risk-increasing and risk-decreasing directions together and any real association tends to wash out. This is why an unweighted result can jump from non-significant to significant once a weights file is loaded — the file re-orients every SNP to its true risk allele. **Always load a weights file** (even one with all effect weights set to 1 if you only want an allele count) so the alleles are correctly ordered; a no-file score is not a genuine polygenic risk score and the result tables carry a warning to that effect.
+
 
 #### Scale file weights to unit mean
 
