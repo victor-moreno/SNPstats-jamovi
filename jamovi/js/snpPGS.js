@@ -25,11 +25,19 @@ function _hideCarrierControls(ui) {
     ['weightsFilename', 'weightsContent'].forEach(function(name) {
         var ctrl = ui[name];
         if (!ctrl || !ctrl.$input || ctrl.$input.length === 0) return;
-        // The title label and the input both live inside the control's
-        // .jmv-layoutcell wrapper; hide the whole cell so neither shows.
-        var $cell = ctrl.$input.closest('.jmv-layoutcell');
-        if ($cell.length) $cell.css({ display: 'none' });
-        else ctrl.$input.parent().css({ display: 'none' });
+        // The control root holds both the title label and a sub-element that
+        // wraps the input, so hiding the input's parent leaves the label
+        // showing. Climb to the ancestor that actually contains the label and
+        // hide it, so neither the label nor the input appears.
+        var $node = ctrl.$input;
+        for (var i = 0; i < 6 && $node.length; i++) {
+            if ($node.children('.silky-option-text-label').length) {
+                $node.css({ display: 'none' });
+                return;
+            }
+            $node = $node.parent();
+        }
+        ctrl.$input.parent().parent().css({ display: 'none' });
     });
 }
 
