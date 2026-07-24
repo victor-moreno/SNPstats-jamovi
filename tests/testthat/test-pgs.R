@@ -91,6 +91,29 @@ test_that("unweighted proportion score matches the oracle", {
   expect_close(num(r$sd),   sd(o,   na.rm = TRUE), tol = 5e-4)
 })
 
+test_that("embedded base64 weights (cloud path) match the file-path route", {
+  b64 <- base64enc::base64encode(readBin(.pgs_weightsfile, "raw",
+                                         file.info(.pgs_weightsfile)$size))
+  res_path  <- run_pgs(data = .test_data, snpCols = .pgs_snps,
+                       weightsPath = .pgs_weightsfile, weightingMode = "weighted")
+  res_embed <- run_pgs(data = .test_data, snpCols = .pgs_snps,
+                       weightsContent = b64, weightsFilename = "weights.tsv",
+                       weightingMode = "weighted")
+  expect_equal(as_df(res_embed$summaryTable), as_df(res_path$summaryTable))
+})
+
+test_that("gzipped embedded weights match the file-path route", {
+  raw <- readBin(.pgs_weightsfile, "raw", file.info(.pgs_weightsfile)$size)
+  gz  <- memCompress(raw, "gzip")
+  b64 <- base64enc::base64encode(gz)
+  res_path  <- run_pgs(data = .test_data, snpCols = .pgs_snps,
+                       weightsPath = .pgs_weightsfile, weightingMode = "weighted")
+  res_gz    <- run_pgs(data = .test_data, snpCols = .pgs_snps,
+                       weightsContent = b64, weightsFilename = "weights.tsv.gz",
+                       weightingMode = "weighted")
+  expect_equal(as_df(res_gz$summaryTable), as_df(res_path$summaryTable))
+})
+
 test_that("scale methods (none/percent/multiply) match the oracle", {
   base <- list(data = .test_data, snpCols = .pgs_snps,
                weightsPath = .pgs_weightsfile, weightingMode = "weighted")

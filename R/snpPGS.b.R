@@ -1,12 +1,15 @@
 # snpPGS_b.R  — Analysis class for SNPstats PGS module
 #
 # Weight / allele information flow:
-#   (a) weightsPath set  — parse the catalog file; unknown columns are
-#       concatenated into the extra_cols field of the results table.
+#   (a) weights file set — parse the catalog file; unknown columns are
+#       concatenated into the extra_cols field of the results table. The file
+#       comes from embedded base64 content (weightsContent, set by the browse
+#       button — works in jamovi cloud) or, on desktop, a weightsPath on disk.
+#       See the weights-source helpers (.hasWeights / .weightsRawLines).
 #   (b) No file          — unit weights (weight = 1) for all selected SNPs.
 #
-# The weights file is re-read on every .run() call, so toggling reloadWeights
-# or editing weightsPath always picks up the latest file contents.
+# The weights file is re-read on every .run() call, so changing the weights
+# source always picks up the latest file contents.
 # ─────────────────────────────────────────────────────────────────────────────
 
 snpPGSClass <- R6::R6Class(
@@ -79,13 +82,13 @@ snpPGSClass <- R6::R6Class(
       make.unique(paste0("xc_", gsub("[^A-Za-z0-9]", "_", extra_names)))
     },
 
-    # The weight table, memoised per (snpCols, weightsPath, weightingMode) so
+    # The weight table, memoised per (snpCols, weights source, weightingMode) so
     # .init can predict the grid's row/column shape without re-parsing the file
     # on every cycle when the analysis object is reused. .run builds its own via
     # the two-level cache; this only serves .init's pre-creation.
     .gridWeightTable = function(snpCols) {
       key <- list(snpCols = sort(snpCols),
-                  weightsPath = self$options$weightsPath %||% "",
+                  weightsSig = private$.weightsSig(),
                   wmode = self$options$weightingMode)
       if (!identical(key, private$.cache$grid_wt_key)) {
         private$.cache$grid_wt_key <- key
@@ -212,8 +215,7 @@ snpPGSClass <- R6::R6Class(
       snpCols  <- self$options$snpCols
       respCol  <- self$options$responseCol
       wmode    <- self$options$weightingMode
-      has_file <- !is.null(self$options$weightsPath) &&
-                  nchar(trimws(self$options$weightsPath)) > 0
+      has_file <- private$.hasWeights()
 
       has_snps <- !is.null(snpCols) && length(snpCols) > 0
       has_resp <- !is.null(respCol) && nchar(trimws(respCol)) > 0
@@ -283,7 +285,7 @@ snpPGSClass <- R6::R6Class(
       covTbl$setVisible(has_snps && isTRUE(self$options$showCoverage))
       if (has_snps && isTRUE(self$options$showCoverage))
         private$.pre_rows(covTbl, private$.coverageNRows(
-          has_file, private$.coverageMetaNonEmpty(self$options$weightsPath)))
+          has_file, private$.coverageMetaNonEmpty()))
 
       # ── summaryTable — one row per scoring mode × response group ──────
       # We can pre-build skeleton rows: one "Overall" row per mode.
@@ -427,7 +429,7 @@ snpPGSClass <- R6::R6Class(
       # related changed (e.g. only a response/covariate/plot option moved).
       snp_qc_key <- list(
         snpCols     = sort(snpCols),
-        weightsPath = self$options$weightsPath %||% "",
+        weightsSig  = private$.weightsSig(),
         wmode       = wmode,
         missing_st  = missing_st,
         qcMiss      = isTRUE(self$options$qcFilterMissing),
@@ -449,7 +451,7 @@ snpPGSClass <- R6::R6Class(
         apply_hwe <- isTRUE(self$options$qcFilterHwe) && !is.na(self$options$qcHweP)
         core_key  <- list(
           snpCols     = sort(snpCols),
-          weightsPath = self$options$weightsPath %||% "",
+          weightsSig  = private$.weightsSig(),
           wmode       = wmode,
           applyHwe    = apply_hwe,
           hweResp     = if (apply_hwe) respCol else NULL
@@ -503,9 +505,7 @@ snpPGSClass <- R6::R6Class(
       unit_wvec     <- setNames(rep(1, ncol(dosage)), colnames(dosage))
 
       # Determine which modes to run
-      has_file    <- !is.null(self$options$weightsPath) &&
-                     nchar(trimws(self$options$weightsPath)) > 0 &&
-                     file.exists(self$options$weightsPath)
+      has_file    <- private$.hasWeights()
       run_weighted   <- wmode %in% c("weighted", "both") && has_file
       run_unweighted <- wmode %in% c("unweighted", "both") || !has_file
 
@@ -720,14 +720,73 @@ snpPGSClass <- R6::R6Class(
     # If no file is configured, returns unit-weight rows for snpCols.
     # ════════════════════════════════════════════════════════════════════════
     .buildWeightTable = function(snpCols) {
-      path  <- self$options$weightsPath
+      if (private$.hasWeights())
+        return(private$.parseCatalogFile(snpCols))
 
-      has_file <- !is.null(path) && nchar(trimws(path)) > 0 && file.exists(path)
-
-      if (has_file)
-        return(private$.parseCatalogFile(path, snpCols))
-      
       private$.unitWeightTableFromData(snpCols)
+    },
+
+    # ════════════════════════════════════════════════════════════════════════
+    # Weights-source abstraction (desktop path OR cloud-embedded content).
+    #
+    # In jamovi cloud the R engine runs on a server where the browser's local
+    # file path does not exist, so the file-browse button embeds the file's
+    # bytes (base64) into the weightsContent option; on desktop a real
+    # weightsPath on disk still works. These helpers make the two sources
+    # interchangeable so the rest of the backend is source-agnostic.
+    # ════════════════════════════════════════════════════════════════════════
+
+    # TRUE when a weights file is available from either source.
+    .hasWeights = function() {
+      nzchar(self$options$weightsContent %||% "") ||
+        (nzchar(trimws(self$options$weightsPath %||% "")) &&
+           file.exists(self$options$weightsPath %||% ""))
+    },
+
+    # Raw text lines of the weights file (or NULL). n > 0 limits the count
+    # (used for the cheap header-metadata scan). Embedded content wins; a
+    # '.gz' filename is gunzipped. base64enc + jsonlite are jmvcore imports,
+    # so base64enc::base64decode is always available at runtime.
+    .weightsRawLines = function(n = -1L) {
+      ct <- self$options$weightsContent %||% ""
+      if (nzchar(ct)) {
+        bytes <- tryCatch(base64enc::base64decode(ct), error = function(e) NULL)
+        if (is.null(bytes)) return(NULL)
+        fname <- self$options$weightsFilename %||% ""
+        if (grepl("\\.gz$", fname, ignore.case = TRUE))
+          bytes <- tryCatch(memDecompress(bytes, "gzip"),
+                            error = function(e) bytes)
+        txt <- tryCatch(rawToChar(bytes), error = function(e) NULL)
+        if (is.null(txt)) return(NULL)
+        lines <- strsplit(txt, "\r\n|\r|\n")[[1]]
+        if (n > 0L && length(lines) > n) lines <- lines[seq_len(n)]
+        return(lines)
+      }
+      path <- self$options$weightsPath %||% ""
+      if (!nzchar(trimws(path)) || !file.exists(path)) return(NULL)
+      tryCatch(readLines(path, n = if (n > 0L) n else -1L, warn = FALSE),
+               error = function(e) NULL)
+    },
+
+    # A short, cheap identity of the active weights source for memo keys — the
+    # embedded content changes across files even when the (typed) path does not.
+    .weightsSig = function() {
+      ct <- self$options$weightsContent %||% ""
+      if (nzchar(ct))
+        return(paste0("embed:", self$options$weightsFilename %||% "", ":",
+                      nchar(ct)))
+      path <- self$options$weightsPath %||% ""
+      if (nzchar(trimws(path)) && file.exists(path))
+        return(paste0("path:", path, ":",
+                      as.numeric(file.info(path)$mtime %||% 0)))
+      ""
+    },
+
+    # Display name of the weights source (filename or path), for messages.
+    .weightsLabel = function() {
+      fn <- trimws(self$options$weightsFilename %||% "")
+      if (nzchar(fn)) return(fn)
+      trimws(self$options$weightsPath %||% "")
     },
 
     # ════════════════════════════════════════════════════════════════════════
@@ -865,12 +924,13 @@ snpPGSClass <- R6::R6Class(
     # ════════════════════════════════════════════════════════════════════════
     # .parseCatalogFile
     # ════════════════════════════════════════════════════════════════════════
-    .parseCatalogFile = function(path, snpCols) {
+    .parseCatalogFile = function(snpCols) {
 
-      raw <- tryCatch(readLines(path, warn = FALSE), error = function(e) NULL)
+      raw <- private$.weightsRawLines()
       if (is.null(raw)) {
         self$results$validationMsg$setContent(
-          paste0("<p style='color:#c0392b;'>Cannot read weights file: ", path, "</p>"))
+          paste0("<p style='color:#c0392b;'>Cannot read weights file: ",
+                 private$.weightsLabel(), "</p>"))
         self$results$validationMsg$setVisible(TRUE)
         return(private$.unitWeightTable(snpCols))
       }
@@ -1822,11 +1882,9 @@ snpPGSClass <- R6::R6Class(
     },
 
     # Non-empty header metadata field count without a full file parse.
-    .coverageMetaNonEmpty = function(path) {
-      if (is.null(path) || !nzchar(trimws(path %||% "")) || !file.exists(path))
-        return(0L)
-      raw <- tryCatch(readLines(path, n = 200, warn = FALSE),
-                      error = function(e) NULL)
+    .coverageMetaNonEmpty = function() {
+      if (!private$.hasWeights()) return(0L)
+      raw <- private$.weightsRawLines(n = 200L)
       if (is.null(raw)) return(0L)
       meta <- private$.parseFileMetadata(raw)
       sum(vapply(meta, function(v) nchar(trimws(v %||% "")) > 0, logical(1)))

@@ -100,6 +100,31 @@ options:
               effect_allele, other_allele, effect_weight/beta, chr_name/chr,
               chr_position/pos. Missing expected columns are hidden in output;
               extra columns are shown concatenated in an 'Extra fields' column.
+              On desktop this may be a real file path; in jamovi cloud the file
+              contents are embedded via 'weightsContent' instead (the browser
+              cannot pass a server-visible path).
+
+    - name: weightsContent
+      title: Weights file contents (base64, set by the UI)
+      type: String
+      default: ""
+      description:
+          R: >
+              Base64-encoded contents of the selected weights file, embedded by
+              the file-browse button (jamovi/js/snpPGS.js) so the file works in
+              jamovi cloud where the R engine runs on a different machine than
+              the browser. When set, it takes priority over 'weightsPath'. A
+              '.gz' 'weightsFilename' is decompressed automatically. Not intended
+              to be set by hand.
+
+    - name: weightsFilename
+      title: Weights file name (set by the UI)
+      type: String
+      default: ""
+      description:
+          R: >
+              Original name of the embedded weights file. Used for display and
+              to detect gzip ('.gz'). Set by the file-browse button.
 
     - name: missingStrategy
       title: Missing genotype handling
