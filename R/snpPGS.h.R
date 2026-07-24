@@ -96,11 +96,13 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             private$..weightsContent <- jmvcore::OptionString$new(
                 "weightsContent",
                 weightsContent,
-                default="")
+                default="",
+                hidden=TRUE)
             private$..weightsFilename <- jmvcore::OptionString$new(
                 "weightsFilename",
                 weightsFilename,
-                default="")
+                default="",
+                hidden=TRUE)
             private$..missingStrategy <- jmvcore::OptionList$new(
                 "missingStrategy",
                 missingStrategy,

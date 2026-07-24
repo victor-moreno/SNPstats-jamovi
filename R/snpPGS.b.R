@@ -74,8 +74,7 @@ snpPGSClass <- R6::R6Class(
       txt <- if (has_file) NULL else paste0(
         "No weights file loaded: effect (risk) alleles were assigned from the ",
         "data (alphabetical allele order), so each SNP's dosage direction is ",
-        "arbitrary and probably wrong. These scores and associations are NOT a ",
-        "polygenic risk score — load a PGS weights file that defines the ",
+        "arbitrary and probably wrong unless reordered in data. Load a PGS weights file that defines the ",
         "effect allele to orient them correctly.")
       self$results$summaryTable$setNote("orientNote", txt, init = FALSE)
       self$results$assocTable$setNote("orientNote", txt, init = FALSE)
