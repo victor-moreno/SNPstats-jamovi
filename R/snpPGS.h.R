@@ -434,6 +434,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 clearWith=list(
                     "snpCols",
                     "weightsPath",
+                    "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
                     "qcMaxMissingPct",
@@ -510,6 +511,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 clearWith=list(
                     "snpCols",
                     "weightsPath",
+                    "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
                     "qcMaxMissingPct",
@@ -535,6 +537,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 clearWith=list(
                     "snpCols",
                     "weightsPath",
+                    "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
                     "qcMaxMissingPct",
@@ -607,6 +610,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 clearWith=list(
                     "snpCols",
                     "weightsPath",
+                    "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
                     "qcMaxMissingPct",
@@ -626,6 +630,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 clearWith=list(
                     "snpCols",
                     "weightsPath",
+                    "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
                     "qcMaxMissingPct",
@@ -664,6 +669,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 clearWith=list(
                     "snpCols",
                     "weightsPath",
+                    "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
                     "qcMaxMissingPct",
@@ -733,6 +739,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 clearWith=list(
                     "snpCols",
                     "weightsPath",
+                    "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
                     "qcMaxMissingPct",
@@ -813,6 +820,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 clearWith=list(
                     "snpCols",
                     "weightsPath",
+                    "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
                     "qcMaxMissingPct",
@@ -874,6 +882,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "snpCols",
                     "responseCol",
                     "weightsPath",
+                    "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
                     "qcMaxMissingPct",
@@ -902,6 +911,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "snpCols",
                     "responseCol",
                     "weightsPath",
+                    "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
                     "qcMaxMissingPct",
@@ -926,6 +936,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 clearWith=list(
                     "snpCols",
                     "weightsPath",
+                    "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
                     "qcMaxMissingPct",
@@ -955,6 +966,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 clearWith=list(
                     "snpCols",
                     "weightsPath",
+                    "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
                     "qcMaxMissingPct",
@@ -982,6 +994,7 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 clearWith=list(
                     "snpCols",
                     "weightsPath",
+                    "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
                     "qcMaxMissingPct",

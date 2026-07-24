@@ -24,4 +24,5 @@ scratch_*.R
 *.Rcheck
 docs/ENVIRONMENT.md
 !docs/images/*.jpg
-!docs/_includes/head-custom.html 
+!docs/_includes/head-custom.html
+jamovi-src
