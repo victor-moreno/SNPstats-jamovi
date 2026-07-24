@@ -63,6 +63,25 @@ snpPGSClass <- R6::R6Class(
       for (k in keys) tbl$setNote(k, NULL, init = FALSE)
     },
 
+    # When no weights file is loaded, the effect (risk) allele is inferred from
+    # the data (alphabetical allele order, see .unitWeightTableFromData), so each
+    # SNP's dosage direction is arbitrary. Scores and their associations are then
+    # NOT a genuine risk score and are not comparable to the file-aligned score.
+    # Flag this on the score-interpretation tables; clear it once a file defines
+    # the effect allele. init=FALSE so the text survives protobuf restore and the
+    # .init re-declaration (.clearRunNotes) drops the empty placeholder.
+    .setNoWeightsNote = function(has_file) {
+      txt <- if (has_file) NULL else paste0(
+        "No weights file loaded: effect (risk) alleles were assigned from the ",
+        "data (alphabetical allele order), so each SNP's dosage direction is ",
+        "arbitrary and probably wrong. These scores and associations are NOT a ",
+        "polygenic risk score — load a PGS weights file that defines the ",
+        "effect allele to orient them correctly.")
+      self$results$summaryTable$setNote("orientNote", txt, init = FALSE)
+      self$results$assocTable$setNote("orientNote", txt, init = FALSE)
+      self$results$percentileTable$setNote("orientNote", txt, init = FALSE)
+    },
+
     # A small link to the online tutorial (docs/ is not bundled into the
     # installed module). Shown only in the "Getting started" state (no SNP
     # columns assigned yet); hidden once the guidance disappears.
@@ -293,6 +312,7 @@ snpPGSClass <- R6::R6Class(
       # will be added in .run(), but the skeleton still gives instant feedback.
       summaryTbl <- self$results$summaryTable
       summaryTbl$setVisible(has_snps && isTRUE(self$options$showSummary))
+      private$.clearRunNotes(summaryTbl, "orientNote")
 
       if (has_snps && summaryTbl$rowCount == 0) {
         # Pre-create EVERY row .run() will produce (one per group per mode), not
@@ -322,7 +342,8 @@ snpPGSClass <- R6::R6Class(
       # then repopulates any note the previous run actually saved). See
       # .fillAssocTable / .clearRunNotes.
       private$.clearRunNotes(assocTbl,
-        c("covNote", "respNote", "fitWarning_Weighted", "fitWarning_Unweighted"))
+        c("covNote", "respNote", "fitWarning_Weighted", "fitWarning_Unweighted",
+          "orientNote"))
 
       # ── percentileTable / percentileThreshTable ────────────────────────
       show_pct <- has_snps && isTRUE(self$options$showPercentiles)
@@ -330,7 +351,7 @@ snpPGSClass <- R6::R6Class(
       pctCat <- self$results$percentileTable
       pctThr$setVisible(show_pct)
       pctCat$setVisible(show_pct)
-      private$.clearRunNotes(pctCat, c("modelNote", "refNote", "covNote"))
+      private$.clearRunNotes(pctCat, c("modelNote", "refNote", "covNote", "orientNote"))
       if (show_pct) {
         # Dynamic per-level columns for the counts table must exist by end of
         # .init (columns added in .run are never restored, like rows).
@@ -512,6 +533,10 @@ snpPGSClass <- R6::R6Class(
       modes <- list()
       if (run_weighted)   modes[["Weighted"]]   <- catalog_wvec
       if (run_unweighted) modes[["Unweighted"]] <- unit_wvec
+
+      # Flag the arbitrary effect-allele orientation when no weights file is
+      # loaded (set before the early-return below so it always applies).
+      private$.setNoWeightsNote(has_file)
 
       # ── Row indices after keepMask ───────────────────────────────────────
       keep <- private$.keepMask  # NULL or logical vector length nrow(data)

@@ -114,6 +114,20 @@ test_that("gzipped embedded weights match the file-path route", {
   expect_equal(as_df(res_gz$summaryTable), as_df(res_path$summaryTable))
 })
 
+test_that("orientation note is set only when no weights file is loaded", {
+  note_txt <- function(res, tbl) {
+    n <- res[[tbl]]$notes[["orientNote"]]
+    if (is.null(n)) NULL else n$note
+  }
+  res_file <- run_pgs(data = .test_data, snpCols = .pgs_snps,
+                      weightsPath = .pgs_weightsfile, weightingMode = "weighted")
+  res_nofile <- run_pgs(data = .test_data, snpCols = .pgs_snps,
+                        weightingMode = "unweighted")
+  expect_null(note_txt(res_file, "summaryTable"))
+  expect_match(note_txt(res_nofile, "summaryTable"), "risk", ignore.case = TRUE)
+  expect_match(note_txt(res_nofile, "assocTable"), "arbitrary", ignore.case = TRUE)
+})
+
 test_that("scale methods (none/percent/multiply) match the oracle", {
   base <- list(data = .test_data, snpCols = .pgs_snps,
                weightsPath = .pgs_weightsfile, weightingMode = "weighted")
