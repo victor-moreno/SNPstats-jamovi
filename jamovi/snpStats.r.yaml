@@ -186,6 +186,8 @@ items:
   - name: assocGroup
     title: Association
     type: Group
+    # NB: the compiler ignores `visible` on a top-level Group, so assocGroup
+    # visibility is set in the backend .init (res$assocGroup$setVisible).
     items:
 
       # ── Per-SNP association results ─────────────────────────────────────

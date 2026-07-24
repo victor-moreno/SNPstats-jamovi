@@ -366,6 +366,12 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       haplo_ok     <- ld_ok   && has_resp
       haplo_int_ok <- haplo_ok && has_covs
 
+      # ── Association: hide the whole "Association" group header unless an ───
+      # association or interaction analysis is requested (the compiler ignores
+      # `visible` on a top-level Group; set it here, explicit both ways so it
+      # restores). Child tables gate on their own options.
+      res$assocGroup$setVisible(isTRUE(opts$snpAssoc) || isTRUE(opts$snpInteraction))
+
       # ── Association: pre-seed one Array item per SNP so tables appear ──────
       # immediately (empty) while .run() computes. Items must exist by the end
       # of .init or the restore cannot refill them. Always go through
