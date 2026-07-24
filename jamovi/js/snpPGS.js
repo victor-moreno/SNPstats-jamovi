@@ -25,9 +25,11 @@ function _hideCarrierControls(ui) {
     ['weightsFilename', 'weightsContent'].forEach(function(name) {
         var ctrl = ui[name];
         if (!ctrl || !ctrl.$input || ctrl.$input.length === 0) return;
-        ctrl.$input.css({ display: 'none' });
-        var $lbl = ctrl.$input.parent();
-        if ($lbl && $lbl.length) $lbl.css({ display: 'none' });
+        // The title label and the input both live inside the control's
+        // .jmv-layoutcell wrapper; hide the whole cell so neither shows.
+        var $cell = ctrl.$input.closest('.jmv-layoutcell');
+        if ($cell.length) $cell.css({ display: 'none' });
+        else ctrl.$input.parent().css({ display: 'none' });
     });
 }
 
