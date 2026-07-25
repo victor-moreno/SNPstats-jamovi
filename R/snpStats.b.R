@@ -2114,14 +2114,14 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       if (!is.factor(int_var_vals) && !is.character(int_var_vals)) {
         self$results$validationMsg$setContent(
           paste0("<p style='color:orange;'>Haplotype interaction tables require a categorical covariate. '",
-                 int_var, "' is numeric \u2014 please convert it to a factor.</p>"))
+                 html_escape(int_var), "' is numeric \u2014 please convert it to a factor.</p>"))
         self$results$validationMsg$setVisible(TRUE)
         return()
       }
       if (length(unique(na.omit(as.character(int_var_vals)))) > 6) {
         self$results$validationMsg$setContent(
           paste0("<p style='color:orange;'>Haplotype interaction tables require a covariate with at most 6 categories. '",
-                 int_var, "' has more.</p>"))
+                 html_escape(int_var), "' has more.</p>"))
         self$results$validationMsg$setVisible(TRUE)
         return()
       }

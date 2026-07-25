@@ -954,7 +954,7 @@ snpPGSClass <- R6::R6Class(
       if (is.null(raw)) {
         self$results$validationMsg$setContent(
           paste0("<p style='color:#c0392b;'>Cannot read weights file: ",
-                 private$.weightsLabel(), "</p>"))
+                 html_escape(private$.weightsLabel()), "</p>"))
         self$results$validationMsg$setVisible(TRUE)
         return(private$.unitWeightTable(snpCols))
       }
@@ -983,7 +983,7 @@ snpPGSClass <- R6::R6Class(
       if (is.null(df) || nrow(df) == 0) {
         msg <- if (!is.null(parse_err))
           paste0("<p style='color:#c0392b;'>Failed to parse weights file (sep='",
-                 sep, "'): ", parse_err, "</p>")
+                 sep, "'): ", html_escape(parse_err), "</p>")
         else
           "<p style='color:#c0392b;'>Weights file parsed to an empty table.</p>"
         self$results$validationMsg$setContent(msg)
@@ -1011,7 +1011,7 @@ snpPGSClass <- R6::R6Class(
       if (is.null(c_rsid)) {
         self$results$validationMsg$setContent(paste0(
           "<p style='color:#c0392b;'>Weights file has no recognisable rsID column.</p>",
-          "<p>Columns found: <code>", paste(orig_names, collapse = ", "), "</code></p>",
+          "<p>Columns found: <code>", html_escape(paste(orig_names, collapse = ", ")), "</code></p>",
           "<p>Expected one of: rsID, variant_id, snp, snp_id, marker_name</p>"))
         self$results$validationMsg$setVisible(TRUE)
         return(private$.unitWeightTable(snpCols))

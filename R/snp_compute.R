@@ -539,8 +539,22 @@ encode_model <- function(geno_char, ref, model, user_levels = NULL) {
 # 7. Formula and model fitting
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Wrap a column name in backticks for safe formula interpolation.
-safe_term <- function(x) paste0("`", gsub("`", "\\`", x, fixed = TRUE), "`")
+# Wrap a column name in backticks for safe formula interpolation. Backslashes
+# are R's escape char inside backtick-quoted names, so they must be escaped
+# first (else a name ending in '\' would swallow the closing backtick and let
+# following text leak out of the quote as live formula terms); backticks are
+# then escaped as \`. Normal names (no \ or `) are unchanged.
+safe_term <- function(x)
+  paste0("`", gsub("`", "\\`", gsub("\\", "\\\\", x, fixed = TRUE), fixed = TRUE), "`")
+
+# Escape a string for safe interpolation into result HTML (setContent/setNote).
+html_escape <- function(x) {
+  x <- gsub("&", "&amp;", x, fixed = TRUE)
+  x <- gsub("<", "&lt;",  x, fixed = TRUE)
+  x <- gsub(">", "&gt;",  x, fixed = TRUE)
+  x <- gsub("\"", "&quot;", x, fixed = TRUE)
+  gsub("'", "&#39;", x, fixed = TRUE)
+}
 
 # Escape a vector of names and collapse to a "+"-joined RHS string.
 safe_rhs <- function(nms) paste(sapply(nms, safe_term), collapse = " + ")
