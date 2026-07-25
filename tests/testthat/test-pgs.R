@@ -287,6 +287,35 @@ test_that("coverage and SNP-grid tables report correct AF / matching", {
   }
 })
 
+test_that("coverage reports count of SNPs whose risk allele is the major allele", {
+  cov_val <- function(res) {
+    cv  <- as_df(res$coverageTable)
+    row <- cv[grepl("Risk allele", cv$field), ]
+    as.integer(row$value[1])
+  }
+  # Fixture effect_allele = minor allele -> effect_af <= 0.5 -> count 0.
+  res0 <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsPath = .pgs_weightsfile,
+                  weightingMode = "weighted", showCoverage = TRUE)
+  expect_equal(cov_val(res0), 0L)
+
+  # Swapped file: effect_allele = major allele -> effect_af > 0.5 for every SNP.
+  fswap <- tempfile(fileext = ".tsv")
+  writeLines("# swapped effect/other alleles", fswap)
+  dsw <- data.frame(rsID = .pgs_snps,
+                    effect_allele = .pgs_other[.pgs_snps],   # major
+                    other_allele  = .pgs_effect[.pgs_snps],  # minor
+                    effect_weight = .pgs_weights[.pgs_snps])
+  suppressWarnings(write.table(dsw, fswap, sep = "\t", row.names = FALSE,
+                               quote = FALSE, append = TRUE))
+  res1 <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsPath = fswap,
+                  weightingMode = "weighted", showCoverage = TRUE)
+  # Independent expectation: SNPs whose major-allele frequency exceeds 0.5.
+  D <- .pgs_dosage()
+  expected <- sum(vapply(.pgs_snps, function(s) (1 - mean(D[, s], na.rm = TRUE) / 2) > 0.5,
+                         logical(1)))
+  expect_equal(cov_val(res1), as.integer(expected))
+})
+
 test_that("plots render without error (incl. calibration with tied predictions)", {
   skip_if_not_installed("ggplot2")
   grDevices::png(tempfile()); on.exit(grDevices::dev.off())

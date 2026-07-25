@@ -16,10 +16,23 @@ snpPGSClass <- R6::R6Class(
   "snpPGSClass",
   inherit = snpPGSBase,
 
+  public = list(
+    # An R6 field initialised to new.env() is evaluated once when the class is
+    # defined, so all instances would SHARE one cache env — two snpPGS analyses
+    # in the same file could then read each other's cached dosage core. Create a
+    # fresh per-instance cache here instead.
+    initialize = function(options, data = NULL, datasetId = "",
+                          analysisId = "", revision = 0) {
+      super$initialize(options = options, data = data, datasetId = datasetId,
+                       analysisId = analysisId, revision = revision)
+      private$.cache <- new.env(parent = emptyenv())
+    }
+  ),
+
   private = list(
 
     .keepMask  = NULL,
-    .cache     = new.env(parent = emptyenv()),
+    .cache     = NULL,
     .plotVis   = NULL,   # plot visibility set in .init (guards .run re-touch)
     .assoc_acc = NULL,   # per-run row accumulator for assocTable (across modes)
     .inter_acc = NULL,   # per-run row accumulator for interactionTable (across modes)
@@ -1842,6 +1855,11 @@ snpPGSClass <- R6::R6Class(
       ambiguous <- sum(private$.isAmbiguous(wtable$effect_allele, wtable$other_allele))
       flipped   <- sum(wtable$strand_flipped == TRUE, na.rm = TRUE)
       mismatch  <- sum(grepl("mismatch", wtable$allele_status, ignore.case = TRUE))
+      # SNPs whose file-defined risk (effect) allele is the MAJOR allele in this
+      # dataset (effect_af > 0.5): the frequency default (minor allele = effect)
+      # would have oriented these the opposite way. Counted among scored SNPs.
+      scored_af   <- wtable$effect_af[wtable$rsid %in% valid_snps]
+      risk_major  <- sum(!is.na(scored_af) & scored_af > 0.5)
       null_fix  <- sum(grepl("0/0→NA", wtable$allele_status, fixed = TRUE))
       # Complete cases: individuals with observed genotypes for ALL kept SNPs,
       # computed from valid_counts (pre-imputation observation flags) before
@@ -1890,6 +1908,7 @@ snpPGSClass <- R6::R6Class(
         add("Ambiguous SNPs (AT/CG)",     ambiguous)
         add("Strand flipped (corrected)", flipped)
         add("Allele mismatch (excluded)", mismatch)
+        add("Risk allele ≠ minor allele", risk_major)
       } else {
         add("SNPs selected",              n_indata)
       }
@@ -1924,7 +1943,7 @@ snpPGSClass <- R6::R6Class(
       run_w  <- wmode %in% c("weighted", "both") && has_file
       run_uw <- wmode %in% c("unweighted", "both") || !has_file
       meta_nonempty +
-        (if (has_file) 6L else 1L) +
+        (if (has_file) 7L else 1L) +           # +1: risk-allele-vs-minor row
         1L +                                      # null-allele fixed
         1L +                                      # excluded by allele/mono QC
         (if (isTRUE(self$options$qcFilterMissing)) 1L else 0L) +

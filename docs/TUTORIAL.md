@@ -287,7 +287,7 @@ Optionally assign a **response variable** (binary or continuous) and one or more
 
 ### SNP coverage summary
 
-Enable **SNP coverage summary** to display a table that characterises the SNPs and shows some QC checks. This table is updated if a weight file is uploaded, including the match between the weights file and the dataset. 
+Enable **SNP coverage summary** to display a table that characterises the SNPs and shows some QC checks. This table is updated if a weight file is uploaded, including the match between the weights file and the dataset. When a weights file is loaded, the row **Risk allele ≠ minor allele** counts how many of the scored SNPs have their published risk (effect) allele equal to the *major* (more common) allele in your data — i.e. SNPs for which the frequency-based default orientation (used when no file is loaded) would have pointed the opposite way. A high count is expected and harmless (risk alleles are often common); it simply quantifies how much the weights file re-orients relative to the no-file default.
 
 ### SNP QC filters
 
