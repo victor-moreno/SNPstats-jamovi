@@ -125,7 +125,38 @@ test_that("orientation note is set only when no weights file is loaded", {
                         weightingMode = "unweighted")
   expect_null(note_txt(res_file, "summaryTable"))
   expect_match(note_txt(res_nofile, "summaryTable"), "risk", ignore.case = TRUE)
-  expect_match(note_txt(res_nofile, "assocTable"), "arbitrary", ignore.case = TRUE)
+  expect_match(note_txt(res_nofile, "assocTable"), "frequency", ignore.case = TRUE)
+})
+
+test_that("no-weights effect allele defaults to the minor allele (snpStats-consistent)", {
+  res  <- run_pgs(data = .test_data, snpCols = .pgs_snps,
+                  weightingMode = "unweighted", showSnpGrid = TRUE)
+  grid <- as_df(res$snpGridTable)
+  for (s in .pgs_snps) {
+    g <- as.character(.test_data[[s]]); g[grepl("0", g)] <- NA
+    b <- unlist(strsplit(g[!is.na(g)], "/", fixed = TRUE))
+    b <- b[b %in% c("A", "C", "G", "T")]
+    minor <- names(sort(table(b)))[1]                 # least frequent allele
+    expect_equal(grid$effect_allele[grid$rsid == s], minor,
+                 label = paste(s, "effect allele = data minor allele"))
+  }
+})
+
+test_that("no-weights orientation respects a reordered genotype factor", {
+  gts <- c(rep("G/G", 30), rep("A/G", 12), rep("A/A", 2))   # G major, A minor
+  d   <- data.frame(snp1 = gts, stringsAsFactors = FALSE)
+  # Alphabetical (auto) levels -> no user intent -> frequency default: effect = A
+  res_def <- run_pgs(data = d, snpCols = "snp1",
+                     weightingMode = "unweighted", showSnpGrid = TRUE)
+  g_def   <- as_df(res_def$snpGridTable)
+  expect_equal(g_def$effect_allele[g_def$rsid == "snp1"], "A")
+  # User reorders levels non-alphabetically so A/A is the reference homozygote;
+  # the effect allele then flips to the major allele G.
+  d$snp1  <- factor(d$snp1, levels = c("A/A", "G/G", "A/G"))
+  res_usr <- run_pgs(data = d, snpCols = "snp1",
+                     weightingMode = "unweighted", showSnpGrid = TRUE)
+  g_usr   <- as_df(res_usr$snpGridTable)
+  expect_equal(g_usr$effect_allele[g_usr$rsid == "snp1"], "G")
 })
 
 test_that("scale methods (none/percent/multiply) match the oracle", {

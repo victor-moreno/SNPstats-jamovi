@@ -64,18 +64,20 @@ snpPGSClass <- R6::R6Class(
     },
 
     # When no weights file is loaded, the effect (risk) allele is inferred from
-    # the data (alphabetical allele order, see .unitWeightTableFromData), so each
-    # SNP's dosage direction is arbitrary. Scores and their associations are then
-    # NOT a genuine risk score and are not comparable to the file-aligned score.
+    # the data by allele frequency (minor allele as effect, or the genotype level
+    # order set in the jamovi Data panel — see .unitWeightTableFromData), matching
+    # snpStats. This is a consistent convention, but not a validated risk
+    # direction: without published effect alleles the sign of each SNP is a guess.
     # Flag this on the score-interpretation tables; clear it once a file defines
     # the effect allele. init=FALSE so the text survives protobuf restore and the
     # .init re-declaration (.clearRunNotes) drops the empty placeholder.
     .setNoWeightsNote = function(has_file) {
       txt <- if (has_file) NULL else paste0(
-        "No weights file loaded: effect (risk) alleles were assigned from the ",
-        "data (alphabetical allele order), so each SNP's dosage direction is ",
-        "arbitrary and probably wrong unless reordered in data. Load a PGS weights file that defines the ",
-        "effect allele to orient them correctly.")
+        "No weights file loaded: effect (risk) alleles were assigned by allele ",
+        "frequency (minor allele as effect, matching snpStats) or your genotype ",
+        "level order if set in the data. The orientation is a consistent ",
+        "convention, not a validated risk direction. Load a PGS weights file that ",
+        "defines the effect allele for a genuine, comparable risk score.")
       self$results$summaryTable$setNote("orientNote", txt, init = FALSE)
       self$results$assocTable$setNote("orientNote", txt, init = FALSE)
       self$results$percentileTable$setNote("orientNote", txt, init = FALSE)
@@ -447,6 +449,12 @@ snpPGSClass <- R6::R6Class(
       # ── Two-level cache for the SNP-QC pipeline ────────────────────────────
       # Full key: reuse the filtered result wholesale when nothing SNP/QC/missing
       # related changed (e.g. only a response/covariate/plot option moved).
+      # Genotype factor level order per SNP column. When no weights file defines
+      # the effect allele, orientation follows this order (user reordering in the
+      # jamovi Data panel), so it must invalidate the dosage cache — otherwise a
+      # re-order would silently reuse the stale orientation.
+      level_order <- lapply(snpCols, function(s) levels(self$data[[s]]))
+
       snp_qc_key <- list(
         snpCols     = sort(snpCols),
         weightsSig  = private$.weightsSig(),
@@ -456,7 +464,8 @@ snpPGSClass <- R6::R6Class(
         qcMissPct   = self$options$qcMaxMissingPct,
         qcHwe       = isTRUE(self$options$qcFilterHwe),
         qcHweP      = self$options$qcHweP,
-        hweResp     = if (isTRUE(self$options$qcFilterHwe)) respCol else NULL
+        hweResp     = if (isTRUE(self$options$qcFilterHwe)) respCol else NULL,
+        levelOrder  = level_order
       )
 
       if (identical(snp_qc_key, private$.cache$snp_qc_key) &&
@@ -474,7 +483,8 @@ snpPGSClass <- R6::R6Class(
           weightsSig  = private$.weightsSig(),
           wmode       = wmode,
           applyHwe    = apply_hwe,
-          hweResp     = if (apply_hwe) respCol else NULL
+          hweResp     = if (apply_hwe) respCol else NULL,
+          levelOrder  = level_order
         )
         if (identical(core_key, private$.cache$core_key) &&
             !is.null(private$.cache$core)) {
@@ -1172,11 +1182,16 @@ snpPGSClass <- R6::R6Class(
           bases_list <- strsplit(col_char[!is.na(col_char)],
                                 "[^ACGT]|(?<=.)(?=.)", perl = TRUE)
           bases_list <- lapply(bases_list, function(b) b[b %in% c("A","C","G","T")])
-          alleles <- sort(unique(unlist(bases_list)))
+          all_bases  <- unlist(bases_list)
+          alleles    <- unique(all_bases)
 
           if (length(alleles) >= 1) {
-            oa <- alleles[1]
-            ea <- if (length(alleles) >= 2) alleles[2] else alleles[1]
+            # Orient like snpStats (no weights file to define the effect allele):
+            # reference (other) allele = the user's genotype level order if set in
+            # the jamovi data, else the major (most-frequent) allele; effect allele
+            # = the remaining (minor) allele. Frequency-based, deterministic.
+            oa <- private$.refAlleleFromData(col, alleles, all_bases)
+            ea <- if (length(alleles) >= 2) setdiff(alleles, oa)[1] else oa
           }
 
           qc <- "\u2705 unit weight"
@@ -1200,6 +1215,23 @@ snpPGSClass <- R6::R6Class(
         )
       })
       do.call(rbind, rows)
+    },
+
+    # Reference (other) allele for a data-inferred SNP when no weights file
+    # defines the effect allele. Mirrors snpStats' precedence: a deliberately
+    # reordered genotype factor (jamovi Data panel) wins — its first observed
+    # homozygote sets the reference allele; otherwise the major (most-frequent)
+    # allele is the reference (so the effect allele defaults to the minor allele,
+    # matching snpStats and the SNP-grid effect-AF convention). get_snp_level_order
+    # returns NULL for alphabetical (auto-generated) levels, i.e. "no user intent".
+    .refAlleleFromData = function(col, alleles, all_bases) {
+      ulv <- get_snp_level_order(col)
+      if (!is.null(ulv) && length(ulv) > 0) {
+        first_al <- strsplit(ulv[1], "/", fixed = TRUE)[[1]][1]
+        if (!is.na(first_al) && first_al %in% alleles) return(first_al)
+      }
+      freq <- table(all_bases)
+      names(freq)[which.max(freq)]
     },
 
 
