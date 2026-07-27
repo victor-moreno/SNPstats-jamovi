@@ -40,5 +40,10 @@ Plan:
 - Themed status messages via `jmvcore::Notice` + `results$insert()`; `type:
   Notice` is not accepted in the .r.yaml by this compiler version.
 - Haplotype interaction tables recompute `haplo.glm` on every option click
-  because their rows cannot be predicted in `.init()`.
+  (~1.6 s for 4 SNPs) because their rows cannot be predicted in `.init()`. The
+  clean fix is to cache the ~5 KB of fitted rows in a `type: State` element,
+  which is invalidated automatically by its own `clearWith` — but
+  `jmvcore::State` cannot be constructed in jmvcore 2.7.38. Bug report and
+  verified fix: `docs/jmvcore-State-bug.md`. Interim lead: `haplo.em` runs 4x
+  and `haplo.glm` 3x per interaction run, which may be reducible on its own.
 - String translation (`jmvcore::.()`) if Spanish/Catalan versions are wanted.
