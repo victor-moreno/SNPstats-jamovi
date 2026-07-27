@@ -67,7 +67,13 @@ Solé X, Guinó E, Valls J, Iniesta R, Moreno V. *SNPStats: a web tool for the a
 This tool has been developed with support of the Instituto de Salud Carlos III (ISCIII), “Programa FORTALECE del Ministerio de Ciencia e Innovación”, through the project number FORT23/00032 and the Consortium for Biomedical Research in Epidemiology and Public Health (CIBERESP), action Genrisk.
 
 This tool was migrated from SNPstats.net using Claude AI.
-Some results are inspired in genetics R package.
+
+Earlier versions used the [`genetics`](https://CRAN.R-project.org/package=genetics)
+R package for genotype handling, the Hardy-Weinberg exact test and linkage
+disequilibrium. Those computations are now implemented directly from the
+original publications (Wigginton *et al.* 2005; Excoffier & Slatkin 1995;
+Lewontin 1964; Hill & Robertson 1968), with thanks to that package's authors for
+the reference implementation.
 
 ## License
 
