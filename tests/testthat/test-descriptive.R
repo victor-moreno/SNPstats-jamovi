@@ -140,3 +140,30 @@ test_that("covDesc: stratified group difference p-value matches a t-test for age
   ref_p <- t.test(age ~ phenotype, data = .test_data, var.equal = TRUE)$p.value
   expect_close(age_p, ref_p, tol = 0.01)
 })
+
+test_that("missingness plot renders from image state, not a private field", {
+  # jamovi rebuilds the analysis object on every option click, so a private R6
+  # field does not survive; if the image is redrawn without a preceding .run()
+  # the plot used to return FALSE and the user got a blank panel.
+  opts <- SNPstats::snpStatsOptions$new(snps = .snps4, response = .resp,
+                                        showMissingnessPlot = TRUE,
+                                        missingnessThreshold = 0)
+  a <- SNPstats::snpStatsClass$new(options = opts, data = .test_data)
+  a$init(); a$run()
+  img <- a$results$descGroup$missingnessPlot
+  expect_false(is.null(img$state))
+  expect_equal(length(img$state), length(.snps4))
+
+  render <- function(analysis, image) {
+    png(tempfile(fileext = ".png"), width = 560, height = 500)
+    on.exit(dev.off(), add = TRUE)
+    analysis$.__enclos_env__$private$.plotMissingness(image)
+  }
+  expect_true(render(a, img))
+
+  # A fresh object that never ran: state carries the plot, a field could not.
+  b <- SNPstats::snpStatsClass$new(options = opts, data = .test_data)
+  b$init()
+  b$results$descGroup$missingnessPlot$setState(img$state)
+  expect_true(render(b, b$results$descGroup$missingnessPlot))
+})

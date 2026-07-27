@@ -361,8 +361,8 @@ validate_snp_vars <- function(snp_vars, data) {
     }
   }
   html <- if (length(bad_snps) > 0)
-    paste0("<p style='color:red;'>The following SNP columns were skipped ",
-           "(accepted formats: A/B, A|B, A>B, or AB; exactly 2 alleles required):</p>",
+    paste0(msg_warn("The following SNP columns were skipped ",
+                    "(accepted formats: A/B, A|B, A&gt;B, or AB; exactly 2 alleles required):"),
            "<ul>", paste0("<li>", bad_msgs, "</li>", collapse = ""), "</ul>")
   else ""
   list(valid_snps = setdiff(snp_vars, bad_snps), bad_html = html)
@@ -546,6 +546,24 @@ encode_model <- function(geno_char, ref, model, user_levels = NULL) {
 # then escaped as \`. Normal names (no \ or `) are unchanged.
 safe_term <- function(x)
   paste0("`", gsub("`", "\\`", gsub("\\", "\\\\", x, fixed = TRUE), fixed = TRUE), "`")
+
+# Status / validation messages.
+#
+# These must not hardcode a colour. jamovi ships light and dark themes, and a
+# fixed 'red' / '#555' / '#c0392b' that reads fine on white is close to
+# unreadable on dark grey. Rendering the text with no colour at all lets the
+# platform pick one that works in both.
+#
+# jamovi's purpose-built themed element for this is Notice, but it is not
+# reachable from a results definition here: the .r.yaml compiler rejects it —
+# `results.items[].type is not one of enum values: Table, Group, Array, Image,
+# Preformatted, Html, State, Property, Output, Notification, Action` — and
+# jmvcore has no Notification class. The remaining route is jmv's, building
+# jmvcore::Notice objects in R and results$insert()ing them, which trades the
+# declared, clearWith-managed, restore-aware element these messages currently
+# live in for dynamically inserted ones. Left as a follow-up.
+msg_warn <- function(...) paste0("<p><b>\u26A0 ", paste0(...), "</b></p>")
+msg_info <- function(...) paste0("<p>", paste0(...), "</p>")
 
 # Escape a string for safe interpolation into result HTML (setContent/setNote).
 html_escape <- function(x) {

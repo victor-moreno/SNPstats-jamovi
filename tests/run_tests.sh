@@ -18,6 +18,11 @@ if [ ! -d "$PD/SNPstats" ]; then
   exit 1
 fi
 
+# A bare jmvtools::prepare()/install() regenerates R/snpPGS.h.R and drops the
+# caseLevel default, which breaks every snpPGS() call in the suite with an
+# unrelated-looking error. Re-apply before installing.
+bash tools/patch_h.sh R/snpPGS.h.R || [ $? -eq 10 ]
+
 # Reinstall the package so source changes are picked up, then run testthat.
 R_ENVIRON_USER=/dev/null R_PROFILE_USER=/dev/null R_LIBS_USER="$PD" \
   R CMD INSTALL --no-byte-compile --library="$PD" . >/dev/null

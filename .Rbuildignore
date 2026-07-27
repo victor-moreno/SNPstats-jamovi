@@ -1,5 +1,6 @@
 ^\.Rlib$
 ^\.Rlib-x64$
+^\.Rlib-arm$
 ^build$
 ^\.tmp$
 ^\.cache$

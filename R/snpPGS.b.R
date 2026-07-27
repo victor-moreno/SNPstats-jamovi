@@ -103,7 +103,7 @@ snpPGSClass <- R6::R6Class(
       has_snps <- !is.null(self$options$snpCols) && length(self$options$snpCols) > 0
       self$results$helpBanner$setVisible(!has_snps)
       self$results$helpBanner$setContent(paste0(
-        "<div style=\"font-size:0.85em; color:#666; padding:2px 0 6px;\">",
+        "<div style=\"font-size:0.85em; padding:2px 0 6px;\">",
         "\U0001F4D6 <a href=\"https://victor-moreno.github.io/SNPstats-jamovi/TUTORIAL.html\" ",
         "target=\"_blank\" rel=\"noopener\">SNPstats tutorial &amp; help</a></div>"))
     },
@@ -449,7 +449,7 @@ snpPGSClass <- R6::R6Class(
       # Table/plot visibility was already set to FALSE by .init().
       if (is.null(snpCols) || length(snpCols) == 0) {
         self$results$validationMsg$setContent(
-          "<div style='color:#555; padding:6px 0;'>
+          "<div style='padding:6px 0;'>
              <b>Getting started:</b><br>
              \u2022 Drag one or more SNP columns into <i>SNP columns</i>.<br>
              \u2022 Optionally load a PGS Catalog weights file (.csv / .tsv) for weighted scoring. An example (CRCgenet-PGS.txt) is provided in the data folder of the package<br>
@@ -685,7 +685,7 @@ snpPGSClass <- R6::R6Class(
 
       if (length(all_scores) == 0) {
         self$results$validationMsg$setContent(
-          "<p style='color:#c0392b;'>No SNPs with valid weights — cannot compute PGS.</p>")
+          msg_warn("No SNPs with valid weights — cannot compute PGS."))
         self$results$validationMsg$setVisible(TRUE)
         return()
       }
@@ -970,8 +970,8 @@ snpPGSClass <- R6::R6Class(
       raw <- private$.weightsRawLines()
       if (is.null(raw)) {
         self$results$validationMsg$setContent(
-          paste0("<p style='color:#c0392b;'>Cannot read weights file: ",
-                 html_escape(private$.weightsLabel()), "</p>"))
+          msg_warn("Cannot read weights file: ",
+                   html_escape(private$.weightsLabel())))
         self$results$validationMsg$setVisible(TRUE)
         return(private$.unitWeightTable(snpCols))
       }
@@ -999,10 +999,10 @@ snpPGSClass <- R6::R6Class(
       )
       if (is.null(df) || nrow(df) == 0) {
         msg <- if (!is.null(parse_err))
-          paste0("<p style='color:#c0392b;'>Failed to parse weights file (sep='",
-                 sep, "'): ", html_escape(parse_err), "</p>")
+          msg_warn("Failed to parse weights file (sep='",
+                   sep, "'): ", html_escape(parse_err))
         else
-          "<p style='color:#c0392b;'>Weights file parsed to an empty table.</p>"
+          msg_warn("Weights file parsed to an empty table.")
         self$results$validationMsg$setContent(msg)
         self$results$validationMsg$setVisible(TRUE)
         return(private$.unitWeightTable(snpCols))
@@ -1353,7 +1353,7 @@ snpPGSClass <- R6::R6Class(
 
       if (length(useCols) == 0) {
         self$results$validationMsg$setContent(
-          "<p style='color:#c0392b;'>None of the selected SNP columns are present in the dataset.</p>")
+          msg_warn("None of the selected SNP columns are present in the dataset."))
         self$results$validationMsg$setVisible(TRUE)
         return(NULL)
       }
@@ -1673,9 +1673,9 @@ snpPGSClass <- R6::R6Class(
         n_qc  <- length(qc_exclude)
         n_flt <- length(filter_exclude)
         msg   <- paste0(
-          "<p style='color:#c0392b;'>No SNPs passed QC filters.</p>",
-          if (n_qc  > 0) paste0("<p>", n_qc,  " SNP(s) excluded by allele/monomorphic QC.</p>") else "",
-          if (n_flt > 0) paste0("<p>", n_flt, " SNP(s) excluded by missingness/HWE thresholds.</p>") else ""
+          msg_warn("No SNPs passed QC filters."),
+          if (n_qc  > 0) msg_info(n_qc,  " SNP(s) excluded by allele/monomorphic QC.") else "",
+          if (n_flt > 0) msg_info(n_flt, " SNP(s) excluded by missingness/HWE thresholds.") else ""
         )
         self$results$validationMsg$setContent(msg)
         self$results$validationMsg$setVisible(TRUE)

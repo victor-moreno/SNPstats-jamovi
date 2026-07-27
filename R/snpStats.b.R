@@ -16,7 +16,8 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
   private = list(
 
     # ── Private state ────────────────────────────────────────────────────────
-    .miss_cache    = NULL,   # populated during descriptive run; read by .plotMissingness
+    .init_dat      = NULL,   # memo for .init_data(); one dataset read per object
+    .init_dat_read = FALSE,  # separate flag: a genuine NULL read must not retry
     .prep_key      = NULL,   # signature of prep inputs at last snp_prepare() call
     .prep_cache    = NULL,   # cached snp_prepare() result (see .run)
     .snpsum_rowkeys = NULL,  # stratified snpSummaryTable rowKeys from .init
@@ -38,10 +39,21 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
     # continuous one, nor which variables have missing values — both decide the
     # row structure. Reading the values here buys an exact prediction, at the
     # cost of one dataset read per option click.
+    #
+    # Memoised per analysis object. .init() consults this six times (covDesc
+    # rows, strat levels, per-SNP tables, association, interaction, subpop) and
+    # each call used to re-read the whole dataset — six full reads on every
+    # checkbox click, which is what makes the options panel drag on GWAS-scale
+    # data. jamovi builds a fresh object per click and every caller is inside
+    # .init(), so caching for the object's lifetime cannot go stale.
     .init_data = function() {
+      if (private$.init_dat_read) return(private$.init_dat)
       d <- tryCatch(self$data, error = function(e) NULL)
-      if (!is.null(d) && nrow(d) > 0) return(d)          # provided (R / tests)
-      tryCatch(self$readDataset(FALSE), error = function(e) d)
+      if (is.null(d) || nrow(d) == 0)                    # not provided (engine)
+        d <- tryCatch(self$readDataset(FALSE), error = function(e) d)
+      private$.init_dat      <- d
+      private$.init_dat_read <- TRUE
+      d
     },
 
     # Predict covDescTable's rowKeys. Mirrors the row order of compute_cov_desc()
@@ -253,7 +265,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       # yet); hidden once the guidance disappears.
       self$results$helpBanner$setVisible(!has_snps)
       self$results$helpBanner$setContent(paste0(
-        "<div style=\"font-size:0.85em; color:#666; padding:2px 0 6px;\">",
+        "<div style=\"font-size:0.85em; padding:2px 0 6px;\">",
         "\U0001F4D6 <a href=\"https://victor-moreno.github.io/SNPstats-jamovi/TUTORIAL.html\" ",
         "target=\"_blank\" rel=\"noopener\">SNPstats tutorial &amp; help</a></div>"))
       has_resp <- !is.null(response) && nchar(trimws(response)) > 0
@@ -452,7 +464,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         hg$haploCondHaploTable$setVisible(FALSE)
         if (isTRUE(opts$haploAssoc) || isTRUE(opts$haploInteraction)) {
           hg$haploNotImplMsg$setContent(
-            "<p style='color:orange;'>Haplotype association and interaction analyses are only implemented for binary and quantitative responses.</p>")
+            msg_warn("Haplotype association and interaction analyses are only implemented for binary and quantitative responses."))
           hg$haploNotImplMsg$setVisible(TRUE)
         }
       } else {
@@ -544,7 +556,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       if (any_ld) {
         if (length(prep$snp_vars) < 2) {
           self$results$validationMsg$setContent(
-            "<p style='color:red;'>LD and haplotype analyses require at least 2 SNPs.</p>")
+            msg_warn("LD and haplotype analyses require at least 2 SNPs."))
           self$results$validationMsg$setVisible(TRUE)
           # Options may be on but there are not enough validated SNPs — hide the
           # tables so empty frames don't show. .init already hides when snps is
@@ -583,7 +595,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       run_showMissing <- isTRUE(opts$showMissing) && !isTRUE(opts$completeCases)
       run_showMissingnessPlot <- isTRUE(opts$showMissingnessPlot)
 
-      private$.miss_cache <- list()
+      miss_stats <- list()   # per-SNP missingness; handed to the plot via setState
 
       res <- self$results$descGroup
 
@@ -723,7 +735,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             v
           } else NULL
 
-          private$.miss_cache[[nm]] <- list(
+          miss_stats[[nm]] <- list(
             n_total_eligible = n_total_eligible,
             total_missing    = total_missing,
             n_miss_by_level  = n_miss_by_level)
@@ -760,10 +772,16 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         }
       }
 
-      # Missingness plot: hide when completeCases is on (no missingness by definition)
+      # Missingness plot: hide when completeCases is on (no missingness by
+      # definition). The percentages go through setState, not a private field:
+      # jamovi rebuilds the analysis object on every option click, so a field
+      # does not survive, and a redraw without a preceding .run would render a
+      # blank panel. setState persists with the image (as .render_ld_plot
+      # already does) and costs one number per SNP.
       if (run_showMissingnessPlot) {
+        res$missingnessPlot$setState(miss_stats)
         res$missingnessPlot$setVisible(
-          !isTRUE(opts$completeCases) && length(private$.miss_cache) > 0)
+          !isTRUE(opts$completeCases) && length(miss_stats) > 0)
       }
 
     },
@@ -929,7 +947,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
       if (run_snpInteraction && (is.null(prep$cov_df) || ncol(prep$cov_df) == 0)) {
         self$results$validationMsg$setContent(
-          "<p style='color:orange;'>SNP \u00D7 covariate interaction requires at least one covariate.</p>")
+          msg_warn("SNP \u00D7 covariate interaction requires at least one covariate."))
         self$results$validationMsg$setVisible(TRUE)
         run_snpInteraction <- FALSE
       }
@@ -937,7 +955,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       is_cat_blocked <- run_snpInteraction && prep$response_type == "categorical"
       if (is_cat_blocked) {
         self$results$validationMsg$setContent(
-          "<p style='color:orange;'>Interaction analyses are only implemented for binary response.</p>")
+          msg_warn("Interaction analyses are only implemented for binary response."))
         self$results$validationMsg$setVisible(TRUE)
         run_snpInteraction <- FALSE
       }
@@ -1099,7 +1117,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         hg$haploCondCovarTable$setVisible(FALSE)
         hg$haploCondHaploTable$setVisible(FALSE)
         hg$haploNotImplMsg$setContent(
-          "<p style='color:orange;'>Haplotype association and interaction analyses are only implemented for binary and quantitative responses.</p>")
+          msg_warn("Haplotype association and interaction analyses are only implemented for binary and quantitative responses."))
         hg$haploNotImplMsg$setVisible(TRUE)
         run_haploAssoc       <- FALSE
         run_haploInteraction <- FALSE
@@ -1609,7 +1627,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
     # Descriptive private methods (verbatim from snpDesc_b.R)
     # ════════════════════════════════════════════════════════════════════════
     .plotMissingness = function(image, ...) {
-      cache <- private$.miss_cache
+      cache <- image$state
       if (is.null(cache) || length(cache) == 0) return(FALSE)
       run_subpop <- isTRUE(self$options$subpop)
       threshold  <- self$options$missingnessThreshold
@@ -2113,15 +2131,15 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       int_var_vals <- cov_df[[int_var]]
       if (!is.factor(int_var_vals) && !is.character(int_var_vals)) {
         self$results$validationMsg$setContent(
-          paste0("<p style='color:orange;'>Haplotype interaction tables require a categorical covariate. '",
-                 html_escape(int_var), "' is numeric \u2014 please convert it to a factor.</p>"))
+          msg_warn("Haplotype interaction tables require a categorical covariate. '",
+                   html_escape(int_var), "' is numeric \u2014 please convert it to a factor."))
         self$results$validationMsg$setVisible(TRUE)
         return()
       }
       if (length(unique(na.omit(as.character(int_var_vals)))) > 6) {
         self$results$validationMsg$setContent(
-          paste0("<p style='color:orange;'>Haplotype interaction tables require a covariate with at most 6 categories. '",
-                 html_escape(int_var), "' has more.</p>"))
+          msg_warn("Haplotype interaction tables require a covariate with at most 6 categories. '",
+                   html_escape(int_var), "' has more."))
         self$results$validationMsg$setVisible(TRUE)
         return()
       }
