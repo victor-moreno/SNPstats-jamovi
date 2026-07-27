@@ -1736,7 +1736,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         g2 <- parse_genotype(sd2$clean[pair_mask], sd2$user_levels)
         if (is.null(g1) || is.null(g2)) next
         key    <- paste(pair, collapse = "___")
-        ld_res <- tryCatch(genetics::LD(g1, g2), error = function(e) NULL)
+        ld_res <- tryCatch(snp_ld(g1, g2), error = function(e) NULL)
         if (!is.null(ld_res)) ld_store[[key]] <- ld_res
       }
       if (need_table) {
@@ -1880,7 +1880,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       if (!need_freq && !need_assoc && !need_inter) return()
 
       snp_names   <- names(geno_list)
-      allele_mat  <- do.call(cbind, lapply(snp_names, function(nm) genetics::allele(geno_list[[nm]])))
+      allele_mat  <- do.call(cbind, lapply(snp_names, function(nm) snp_allele(geno_list[[nm]])))
       geno_setup  <- tryCatch(haplo.stats::setupGeno(allele_mat, locus.label = snp_names),
                               error = function(e) NULL)
       if (is.null(geno_setup)) return()

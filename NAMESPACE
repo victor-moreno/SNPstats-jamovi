@@ -1,7 +1,6 @@
 import(jmvcore)
 import(R6)
 importFrom(base64enc, base64decode, base64encode)
-importFrom(genetics, genotype, allele, HWE.exact, LD)
 importFrom(haplo.stats, setupGeno, haplo.em, haplo.glm, haplo.glm.control)
 importFrom(nnet, multinom)
 importFrom(stats, AIC, BIC, anova, aov, as.formula, binomial, chisq.test,
@@ -14,6 +13,11 @@ importFrom(graphics, abline, axis, hist, legend, lines, mtext, par, plot.new,
 importFrom(grDevices, adjustcolor)
 export(snpStats, snpPGS)
 export(pgs_weights)
+
+S3method(summary, snpgeno)
+S3method(as.character, snpgeno)
+S3method(length, snpgeno)
+S3method("[", snpgeno)
 
 export(snpStatsClass)
 export(snpStatsOptions)

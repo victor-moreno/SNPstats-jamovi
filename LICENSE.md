@@ -1,9 +1,27 @@
+# License
 
+SNPstats is free software: you can redistribute it and/or modify it under the
+terms of the **GNU General Public License version 3** as published by the Free
+Software Foundation. The full text is in [`COPYING`](COPYING) and at
+<https://www.gnu.org/licenses/gpl-3.0.html>.
 
-Copyright 2026 Victor Moreno (Catalan Institute of Oncology)
+Copyright © 2026 Victor Moreno (Catalan Institute of Oncology)
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+## Why GPL and not a permissive license
 
-THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+SNPstats is a jamovi module, and that decides the question. It is built on
+`jmvcore` (GPL >= 2) — every analysis class inherits from `jmvcore::Analysis`,
+so there is no jamovi module that does not link to it — and on `haplo.stats`
+(GPL >= 2), which provides the haplotype EM and the haplotype GLM. A work that
+requires GPL libraries to function is distributed under the GPL.
+
+Removing the `genetics` dependency (v1.0.0) does not change this. That was done
+because the package is marked obsolete upstream and a module whose dependency
+leaves the pinned jamovi snapshot fails to install rather than degrading — an
+availability fix, not a licensing one. The replacements in `R/snp_genetics.R`
+were written from the published statistical definitions, not ported from
+`genetics`, and are covered by this license along with the rest of the module.

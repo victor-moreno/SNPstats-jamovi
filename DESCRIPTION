@@ -15,9 +15,9 @@ Imports:
     jmvcore (>= 1.2.0),
     R6,
     nnet,
-    genetics,
     haplo.stats,
     ggplot2,
     base64enc
 Suggests:
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    genetics

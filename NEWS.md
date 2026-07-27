@@ -9,12 +9,19 @@ History:
     analysis could read an arbitrary file from a collaborator's machine. Weights
     now travel as embedded content only — the file-browse button in the UI, or
     the new exported `pgs_weights()` helper from R.
-  - `ggplot2` and `base64enc` declared in Imports; `genetics` and `haplo.stats`
-    moved from Depends to Imports.
+  - `ggplot2` and `base64enc` declared in Imports; `haplo.stats` moved from
+    Depends to Imports.
   - Status messages no longer hardcode colours (unreadable in dark theme).
   - `.init()` reads the dataset once per option click instead of six times.
   - Missingness plot renders from image state instead of a private field.
   - `menuSubgroup` added to snpStats so both analyses sit together in the menu.
+  - `genetics` removed as a runtime dependency (obsolete upstream; a dropped
+    package would make the module fail to install). `genotype`/`allele`/
+    `HWE.exact`/`LD` reimplemented in `R/snp_genetics.R` from the published
+    definitions. Kept in `Suggests` as a test oracle. Licensing is unchanged and
+    stays GPL-3: `jmvcore` and `haplo.stats` are both GPL and neither is
+    removable. `LICENSE.md` used to carry MIT text contradicting
+    `DESCRIPTION`; it and the new `COPYING` now both say GPL-3.
 
 Issues:
 - snpPGS gets argument caseLevel without default: a `type: Level` option cannot
@@ -26,11 +33,6 @@ Issues:
   A bare `jmvtools::prepare()` on its own still leaves the tree broken.
 
 Plan:
-- remove genetics dependency because package is marked obsolete. Approach
-  agreed 2026-07-27: vendor the four functions actually used
-  (`genotype`, `allele`, `HWE.exact`, `LD`) into an auxiliary R file so the
-  functionality survives if the package leaves CRAN, then drop the Imports
-  entry. Golden values must be re-verified against the current outputs.
 - parallel speed-up (LD / association / haplotype).
 - Themed status messages via `jmvcore::Notice` + `results$insert()`; `type:
   Notice` is not accepted in the .r.yaml by this compiler version.

@@ -1,7 +1,12 @@
 # Tab 3: LD and haplotype — LD verified against genetics::LD, haplotype
 # frequencies against haplo.stats::haplo.em.
 
-suppressMessages({ library(genetics); library(haplo.stats) })
+# genetics is a Suggests-only oracle now: the module no longer uses it at
+# runtime (see R/snp_genetics.R), but cross-checking against it is still the
+# strongest available check that the LD reimplementation stayed faithful. Only
+# the LD-oracle test skips without it; the haplotype tests use haplo.stats,
+# which is a real dependency.
+suppressMessages(library(haplo.stats))
 
 # genetics::LD on the pairwise-complete genotype objects (matches the backend).
 ld_oracle <- function(snp1, snp2) {
@@ -18,6 +23,7 @@ ld_oracle <- function(snp1, snp2) {
 # ══════════════════════════════════════════════════════════════════════════════
 
 test_that("ldAnalysis: every pair matches genetics::LD", {
+  skip_if_not_installed("genetics")
   result <- run_snp(data = .test_data, snps = .snps4, ldAnalysis = TRUE, ldMetric = "r2")
   tbl <- as_df(result$ldHaploGroup$ldGroup$ldResults$get(key = "Overall")$ldTable)
 

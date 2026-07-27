@@ -226,7 +226,7 @@ get_snp_level_order <- function(x) {
   norm
 }
 
-#' Normalise and parse a raw genotype vector via genetics::genotype().
+#' Normalise and parse a raw genotype vector via snp_genotype() (snp_genetics.R).
 parse_genotype <- function(x, user_levels = NULL) {
   x_chr <- clean_null_alleles(as.character(x))
   sep <- detect_snp_sep(x_chr)
@@ -273,7 +273,7 @@ parse_genotype <- function(x, user_levels = NULL) {
         gs[i]
     }, character(1))
   }
-  genetics::genotype(x_norm, sep = "/")
+  snp_genotype(x_norm, sep = "/")
 }
 
 #' Determine reference genotype (user-specified first, then most-frequent homozygote).
@@ -334,8 +334,8 @@ reorder_geno <- function(gf, ref, user_levels = NULL) {
 
   final <- c(ordered, alleles[na_row])
   out   <- gf[final[final %in% alleles], , drop = FALSE]
-  # genetics::summary()$genotype.freq can collapse to a named vector when only
-  # one genotype is observed in a small stratum; ensure always a matrix.
+  # summary()$genotype.freq is always a matrix now (snp_genetics.R), but the
+  # guard is kept: callers pass tables from elsewhere too.
   if (!is.matrix(out)) {
     out <- matrix(out, nrow = 1L,
                   dimnames = list(final[final %in% alleles], names(out)))
@@ -378,10 +378,10 @@ snp_af_hwe <- function(col, effect_allele = NULL) {
     out$effect_af <- mean(vals) / 2
     n0 <- sum(vals == 0); n1 <- sum(vals == 1); n2 <- sum(vals == 2)
     geno_obj <- tryCatch(
-      genetics::genotype(rep(c("A/A", "A/B", "B/B"), c(n0, n1, n2)), sep = "/"),
+      snp_genotype(rep(c("A/A", "A/B", "B/B"), c(n0, n1, n2)), sep = "/"),
       error = function(e) NULL)
     if (!is.null(geno_obj)) {
-      hw <- tryCatch(genetics::HWE.exact(geno_obj), error = function(e) NULL)
+      hw <- tryCatch(snp_hwe_exact(geno_obj), error = function(e) NULL)
       if (!is.null(hw)) out$hwe_p <- hw$p.value
     }
     return(out)
@@ -403,7 +403,7 @@ snp_af_hwe <- function(col, effect_allele = NULL) {
   if (ea %in% allele_names)
     out$effect_af <- af[ea, "Proportion"]
 
-  hw <- tryCatch(genetics::HWE.exact(geno_obj), error = function(e) NULL)
+  hw <- tryCatch(snp_hwe_exact(geno_obj), error = function(e) NULL)
   if (!is.null(hw)) out$hwe_p <- hw$p.value
   out
 }
@@ -1129,7 +1129,7 @@ compute_hwe <- function(snp_nm, prep, subpop = FALSE, show_missing = FALSE) {
   geno_obj     <- sd$geno_cc
   response_raw <- if (!is.null(prep$response_raw)) prep$response_raw[sd$snp_mask] else NULL
 
-  hw <- tryCatch(genetics::HWE.exact(geno_obj), error = function(e) NULL)
+  hw <- tryCatch(snp_hwe_exact(geno_obj), error = function(e) NULL)
   if (is.null(hw)) return(NULL)
 
   get_ordered_counts <- function(go) {
@@ -1158,7 +1158,7 @@ compute_hwe <- function(snp_nm, prep, subpop = FALSE, show_missing = FALSE) {
       for (lvl in lvls) {
         mask <- as.character(response_raw) == lvl & !is.na(response_raw)
         if (sum(mask) == 0) next
-        hw_sub <- tryCatch(genetics::HWE.exact(geno_obj[mask]), error = function(e) NULL)
+        hw_sub <- tryCatch(snp_hwe_exact(geno_obj[mask]), error = function(e) NULL)
         if (is.null(hw_sub)) next
         sub_info <- get_ordered_counts(geno_obj[mask])
         rows[[length(rows) + 1L]] <- data.frame(
@@ -1217,7 +1217,7 @@ compute_snp_summary <- function(prep, subpop = FALSE) {
         "3" = paste(cnts, collapse = " / "),
         "2" = paste(c(cnts, 0L), collapse = " / "),
         paste(cnts, collapse = " / "))
-      hwe <- tryCatch(genetics::HWE.exact(g_obj)$p.value, error = function(e) NA_real_)
+      hwe <- tryCatch(snp_hwe_exact(g_obj)$p.value, error = function(e) NA_real_)
       list(n = sm$n.typed, maf = round(maf, 4), geno_counts = geno_str, hwe_pval = hwe)
     }
 

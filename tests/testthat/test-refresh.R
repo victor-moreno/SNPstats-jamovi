@@ -352,9 +352,9 @@ test_that("LD tables are neither recomputed nor rebuilt on an unrelated click", 
   expect_true(all(counts > 0))
 
   n <- 0L; bump <- function() n <<- n + 1L
-  suppressMessages(trace("LD", tracer = bquote(.(bump)()), print = FALSE,
-                         where = asNamespace("genetics")))
-  on.exit(suppressMessages(untrace("LD", where = asNamespace("genetics"))))
+  suppressMessages(trace("snp_ld", tracer = bquote(.(bump)()), print = FALSE,
+                         where = asNamespace("SNPstats")))
+  on.exit(suppressMessages(untrace("snp_ld", where = asNamespace("SNPstats"))))
 
   a1 <- snpStatsClass$new(options = .mk_opts(c(ld_over, list(hweTest = TRUE))),
                           data = .test_data, analysisId = 1, revision = 2)
@@ -363,7 +363,7 @@ test_that("LD tables are neither recomputed nor rebuilt on an unrelated click", 
   restored <- vapply(ld_of(a1), function(t) t$rowCount, numeric(1))
   a1$run()
 
-  expect_equal(n, 0L)                    # ldResults clearWith excludes hweTest → no genetics::LD
+  expect_equal(n, 0L)                    # ldResults clearWith excludes hweTest → no snp_ld
   expect_equal(restored, counts)         # .init pre-created rows → restore refilled them
   expect_equal(lapply(ld_of(a1), function(t) t$asDF), base)
 })
@@ -399,7 +399,7 @@ test_that("adding the LD matrix does not rebuild the already-computed pairwise t
 test_that("toggling a haplotype option does not recompute or rebuild the LD tables", {
   # The LD and haplotype analyses share the ldHaploGroup parent but no clearWith
   # option, so enabling a haplotype table must leave the already-computed LD
-  # tables untouched. genetics::LD (the LD cost) must not run again.
+  # tables untouched. snp_ld (the LD cost) must not run again.
   statefile <- tempfile(fileext = ".pb")
   ld_over <- list(snps = as.list(.snps4), covDesc = FALSE, snpSummary = FALSE,
                   ldAnalysis = TRUE, ldMatrix = TRUE)
@@ -417,9 +417,9 @@ test_that("toggling a haplotype option does not recompute or rebuild the LD tabl
   expect_true(all(counts > 0))
 
   n <- 0L; bump <- function() n <<- n + 1L
-  suppressMessages(trace("LD", tracer = bquote(.(bump)()), print = FALSE,
-                         where = asNamespace("genetics")))
-  on.exit(suppressMessages(untrace("LD", where = asNamespace("genetics"))))
+  suppressMessages(trace("snp_ld", tracer = bquote(.(bump)()), print = FALSE,
+                         where = asNamespace("SNPstats")))
+  on.exit(suppressMessages(untrace("snp_ld", where = asNamespace("SNPstats"))))
 
   a1 <- snpStatsClass$new(options = .mk_opts(c(ld_over, list(haploFreq = TRUE))),
                           data = .test_data, analysisId = 1, revision = 2)
@@ -428,7 +428,7 @@ test_that("toggling a haplotype option does not recompute or rebuild the LD tabl
   restored <- vapply(ld_of(a1), function(t) t$rowCount, numeric(1))
   a1$run()
 
-  expect_equal(n, 0L)                    # haploFreq is not in any LD clearWith → no genetics::LD
+  expect_equal(n, 0L)                    # haploFreq is not in any LD clearWith → no snp_ld
   expect_equal(restored, counts)         # LD rows restored before .run → not rebuilt
   expect_equal(lapply(ld_of(a1), function(t) t$asDF), base)
 })
