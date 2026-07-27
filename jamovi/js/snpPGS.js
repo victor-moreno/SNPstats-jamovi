@@ -54,10 +54,14 @@ function _setOpt(ui, name, value) {
 //
 // `disabled` rather than a hand-styled grey: a natively disabled input is
 // greyed by the platform's own stylesheet, so it stays legible in jamovi's dark
-// theme. It is re-asserted on every view_updated (before the already-injected
-// early return below), so a jamovi refresh cannot quietly re-enable it.
-// Disabling blocks user typing only — _embedFile still writes the file name
-// into the option and into the field.
+// theme. It is re-asserted on every view_updated, so a jamovi refresh cannot
+// quietly re-enable it. Disabling blocks user typing only — _embedFile still
+// writes the file name into the option and into the field.
+//
+// Layout: [📁] [ filename ]. The button comes first because it is the control —
+// the field is a passive readout of what the button loaded — and the field is
+// hidden entirely until a file has actually been chosen, so the empty state is
+// just the label and the button.
 
 function _injectBrowseButton(ui) {
 
@@ -71,44 +75,81 @@ function _injectBrowseButton(ui) {
     $input.prop('disabled', true);
     $input.css('cursor', 'default');
 
-    if ($input.next('.pgs-browse-btn').length > 0) return;
+    // The button sits BEFORE the input, so the already-injected test is prev(),
+    // not next(). Getting this wrong re-injects a button on every view_updated.
+    if ($input.prev('.pgs-browse-btn').length === 0) {
 
-    var jq = $input.constructor;
+        var jq = $input.constructor;
 
-    var $row = jq('<div class="pgs-browse-row"></div>').css({
-        display: 'flex', alignItems: 'center', width: '100%', gap: '4px'
-    });
-
-    var $btn = jq('<button type="button" class="pgs-browse-btn" title="Browse…">📁</button>').css({
-        flexShrink: '0', cursor: 'pointer', padding: '1px 7px',
-        fontSize: '14px', lineHeight: '1.4', border: '1px solid #bbb',
-        borderRadius: '3px', background: '#f0f0f0', whiteSpace: 'nowrap'
-    });
-
-    $input.css({ flex: '1 1 auto', minWidth: 0 });
-    $input.wrap($row);
-    $input.after($btn);
-
-    $btn.on('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-
-        // Always read the file's bytes in the browser (works on desktop and in
-        // cloud) and embed them. No local path is ever written into an option.
-        var fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = '.csv,.tsv,.txt,.gz';
-        fileInput.style.display = 'none';
-        document.body.appendChild(fileInput);
-
-        fileInput.addEventListener('change', function() {
-            var file = fileInput.files && fileInput.files[0];
-            if (file) _embedFile(ui, file);
-            document.body.removeChild(fileInput);
+        var $row = jq('<div class="pgs-browse-row"></div>').css({
+            display: 'flex', alignItems: 'center', width: '100%', gap: '4px'
         });
 
-        fileInput.click();
-    });
+        var $btn = jq('<button type="button" class="pgs-browse-btn" title="Browse…">📁</button>').css({
+            flexShrink: '0', cursor: 'pointer', padding: '1px 7px',
+            fontSize: '14px', lineHeight: '1.4', border: '1px solid #bbb',
+            borderRadius: '3px', background: '#f0f0f0', whiteSpace: 'nowrap'
+        });
+
+        $input.css({ flex: '1 1 auto', minWidth: 0 });
+        $input.wrap($row);
+        $input.before($btn);
+
+        $btn.on('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Always read the file's bytes in the browser (works on desktop and
+            // in cloud) and embed them. No local path is ever written into an
+            // option.
+            var fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.csv,.tsv,.txt,.gz';
+            fileInput.style.display = 'none';
+            document.body.appendChild(fileInput);
+
+            fileInput.addEventListener('change', function() {
+                var file = fileInput.files && fileInput.files[0];
+                if (file) _embedFile(ui, file);
+                document.body.removeChild(fileInput);
+            });
+
+            fileInput.click();
+        });
+    }
+
+    // Outside the injection guard: runs on every view_updated, so the field
+    // appears as soon as a file is chosen and after a saved analysis restores.
+    _syncNameVisibility(ui);
+}
+
+// Show the file-name field only when there is a name to show.
+function _syncNameVisibility(ui) {
+    var ctrl = ui.weightsFilename;
+    if (!ctrl || !ctrl.$input || ctrl.$input.length === 0) return;
+    var name = _getName(ui);
+    ctrl.$input.css('display', (name && String(name).length > 0) ? '' : 'none');
+}
+
+// Current value of weightsFilename. Read from the options model rather than the
+// input's DOM value: on the first view_loaded of a restored analysis the field
+// may not have been populated yet, and reading the DOM there would hide a field
+// that does have a file.
+function _getName(ui) {
+    var ctrl = ui.weightsFilename;
+    if (ctrl && typeof ctrl.value === 'function') {
+        var v = ctrl.value();
+        if (v !== undefined && v !== null) return v;
+    }
+    if (typeof ui.getOptionValue === 'function') {
+        var v2 = ui.getOptionValue('weightsFilename');
+        if (v2 !== undefined && v2 !== null) return v2;
+    }
+    if (typeof ui.getOption === 'function') {
+        var opt = ui.getOption('weightsFilename');
+        if (opt && typeof opt.value === 'function') return opt.value();
+    }
+    return (ctrl && ctrl.$input) ? ctrl.$input.val() : '';
 }
 
 // Read `file` as base64 and stash it into the carrier options so the R backend
@@ -132,9 +173,11 @@ function _embedFile(ui, file) {
 
 // Set the displayed file name. The option is what the R backend reads; the
 // direct field write is belt-and-braces, so the name still appears even if
-// jamovi were to skip refreshing a disabled control's DOM.
+// jamovi were to skip refreshing a disabled control's DOM. Reveal it here too
+// rather than waiting for the next view_updated.
 function _setName(ui, name) {
     _setOpt(ui, 'weightsFilename', name);
     var ctrl = ui.weightsFilename;
     if (ctrl && ctrl.$input && ctrl.$input.length > 0) ctrl.$input.val(name);
+    _syncNameVisibility(ui);
 }
