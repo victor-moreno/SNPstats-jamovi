@@ -47,10 +47,17 @@ function _setOpt(ui, name, value) {
 }
 
 // ── File-browse button for the weights file ──────────────────────────────────
-// The TextBox shows the chosen file's *name* only, and is made read-only: there
-// is no path option to type into any more. A typed path would be saved into the
-// .omv and re-read on whoever opened it, so picking a file is the only way in
-// and it embeds the file's bytes rather than its location.
+// The TextBox shows the chosen file's *name* only, and is disabled: there is no
+// path option to type into any more. A typed path would be saved into the .omv
+// and re-read on whoever opened it, so picking a file is the only way in and it
+// embeds the file's bytes rather than its location.
+//
+// `disabled` rather than a hand-styled grey: a natively disabled input is
+// greyed by the platform's own stylesheet, so it stays legible in jamovi's dark
+// theme. It is re-asserted on every view_updated (before the already-injected
+// early return below), so a jamovi refresh cannot quietly re-enable it.
+// Disabling blocks user typing only — _embedFile still writes the file name
+// into the option and into the field.
 
 function _injectBrowseButton(ui) {
 
@@ -61,6 +68,8 @@ function _injectBrowseButton(ui) {
     if (!$input || $input.length === 0) return;
 
     $input.prop('readonly', true);
+    $input.prop('disabled', true);
+    $input.css('cursor', 'default');
 
     if ($input.next('.pgs-browse-btn').length > 0) return;
 
@@ -110,13 +119,22 @@ function _embedFile(ui, file) {
         var result = reader.result || '';
         var comma = result.indexOf(',');
         var b64 = comma >= 0 ? result.slice(comma + 1) : result;
-        _setOpt(ui, 'weightsFilename', file.name);
+        _setName(ui, file.name);
         _setOpt(ui, 'weightsContent', b64);
     };
     reader.onerror = function() {
         // Report the failure; never fall back to writing a filesystem path.
         _setOpt(ui, 'weightsContent', '');
-        _setOpt(ui, 'weightsFilename', '(could not read ' + file.name + ')');
+        _setName(ui, '(could not read ' + file.name + ')');
     };
     reader.readAsDataURL(file);
+}
+
+// Set the displayed file name. The option is what the R backend reads; the
+// direct field write is belt-and-braces, so the name still appears even if
+// jamovi were to skip refreshing a disabled control's DOM.
+function _setName(ui, name) {
+    _setOpt(ui, 'weightsFilename', name);
+    var ctrl = ui.weightsFilename;
+    if (ctrl && ctrl.$input && ctrl.$input.length > 0) ctrl.$input.val(name);
 }
