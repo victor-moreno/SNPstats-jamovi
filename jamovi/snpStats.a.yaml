@@ -5,6 +5,7 @@ version: '0.5.0'
 jas: '1.2'
 menuGroup: SNPstats
 menuTitle: SNP Analysis
+menuSubgroup: Genetic epidemiology
 
 options:
   - name: data
@@ -70,7 +71,7 @@ options:
   # Tab 1: Descriptive
   # ══════════════════════════════════════════════════════════════════════
   - name: subpop
-    title: Stratify by response groups
+    title: Stratified by response groups
     type: Bool
     default: false
 
@@ -80,7 +81,7 @@ options:
     default: false
 
   - name: rmSnpMissing
-    title: Remove missing values in SNPs
+    title: SNPs with missing values removed
     type: Bool
     default: false
 
@@ -115,12 +116,12 @@ options:
     default: false
 
   - name: showMissing
-    title: Show missing values in tables
+    title: Missing values in tables
     type: Bool
     default: false
 
   - name: showMissingnessPlot
-    title: Show SNP missingness plot
+    title: SNP missingness plot
     type: Bool
     default: false
 
@@ -195,12 +196,12 @@ options:
     default: multiplicative
 
   - name: showInteractionTable
-    title: Show interaction table
+    title: Interaction table
     type: Bool
     default: true
 
   - name: showInteractionAdjVars
-    title: Show adjustment covariate parameters
+    title: Adjustment covariate parameters
     type: Bool
     default: false
 
@@ -215,7 +216,7 @@ options:
     default: false
 
   - name: showCrossClassTable
-    title: Show cross-classification table
+    title: Cross-classification table
     type: Bool
     default: false
 

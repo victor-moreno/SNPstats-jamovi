@@ -1,5 +1,6 @@
 import(jmvcore)
 import(R6)
+importFrom(base64enc, base64decode, base64encode)
 importFrom(genetics, genotype, allele, HWE.exact, LD)
 importFrom(haplo.stats, setupGeno, haplo.em, haplo.glm, haplo.glm.control)
 importFrom(nnet, multinom)

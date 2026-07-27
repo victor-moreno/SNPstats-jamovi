@@ -58,7 +58,7 @@ children:
         stretchFactor: 1
         children:
           - type: Label
-            label: Covariate descriptive
+            label: Covariate Descriptives
             children:
               - type: LayoutBox
                 margin: large
@@ -75,7 +75,7 @@ children:
         stretchFactor: 1
         children:
           - type: Label
-            label: SNP descriptive
+            label: SNP Descriptives
             enable: (snps)
             children:
               - type: CheckBox
@@ -120,7 +120,7 @@ children:
             stretchFactor: 1
             children:
               - type: Label
-                label: Association analysis
+                label: Association Analysis
                 children:
                   - type: CheckBox
                     name: snpAssoc
@@ -132,7 +132,7 @@ children:
             stretchFactor: 1
             children:
               - type: Label
-                label: Genetic models
+                label: Genetic Models
                 children:
                   - type: CheckBox
                     name: modelCodominant
@@ -157,7 +157,7 @@ children:
             stretchFactor: 1
             children:
               - type: Label
-                label: Show in tables
+                label: Table Options
                 children:
                   - type: CheckBox
                     name: showAIC
@@ -175,7 +175,7 @@ children:
             stretchFactor: 1
             children:
               - type: Label
-                label: Interaction analysis
+                label: Interaction Analysis
                 children:
                   - type: CheckBox
                     name: snpInteraction
@@ -216,7 +216,7 @@ children:
             stretchFactor: 1
             children:
               - type: Label
-                label: Linkage disequilibrium
+                label: Linkage Disequilibrium
                 enable: (snps)
                 children:
                   - type: CheckBox
@@ -239,7 +239,7 @@ children:
             stretchFactor: 1
             children:
               - type: Label
-                label: Haplotype analysis
+                label: Haplotype Analysis
                 children:
                   - type: CheckBox
                     name: haploFreq

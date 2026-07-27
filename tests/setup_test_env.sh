@@ -23,12 +23,14 @@ mkdir -p "$PD"
 
 # Direct + recursive dependencies (genetics/haplo.stats pull combinat, gdata,
 # gtools, mvtnorm, MASS, arsenal; jmvcore pulls rlang, jsonlite, base64enc).
-PKGS='c("R6","jmvcore","nnet","genetics","haplo.stats","testthat")'
+# ggplot2 and base64enc are declared Imports (plot rendering / embedded weights
+# decoding), so they must be present for R CMD INSTALL to succeed.
+PKGS='c("R6","jmvcore","nnet","genetics","haplo.stats","ggplot2","base64enc","testthat")'
 
 R_LIBS_USER="$PD" Rscript --vanilla -e "
   install.packages($PKGS, lib='$PD', repos='$CRAN', dependencies=c('Depends','Imports','LinkingTo'))
   miss <- Filter(function(p) !requireNamespace(p, quietly=TRUE),
-                 c('R6','jmvcore','nnet','genetics','haplo.stats','testthat'))
+                 c('R6','jmvcore','nnet','genetics','haplo.stats','ggplot2','base64enc','testthat'))
   if (length(miss)) stop('missing after install: ', paste(miss, collapse=', '))
   cat('all dependencies available in', '$PD', '\n')
 "

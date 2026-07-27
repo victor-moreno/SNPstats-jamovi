@@ -11,12 +11,13 @@ License: GPL-3
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.2.3
-Depends: genetics, haplo.stats
 Imports:
     jmvcore (>= 1.2.0),
     R6,
-    nnet
+    nnet,
+    genetics,
+    haplo.stats,
+    ggplot2,
+    base64enc
 Suggests:
     testthat (>= 3.0.0)
-References:
-    Sole X, Guino E, Valls J, Iniesta R, Moreno V (2006). SNPStats: a web tool for the analysis of association studies. <em>Bioinformatics</em> 22(15):1928–1929.
