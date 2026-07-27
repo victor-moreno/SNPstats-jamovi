@@ -484,13 +484,37 @@ test_that("a parse failure reports expectations, not file content", {
   writeLines(c("TOP_SECRET_HEADER,another_private_column", "1,2"), secret)
   res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsFile = secret,
                  weightingMode = "weighted")
-  # Scan every result element, not just validationMsg: the parse-failure notice
-  # is overwritten downstream by "No SNPs passed QC filters" (pre-existing), so
-  # what is pinned here is that no part of the file's content is echoed anywhere.
+  msg <- res$validationMsg$content
+
+  # The actionable diagnosis names what to fix and what was expected...
+  expect_match(msg, "rsID")
+  expect_match(msg, "no recognisable", ignore.case = TRUE)
+  # ...and survives the downstream, more generic message rather than being
+  # overwritten by it (validation messages accumulate within a run).
+  expect_match(msg, "No SNPs passed QC filters")
+  expect_lt(regexpr("rsID", msg, fixed = TRUE),
+            regexpr("No SNPs passed QC", msg, fixed = TRUE))
+
+  # And nothing of the file's own content is echoed back, anywhere.
   all_out <- paste(capture.output(print(res)), collapse = "\n")
   expect_false(grepl("TOP_SECRET_HEADER", all_out, fixed = TRUE))
   expect_false(grepl("another_private_column", all_out, fixed = TRUE))
-  expect_false(grepl("TOP_SECRET_HEADER", res$validationMsg$content, fixed = TRUE))
+  expect_false(grepl("TOP_SECRET_HEADER", msg, fixed = TRUE))
+})
+
+test_that("validation messages do not leak between runs", {
+  # .run() resets the accumulator; a clean run must not inherit the previous
+  # run's complaint.
+  secret <- tempfile(fileext = ".csv")
+  writeLines(c("nothing_useful,at_all", "1,2"), secret)
+  bad <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsFile = secret,
+                 weightingMode = "weighted")
+  expect_match(bad$validationMsg$content, "rsID")
+
+  ok <- run_pgs(data = .test_data, snpCols = .pgs_snps,
+                weightsFile = .pgs_weightsfile, weightingMode = "weighted")
+  txt <- ok$validationMsg$content
+  expect_false(grepl("rsID", if (is.null(txt)) "" else txt, fixed = TRUE))
 })
 
 test_that("an oversized gunzipped payload is refused rather than expanded", {

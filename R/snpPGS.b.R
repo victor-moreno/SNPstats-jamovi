@@ -33,6 +33,7 @@ snpPGSClass <- R6::R6Class(
 
     .keepMask  = NULL,
     .cache     = NULL,
+    .msg_parts = NULL,   # validation messages accumulated during one .run()
     .plotVis   = NULL,   # plot visibility set in .init (guards .run re-touch)
     .assoc_acc = NULL,   # per-run row accumulator for assocTable (across modes)
     .inter_acc = NULL,   # per-run row accumulator for interactionTable (across modes)
@@ -434,10 +435,27 @@ snpPGSClass <- R6::R6Class(
       }
     },
 
+    # Add a message to the validation panel.
+    #
+    # Several points in one run can have something to say, and the later ones
+    # are the more generic. They used to overwrite: a weights file with no rsID
+    # column reported "No SNPs passed QC filters" — true, but a consequence, not
+    # the cause — and the message that would actually have told the user what to
+    # fix was gone. Messages now accumulate in the order they are raised, so the
+    # specific diagnosis stays visible above the downstream one. Reset at the top
+    # of .run(), so nothing leaks from a previous run.
+    .addValidation = function(html) {
+      private$.msg_parts <- c(private$.msg_parts, html)
+      self$results$validationMsg$setContent(paste0(private$.msg_parts, collapse = ""))
+      self$results$validationMsg$setVisible(TRUE)
+    },
+
     # ════════════════════════════════════════════════════════════════════════
     # .run
     # ════════════════════════════════════════════════════════════════════════
     .run = function() {
+
+      private$.msg_parts <- NULL
 
       snpCols     <- self$options$snpCols
       covCols     <- self$options$covCols
@@ -448,14 +466,13 @@ snpPGSClass <- R6::R6Class(
       # ── Nothing selected yet: show guidance and return ───────────────────
       # Table/plot visibility was already set to FALSE by .init().
       if (is.null(snpCols) || length(snpCols) == 0) {
-        self$results$validationMsg$setContent(
+        private$.addValidation(
           "<div style='padding:6px 0;'>
              <b>Getting started:</b><br>
              \u2022 Drag one or more SNP columns into <i>SNP columns</i>.<br>
              \u2022 Optionally load a PGS Catalog weights file (.csv / .tsv) for weighted scoring. An example (CRCgenet-PGS.txt) is provided in the data folder of the package<br>
              \u2022 Optionally select a response variable to test association / interaction.
            </div>")
-        self$results$validationMsg$setVisible(TRUE)
         return()
       }
 
@@ -684,9 +701,8 @@ snpPGSClass <- R6::R6Class(
       if (do_inter) private$.writeRows(self$results$interactionTable, private$.inter_acc)
 
       if (length(all_scores) == 0) {
-        self$results$validationMsg$setContent(
+        private$.addValidation(
           msg_warn("No SNPs with valid weights — cannot compute PGS."))
-        self$results$validationMsg$setVisible(TRUE)
         return()
       }
 
@@ -969,10 +985,9 @@ snpPGSClass <- R6::R6Class(
 
       raw <- private$.weightsRawLines()
       if (is.null(raw)) {
-        self$results$validationMsg$setContent(
+        private$.addValidation(
           msg_warn("Cannot read weights file: ",
                    html_escape(private$.weightsLabel())))
-        self$results$validationMsg$setVisible(TRUE)
         return(private$.unitWeightTable(snpCols))
       }
 
@@ -1003,8 +1018,7 @@ snpPGSClass <- R6::R6Class(
                    sep, "'): ", html_escape(parse_err))
         else
           msg_warn("Weights file parsed to an empty table.")
-        self$results$validationMsg$setContent(msg)
-        self$results$validationMsg$setVisible(TRUE)
+        private$.addValidation(msg)
         return(private$.unitWeightTable(snpCols))
       }
 
@@ -1029,10 +1043,9 @@ snpPGSClass <- R6::R6Class(
         # Report what was expected, never what was found: the header line is
         # file content, and echoing it turns any parse failure into a readout
         # of whatever was supplied.
-        self$results$validationMsg$setContent(paste0(
+        private$.addValidation(msg_warn(
           "Weights file has no recognisable rsID column. ",
           "Expected a column named one of: rsID, variant_id, snp, snp_id, marker."))
-        self$results$validationMsg$setVisible(TRUE)
         return(private$.unitWeightTable(snpCols))
       }
 
@@ -1352,9 +1365,8 @@ snpPGSClass <- R6::R6Class(
       useCols <- intersect(wtable$rsid, names(self$data))
 
       if (length(useCols) == 0) {
-        self$results$validationMsg$setContent(
+        private$.addValidation(
           msg_warn("None of the selected SNP columns are present in the dataset."))
-        self$results$validationMsg$setVisible(TRUE)
         return(NULL)
       }
 
@@ -1677,8 +1689,7 @@ snpPGSClass <- R6::R6Class(
           if (n_qc  > 0) msg_info(n_qc,  " SNP(s) excluded by allele/monomorphic QC.") else "",
           if (n_flt > 0) msg_info(n_flt, " SNP(s) excluded by missingness/HWE thresholds.") else ""
         )
-        self$results$validationMsg$setContent(msg)
-        self$results$validationMsg$setVisible(TRUE)
+        private$.addValidation(msg)
         return(NULL)
       }
 
