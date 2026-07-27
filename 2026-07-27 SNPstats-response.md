@@ -9,17 +9,24 @@
 
 ## Summary
 
-All 15 findings were investigated. **11 are fixed**, **1 was deferred by
-agreement** (with the approach decided), and **3 turned out to be incorrect** —
-in each of those cases the underlying mechanism was verified against the jamovi
-compiler or jmvcore rather than assumed, and the evidence is recorded below.
+All 17 findings were investigated:
+
+- **11 fixed** outright.
+- **1 partly fixed by agreement** — `genetics` moved out of `Depends:` now, its
+  removal planned with an agreed approach.
+- **2 deliberately not done** — the long-function refactor and translation, both
+  optional and both large; recorded in `NEWS.md` rather than silently dropped.
+- **3 turned out to be incorrect as stated.** In each case the underlying
+  mechanism was verified against the jamovi compiler or jmvcore rather than
+  assumed; the evidence is below. One of them matters: acting on it as written
+  would have broken a working feature.
 
 The full test suite (`bash tests/run_tests.sh`) is green after every phase:
-**9 files, 474 assertions, 0 failures**. Seven new tests were added — four
-pinning the security properties of the weights-file change, one pinning the
-missingness-plot state fix, and two exercising the new public helper.
+**9 files, 474 assertions, 0 failures**. Five new tests were added — four
+pinning the security properties of the weights-file change (two of which
+exercise the new public helper) and one pinning the missingness-plot state fix.
 
-Work landed in four commits:
+Work landed in five commits:
 
 | Commit | Scope |
 |---|---|
@@ -27,6 +34,7 @@ Work landed in four commits:
 | `a28b960` | **CRITICAL** — weights-file path removal |
 | `da72bce` | Status messages, `.init` read, plot state |
 | `ebb822b` | Version 1.0.0, NEWS/CLAUDE.md |
+| `c57b09d` | This document, tutorial update |
 
 ---
 
