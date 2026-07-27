@@ -11,6 +11,7 @@ importFrom(stats, AIC, BIC, anova, aov, as.formula, binomial, chisq.test,
 importFrom(graphics, abline, axis, hist, legend, lines, mtext, par, plot.new,
            points, polygon, rect, text, title)
 importFrom(grDevices, adjustcolor)
+importFrom(utils, globalVariables)
 export(snpStats, snpPGS)
 export(pgs_weights)
 

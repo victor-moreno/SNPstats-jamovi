@@ -17,7 +17,8 @@ Imports:
     nnet,
     haplo.stats,
     ggplot2,
-    base64enc
+    base64enc,
+    utils
 Suggests:
     testthat (>= 3.0.0),
     RProtoBuf

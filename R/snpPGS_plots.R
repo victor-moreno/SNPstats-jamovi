@@ -3,10 +3,9 @@
     # snpPGS plot builders (ggplot2)
     #
     # Every plot is a ggplot object printed at the end of the render function
-    # (return TRUE on success, FALSE to leave the image blank). ggplot2 is
-    # supplied by the jamovi runtime and is only ever referenced namespaced
-    # (ggplot2::…), exactly like snpStats' .render_ld_plot — it is intentionally
-    # NOT a declared dependency (see CLAUDE.md).
+    # (return TRUE on success, FALSE to leave the image blank). ggplot2 is a
+    # declared Import and is only ever referenced namespaced (ggplot2::…),
+    # exactly like snpStats' .render_ld_plot.
     #
     # Panels are laid out with facets (mode = Weighted/Unweighted; ROC/calibration
     # polytomous also facet by comparison), replacing the old par(mfrow=…) juggling.
@@ -642,3 +641,14 @@
       print(p)
       TRUE
     }
+
+# ── R CMD check: ggplot2's non-standard evaluation ───────────────────────────
+# aes(x = score, fill = group, ...) refers to columns of the plotting data
+# frame, but `check` reads them as free variables and reports "no visible
+# binding for global variable". They are data columns, not globals; declare them
+# so a real undefined-symbol bug is not buried in a dozen false positives.
+# `curve` also collides with graphics::curve, which check suggests importing —
+# it is a column name here, so importing the function would be wrong.
+utils::globalVariables(c(
+  "category", "curve", "fpr", "group", "label", "n", "pgs", "score", "tpr"
+))

@@ -17,3 +17,8 @@
 ^\.Rbuildignore$
 ^.*\.Rcheck$
 ^.*\.tar\.gz$
+^jamovi-src$
+^genetics-src$
+^CLAUDE\.md$
+^2026-.*\.md$
+^SNPstats\.Rcheck$
