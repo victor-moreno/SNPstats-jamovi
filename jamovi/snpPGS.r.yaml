@@ -35,7 +35,6 @@ items:
     # on restore, which made the grid rebuild on every click.)
     clearWith:
         - snpCols
-        - weightsPath
         - weightsContent
         - weightingMode
         - qcFilterMissing
@@ -100,7 +99,6 @@ items:
     visible: (showCoverage)
     clearWith:
         - snpCols
-        - weightsPath
         - weightsContent
         - weightingMode
         - qcFilterMissing
@@ -125,7 +123,6 @@ items:
     visible: (showSummary)
     clearWith:
         - snpCols
-        - weightsPath
         - weightsContent
         - weightingMode
         - qcFilterMissing
@@ -189,7 +186,6 @@ items:
     initInRun: true
     clearWith:
         - snpCols
-        - weightsPath
         - weightsContent
         - weightingMode
         - qcFilterMissing
@@ -210,7 +206,6 @@ items:
     visible: (showPercentiles)
     clearWith:
         - snpCols
-        - weightsPath
         - weightsContent
         - weightingMode
         - qcFilterMissing
@@ -246,7 +241,6 @@ items:
     visible: (showPercentiles)
     clearWith:
         - snpCols
-        - weightsPath
         - weightsContent
         - weightingMode
         - qcFilterMissing
@@ -308,7 +302,6 @@ items:
     visible: (showAssoc)
     clearWith:
         - snpCols
-        - weightsPath
         - weightsContent
         - weightingMode
         - qcFilterMissing
@@ -379,7 +372,6 @@ items:
     visible: (showInteraction)
     clearWith:
         - snpCols
-        - weightsPath
         - weightsContent
         - weightingMode
         - qcFilterMissing
@@ -438,7 +430,6 @@ items:
     clearWith:
         - snpCols
         - responseCol
-        - weightsPath
         - weightsContent
         - weightingMode
         - qcFilterMissing
@@ -470,7 +461,6 @@ items:
     clearWith:
         - snpCols
         - responseCol
-        - weightsPath
         - weightsContent
         - weightingMode
         - qcFilterMissing
@@ -496,7 +486,6 @@ items:
     height: 400
     clearWith:
         - snpCols
-        - weightsPath
         - weightsContent
         - weightingMode
         - qcFilterMissing
@@ -527,7 +516,6 @@ items:
     height: 400
     clearWith:
         - snpCols
-        - weightsPath
         - weightsContent
         - weightingMode
         - qcFilterMissing
@@ -556,7 +544,6 @@ items:
     height: 400
     clearWith:
         - snpCols
-        - weightsPath
         - weightsContent
         - weightingMode
         - qcFilterMissing

@@ -3,8 +3,8 @@
 # Weight / allele information flow:
 #   (a) weights file set — parse the catalog file; unknown columns are
 #       concatenated into the extra_cols field of the results table. The file
-#       comes from embedded base64 content (weightsContent, set by the browse
-#       button — works in jamovi cloud) or, on desktop, a weightsPath on disk.
+#       always arrives as embedded base64 content (weightsContent, set by the
+#       browse button or by pgs_weights() from R) — never as a filesystem path.
 #       See the weights-source helpers (.hasWeights / .weightsRawLines).
 #   (b) No file          — unit weights (weight = 1) for all selected SNPs.
 #
@@ -774,66 +774,60 @@ snpPGSClass <- R6::R6Class(
     },
 
     # ════════════════════════════════════════════════════════════════════════
-    # Weights-source abstraction (desktop path OR cloud-embedded content).
+    # Weights source — embedded content only, never a file path.
     #
-    # In jamovi cloud the R engine runs on a server where the browser's local
-    # file path does not exist, so the file-browse button embeds the file's
-    # bytes (base64) into the weightsContent option; on desktop a real
-    # weightsPath on disk still works. These helpers make the two sources
-    # interchangeable so the rest of the backend is source-agnostic.
+    # The weights file reaches the analysis as base64 bytes in weightsContent:
+    # the file-browse button embeds them from the browser, and pgs_weights()
+    # does the same from R. There is deliberately no path option. Analysis
+    # options are serialised into the .omv and re-run when it is opened, so a
+    # path would be resolved against *the opener's* filesystem — a crafted
+    # document could read arbitrary files from a collaborator's machine and
+    # echo them into the results. Carrying the bytes removes that entirely, and
+    # is also what makes the analysis work in jamovi cloud, where the R engine
+    # runs on a different machine than the browser.
     # ════════════════════════════════════════════════════════════════════════
 
-    # TRUE when a weights file is available from either source.
+    # TRUE when a weights file has been supplied.
     .hasWeights = function() {
-      nzchar(self$options$weightsContent %||% "") ||
-        (nzchar(trimws(self$options$weightsPath %||% "")) &&
-           file.exists(self$options$weightsPath %||% ""))
+      nzchar(self$options$weightsContent %||% "")
     },
 
     # Raw text lines of the weights file (or NULL). n > 0 limits the count
-    # (used for the cheap header-metadata scan). Embedded content wins; a
-    # '.gz' filename is gunzipped. base64enc + jsonlite are jmvcore imports,
-    # so base64enc::base64decode is always available at runtime.
+    # (used for the cheap header-metadata scan). A '.gz' filename is gunzipped,
+    # bounded by PGS_MAX_WEIGHTS_BYTES so an embedded zip bomb cannot exhaust
+    # the engine process.
     .weightsRawLines = function(n = -1L) {
       ct <- self$options$weightsContent %||% ""
-      if (nzchar(ct)) {
-        bytes <- tryCatch(base64enc::base64decode(ct), error = function(e) NULL)
-        if (is.null(bytes)) return(NULL)
-        fname <- self$options$weightsFilename %||% ""
-        if (grepl("\\.gz$", fname, ignore.case = TRUE))
-          bytes <- tryCatch(memDecompress(bytes, "gzip"),
-                            error = function(e) bytes)
-        txt <- tryCatch(rawToChar(bytes), error = function(e) NULL)
-        if (is.null(txt)) return(NULL)
-        lines <- strsplit(txt, "\r\n|\r|\n")[[1]]
-        if (n > 0L && length(lines) > n) lines <- lines[seq_len(n)]
-        return(lines)
+      if (!nzchar(ct)) return(NULL)
+      bytes <- tryCatch(base64enc::base64decode(ct), error = function(e) NULL)
+      if (is.null(bytes)) return(NULL)
+      fname <- self$options$weightsFilename %||% ""
+      if (grepl("\\.gz$", fname, ignore.case = TRUE)) {
+        un <- tryCatch(memDecompress(bytes, "gzip"), error = function(e) bytes)
+        # memDecompress has no size limit of its own, so check after the fact
+        # and refuse rather than carry an unbounded object forward.
+        if (length(un) > PGS_MAX_WEIGHTS_BYTES) return(NULL)
+        bytes <- un
       }
-      path <- self$options$weightsPath %||% ""
-      if (!nzchar(trimws(path)) || !file.exists(path)) return(NULL)
-      tryCatch(readLines(path, n = if (n > 0L) n else -1L, warn = FALSE),
-               error = function(e) NULL)
+      if (length(bytes) > PGS_MAX_WEIGHTS_BYTES) return(NULL)
+      txt <- tryCatch(rawToChar(bytes), error = function(e) NULL)
+      if (is.null(txt)) return(NULL)
+      lines <- strsplit(txt, "\r\n|\r|\n")[[1]]
+      if (n > 0L && length(lines) > n) lines <- lines[seq_len(n)]
+      lines
     },
 
     # A short, cheap identity of the active weights source for memo keys — the
-    # embedded content changes across files even when the (typed) path does not.
+    # embedded content changes across files even when the name does not.
     .weightsSig = function() {
       ct <- self$options$weightsContent %||% ""
-      if (nzchar(ct))
-        return(paste0("embed:", self$options$weightsFilename %||% "", ":",
-                      nchar(ct)))
-      path <- self$options$weightsPath %||% ""
-      if (nzchar(trimws(path)) && file.exists(path))
-        return(paste0("path:", path, ":",
-                      as.numeric(file.info(path)$mtime %||% 0)))
-      ""
+      if (!nzchar(ct)) return("")
+      paste0("embed:", self$options$weightsFilename %||% "", ":", nchar(ct))
     },
 
-    # Display name of the weights source (filename or path), for messages.
+    # Display name of the weights source, for messages.
     .weightsLabel = function() {
-      fn <- trimws(self$options$weightsFilename %||% "")
-      if (nzchar(fn)) return(fn)
-      trimws(self$options$weightsPath %||% "")
+      trimws(self$options$weightsFilename %||% "")
     },
 
     # ════════════════════════════════════════════════════════════════════════
@@ -1032,10 +1026,12 @@ snpPGSClass <- R6::R6Class(
       c_pos    <- find_col("chr_position", "position", "pos", "bp")
 
       if (is.null(c_rsid)) {
+        # Report what was expected, never what was found: the header line is
+        # file content, and echoing it turns any parse failure into a readout
+        # of whatever was supplied.
         self$results$validationMsg$setContent(paste0(
-          "<p style='color:#c0392b;'>Weights file has no recognisable rsID column.</p>",
-          "<p>Columns found: <code>", html_escape(paste(orig_names, collapse = ", ")), "</code></p>",
-          "<p>Expected one of: rsID, variant_id, snp, snp_id, marker_name</p>"))
+          "Weights file has no recognisable rsID column. ",
+          "Expected a column named one of: rsID, variant_id, snp, snp_id, marker."))
         self$results$validationMsg$setVisible(TRUE)
         return(private$.unitWeightTable(snpCols))
       }
@@ -1346,7 +1342,7 @@ snpPGSClass <- R6::R6Class(
     #
     # Returns the pre-imputation dosage matrix (all SNP columns), the wtable with
     # stats + base allele_status, the allele-QC exclusion set and the HWE control
-    # note. The value depends only on snpCols / weightsPath / weightingMode and —
+    # note. The value depends only on snpCols / weights source / weightingMode and —
     # because HWE is tested in controls when the HWE filter is on — on the HWE
     # filter flag and response variable. It is INDEPENDENT of the QC thresholds
     # and the missing-value strategy, which .applyDosageFilter re-applies cheaply.

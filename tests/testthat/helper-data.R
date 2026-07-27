@@ -27,7 +27,22 @@
 # `covariates`: passing a *variable* deparses to its name and fails. do.call()
 # inlines the values, so it accepts variables holding character vectors.
 run_snp <- function(...) do.call(SNPstats::snpStats, list(...))
-run_pgs <- function(...) do.call(SNPstats::snpPGS,   list(...))
+
+# snpPGS has no weights-file *path* option — the weights travel as base64
+# content so that a saved .omv never re-reads a file from whoever opens it.
+# `weightsFile = <path>` is a test-only convenience that expands to the real
+# weightsContent / weightsFilename pair via the public pgs_weights() helper,
+# which it therefore also exercises.
+run_pgs <- function(...) {
+  args <- list(...)
+  # [[ ]], not $: `$` partial-matches, so args$weightsFile would pick up a
+  # weightsFilename passed by the embedded-content tests.
+  if (!is.null(args[["weightsFile"]])) {
+    args <- c(args[names(args) != "weightsFile"],
+              SNPstats::pgs_weights(args[["weightsFile"]]))
+  }
+  do.call(SNPstats::snpPGS, args)
+}
 
 # jmvcore >= 2 exposes Table$asDF as an active binding (a property, not a
 # method). Tolerate both forms.

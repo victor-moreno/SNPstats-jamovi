@@ -18,9 +18,13 @@ options:
           R:
               dontrun: true
               usage: |
-                  snpPGS(data = myData,
-                         snpCols = vars(rs123, rs456),
-                         weightsPath = "pgs_catalog.csv")
+                  # The weights travel as content, not as a path: pgs_weights()
+                  # reads the file in your own session and returns the
+                  # weightsContent / weightsFilename pair.
+                  w <- pgs_weights("pgs_catalog.csv")
+                  do.call(snpPGS,
+                          c(list(data = myData,
+                                 snpCols = vars(rs123, rs456)), w))
 
     - name: snpCols
       title: SNP columns
@@ -89,44 +93,37 @@ options:
               side in the summary and association tables. If no weights
               file is loaded, unweighted scoring is used automatically.
 
-    - name: weightsPath
-      title: Weights file path (PGS Catalog format)
+    - name: weightsContent
+      title: Weights file contents (base64)
       type: String
       default: ""
+      hidden: true
       description:
           R: >
-              Path to a PGS Catalog-format file. Lines starting with '#' are
+              Base64-encoded contents of the PGS Catalog-format weights file.
+              This is the only way weights enter the analysis: the file-browse
+              button embeds the bytes here, and from R the 'pgs_weights()'
+              helper produces the same value. There is deliberately no file-path
+              option — analysis options are saved into the .omv and re-run when
+              it is opened, so a path would be resolved on the opener's machine
+              rather than the author's. Embedding the content also makes the
+              analysis work unchanged in jamovi cloud, where the R engine runs on
+              a different machine than the browser. Lines starting with '#' are
               skipped automatically. Recognised columns: rsID/variant_id,
               effect_allele, other_allele, effect_weight/beta, chr_name/chr,
               chr_position/pos. Missing expected columns are hidden in output;
               extra columns are shown concatenated in an 'Extra fields' column.
-              On desktop this may be a real file path; in jamovi cloud the file
-              contents are embedded via 'weightsContent' instead (the browser
-              cannot pass a server-visible path).
-
-    - name: weightsContent
-      title: Weights file contents (base64, set by the UI)
-      type: String
-      default: ""
-      hidden: true
-      description:
-          R: >
-              Base64-encoded contents of the selected weights file, embedded by
-              the file-browse button (jamovi/js/snpPGS.js) so the file works in
-              jamovi cloud where the R engine runs on a different machine than
-              the browser. When set, it takes priority over 'weightsPath'. A
-              '.gz' 'weightsFilename' is decompressed automatically. Not intended
-              to be set by hand.
+              A '.gz' 'weightsFilename' is decompressed automatically.
 
     - name: weightsFilename
-      title: Weights file name (set by the UI)
+      title: Weights file
       type: String
       default: ""
-      hidden: true
       description:
           R: >
-              Original name of the embedded weights file. Used for display and
-              to detect gzip ('.gz'). Set by the file-browse button.
+              Name of the weights file whose contents are in 'weightsContent'.
+              Used for display and to detect gzip ('.gz'). Set by the file-browse
+              button, or by 'pgs_weights()' from R.
 
     - name: missingStrategy
       title: Missing genotype handling

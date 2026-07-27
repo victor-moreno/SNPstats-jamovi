@@ -1,5 +1,18 @@
 'use strict';
 
+// snpPGS.js — view event handlers for the PGS analysis.
+//
+// Naming matters here. The jamovi UI compiler emits
+//     this.handlers = require('./snpPGS')
+// into the generated snpPGS.src.js *because this file is named after the
+// analysis*; view-level handlers (view_loaded / view_updated) and bare
+// per-control handler names are then resolved against it. That is the same
+// convention jmv's own anova.js uses. A `<name>.events.js` file is a different
+// mechanism — it is only loaded when snpPGS.u.yaml declares an explicit
+// `events:` block with `./snpPGS.events::<export>` references, which it does
+// not. An empty snpPGS.events.js used to sit alongside this file and reads as
+// if it were the live one; it was removed to stop that confusion.
+
 module.exports = {
 
     view_updated: function(ui, event) {
@@ -12,9 +25,9 @@ module.exports = {
 
 };
 
-// Set an option by name. weightsContent / weightsFilename are hidden options
-// (hidden: true in snpPGS.a.yaml) so they render no control. Try, in order:
-// a real control's setValue (visible options like weightsPath), the view-level
+// Set an option by name. weightsContent is a hidden option (hidden: true in
+// snpPGS.a.yaml) so it renders no control. Try, in order: a real control's
+// setValue (visible options like weightsFilename), the view-level
 // setOptionValue(name, value), then resolving the option object via getOption().
 // One of these is available depending on the jamovi version; hidden options have
 // no control so they go through setOptionValue/getOption.
@@ -33,15 +46,21 @@ function _setOpt(ui, name, value) {
     }
 }
 
-// ── File-browse button for the weights path TextBox ───────────────────────────
+// ── File-browse button for the weights file ──────────────────────────────────
+// The TextBox shows the chosen file's *name* only, and is made read-only: there
+// is no path option to type into any more. A typed path would be saved into the
+// .omv and re-read on whoever opened it, so picking a file is the only way in
+// and it embeds the file's bytes rather than its location.
 
 function _injectBrowseButton(ui) {
 
-    var ctrl = ui.weightsPath;
+    var ctrl = ui.weightsFilename;
     if (!ctrl) return;
 
     var $input = ctrl.$input;
     if (!$input || $input.length === 0) return;
+
+    $input.prop('readonly', true);
 
     if ($input.next('.pgs-browse-btn').length > 0) return;
 
@@ -66,8 +85,7 @@ function _injectBrowseButton(ui) {
         e.stopPropagation();
 
         // Always read the file's bytes in the browser (works on desktop and in
-        // cloud) and embed them, rather than passing a path the R engine may not
-        // be able to see.
+        // cloud) and embed them. No local path is ever written into an option.
         var fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.accept = '.csv,.tsv,.txt,.gz';
@@ -84,10 +102,8 @@ function _injectBrowseButton(ui) {
     });
 }
 
-// Read `file` as base64 and stash it into the hidden carrier options so the R
-// backend can decode it (see R/snpPGS.b.R .weightsRawLines). weightsPath is set
-// to the name for display; a manually-typed path (no content) still works on
-// desktop.
+// Read `file` as base64 and stash it into the carrier options so the R backend
+// can decode it (see R/snpPGS.b.R .weightsRawLines).
 function _embedFile(ui, file) {
     var reader = new FileReader();
     reader.onload = function() {
@@ -96,10 +112,11 @@ function _embedFile(ui, file) {
         var b64 = comma >= 0 ? result.slice(comma + 1) : result;
         _setOpt(ui, 'weightsFilename', file.name);
         _setOpt(ui, 'weightsContent', b64);
-        _setOpt(ui, 'weightsPath', file.name);
     };
     reader.onerror = function() {
-        _setOpt(ui, 'weightsPath', file.path || file.name);
+        // Report the failure; never fall back to writing a filesystem path.
+        _setOpt(ui, 'weightsContent', '');
+        _setOpt(ui, 'weightsFilename', '(could not read ' + file.name + ')');
     };
     reader.readAsDataURL(file);
 }

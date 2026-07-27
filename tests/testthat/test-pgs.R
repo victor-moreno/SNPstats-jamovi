@@ -72,7 +72,7 @@ smry <- function(res, type) {
 
 test_that("weighted proportion score matches the oracle", {
   res <- run_pgs(data = .test_data, snpCols = .pgs_snps,
-                 weightsPath = .pgs_weightsfile, weightingMode = "weighted")
+                 weightsFile = .pgs_weightsfile, weightingMode = "weighted")
   o <- pgs_oracle()
   r <- smry(res, "Weighted")
   expect_equal(as.integer(r$n), sum(!is.na(o)))
@@ -84,34 +84,34 @@ test_that("weighted proportion score matches the oracle", {
 
 test_that("unweighted proportion score matches the oracle", {
   res <- run_pgs(data = .test_data, snpCols = .pgs_snps,
-                 weightsPath = .pgs_weightsfile, weightingMode = "unweighted")
+                 weightsFile = .pgs_weightsfile, weightingMode = "unweighted")
   o <- pgs_oracle(unweighted = TRUE)
   r <- smry(res, "Unweighted")
   expect_close(num(r$mean), mean(o, na.rm = TRUE), tol = 5e-4)
   expect_close(num(r$sd),   sd(o,   na.rm = TRUE), tol = 5e-4)
 })
 
-test_that("embedded base64 weights (cloud path) match the file-path route", {
+test_that("hand-rolled base64 weights match the pgs_weights() helper", {
   b64 <- base64enc::base64encode(readBin(.pgs_weightsfile, "raw",
                                          file.info(.pgs_weightsfile)$size))
-  res_path  <- run_pgs(data = .test_data, snpCols = .pgs_snps,
-                       weightsPath = .pgs_weightsfile, weightingMode = "weighted")
+  res_helper <- run_pgs(data = .test_data, snpCols = .pgs_snps,
+                       weightsFile = .pgs_weightsfile, weightingMode = "weighted")
   res_embed <- run_pgs(data = .test_data, snpCols = .pgs_snps,
                        weightsContent = b64, weightsFilename = "weights.tsv",
                        weightingMode = "weighted")
-  expect_equal(as_df(res_embed$summaryTable), as_df(res_path$summaryTable))
+  expect_equal(as_df(res_embed$summaryTable), as_df(res_helper$summaryTable))
 })
 
-test_that("gzipped embedded weights match the file-path route", {
+test_that("gzipped embedded weights match the uncompressed route", {
   raw <- readBin(.pgs_weightsfile, "raw", file.info(.pgs_weightsfile)$size)
   gz  <- memCompress(raw, "gzip")
   b64 <- base64enc::base64encode(gz)
-  res_path  <- run_pgs(data = .test_data, snpCols = .pgs_snps,
-                       weightsPath = .pgs_weightsfile, weightingMode = "weighted")
+  res_plain <- run_pgs(data = .test_data, snpCols = .pgs_snps,
+                       weightsFile = .pgs_weightsfile, weightingMode = "weighted")
   res_gz    <- run_pgs(data = .test_data, snpCols = .pgs_snps,
                        weightsContent = b64, weightsFilename = "weights.tsv.gz",
                        weightingMode = "weighted")
-  expect_equal(as_df(res_gz$summaryTable), as_df(res_path$summaryTable))
+  expect_equal(as_df(res_gz$summaryTable), as_df(res_plain$summaryTable))
 })
 
 test_that("orientation note is set only when no weights file is loaded", {
@@ -120,7 +120,7 @@ test_that("orientation note is set only when no weights file is loaded", {
     if (is.null(n)) NULL else n$note
   }
   res_file <- run_pgs(data = .test_data, snpCols = .pgs_snps,
-                      weightsPath = .pgs_weightsfile, weightingMode = "weighted")
+                      weightsFile = .pgs_weightsfile, weightingMode = "weighted")
   res_nofile <- run_pgs(data = .test_data, snpCols = .pgs_snps,
                         weightingMode = "unweighted")
   expect_null(note_txt(res_file, "summaryTable"))
@@ -161,7 +161,7 @@ test_that("no-weights orientation respects a reordered genotype factor", {
 
 test_that("scale methods (none/percent/multiply) match the oracle", {
   base <- list(data = .test_data, snpCols = .pgs_snps,
-               weightsPath = .pgs_weightsfile, weightingMode = "weighted")
+               weightsFile = .pgs_weightsfile, weightingMode = "weighted")
   r_none <- smry(do.call(run_pgs, c(base, scaleMethod = "none", missingCorrection = FALSE)), "Weighted")
   expect_close(num(r_none$mean), mean(pgs_oracle(scale = "none", corrected = FALSE), na.rm = TRUE), tol = 5e-4)
 
@@ -173,7 +173,7 @@ test_that("scale methods (none/percent/multiply) match the oracle", {
 })
 
 test_that("standardize gives SD = 1 and the oracle mean", {
-  res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsPath = .pgs_weightsfile,
+  res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsFile = .pgs_weightsfile,
                  weightingMode = "weighted", scaleMethod = "proportion", standardize = TRUE)
   r <- smry(res, "Weighted")
   expect_close(num(r$sd), 1, tol = 1e-3)
@@ -181,7 +181,7 @@ test_that("standardize gives SD = 1 and the oracle mean", {
 })
 
 test_that("missing-genotype strategies behave correctly", {
-  base <- list(data = .test_data, snpCols = .pgs_snps, weightsPath = .pgs_weightsfile,
+  base <- list(data = .test_data, snpCols = .pgs_snps, weightsFile = .pgs_weightsfile,
                weightingMode = "weighted", scaleMethod = "none", missingCorrection = FALSE)
   n_full <- as.integer(smry(do.call(run_pgs, c(base, missingStrategy = "SNP-wise")), "Weighted")$n)
   n_excl <- as.integer(smry(do.call(run_pgs, c(base, missingStrategy = "exclude")),  "Weighted")$n)
@@ -195,7 +195,7 @@ test_that("missing-genotype strategies behave correctly", {
 # ══════════════════════════════════════════════════════════════════════════════
 
 test_that("logistic PGS-response association matches glm (Wald CI)", {
-  res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsPath = .pgs_weightsfile,
+  res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsFile = .pgs_weightsfile,
                  weightingMode = "weighted", responseCol = "phenotype", showAssoc = TRUE)
   at <- as_df(res$assocTable)
   lr <- at[at$test == "Logistic regression" & at$score_type == "Weighted", ]
@@ -223,7 +223,7 @@ test_that("character response honors data order of appearance, not alphabetical"
 })
 
 test_that("linear PGS-response association matches lm", {
-  res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsPath = .pgs_weightsfile,
+  res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsFile = .pgs_weightsfile,
                  weightingMode = "weighted", responseCol = "age", showAssoc = TRUE)
   at <- as_df(res$assocTable)
   lr <- at[at$test == "Linear regression" & at$score_type == "Weighted", ]
@@ -236,7 +236,7 @@ test_that("linear PGS-response association matches lm", {
 })
 
 test_that("PGS x covariate interaction matches glm and populates (regression)", {
-  res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsPath = .pgs_weightsfile,
+  res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsFile = .pgs_weightsfile,
                  weightingMode = "weighted", responseCol = "phenotype",
                  covCols = "sex", showInteraction = TRUE)
   it <- as_df(res$interactionTable)
@@ -258,12 +258,12 @@ test_that("PGS x covariate interaction matches glm and populates (regression)", 
 
 test_that("documented no-response call works (regression for missing formal defaults)", {
   expect_error(run_pgs(data = .test_data, snpCols = .pgs_snps,
-                       weightsPath = .pgs_weightsfile), NA)
+                       weightsFile = .pgs_weightsfile), NA)
   expect_error(run_pgs(data = .test_data, snpCols = .pgs_snps), NA)   # unweighted fallback
 })
 
 test_that("percentile category counts sum to N with monotonic ranges", {
-  res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsPath = .pgs_weightsfile,
+  res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsFile = .pgs_weightsfile,
                  weightingMode = "weighted", responseCol = "phenotype",
                  showPercentiles = TRUE, percentileBreaks = "20,40,60,80")
   tt <- as_df(res$percentileThreshTable)
@@ -273,7 +273,7 @@ test_that("percentile category counts sum to N with monotonic ranges", {
 })
 
 test_that("coverage and SNP-grid tables report correct AF / matching", {
-  res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsPath = .pgs_weightsfile,
+  res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsFile = .pgs_weightsfile,
                  weightingMode = "weighted", showCoverage = TRUE, showSnpGrid = TRUE)
   grid <- as_df(res$snpGridTable)
   grid <- grid[grid$rsid %in% .pgs_snps, ]
@@ -294,7 +294,7 @@ test_that("coverage reports count of SNPs whose risk allele is the major allele"
     as.integer(row$value[1])
   }
   # Fixture effect_allele = minor allele -> effect_af <= 0.5 -> count 0.
-  res0 <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsPath = .pgs_weightsfile,
+  res0 <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsFile = .pgs_weightsfile,
                   weightingMode = "weighted", showCoverage = TRUE)
   expect_equal(cov_val(res0), 0L)
 
@@ -307,7 +307,7 @@ test_that("coverage reports count of SNPs whose risk allele is the major allele"
                     effect_weight = .pgs_weights[.pgs_snps])
   suppressWarnings(write.table(dsw, fswap, sep = "\t", row.names = FALSE,
                                quote = FALSE, append = TRUE))
-  res1 <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsPath = fswap,
+  res1 <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsFile = fswap,
                   weightingMode = "weighted", showCoverage = TRUE)
   # Independent expectation: SNPs whose major-allele frequency exceeds 0.5.
   D <- .pgs_dosage()
@@ -321,7 +321,7 @@ test_that("plots render without error (incl. calibration with tied predictions)"
   grDevices::png(tempfile()); on.exit(grDevices::dev.off())
   # weak score + binary covariate -> tied predicted probabilities, which used to
   # crash the calibration plot with "'breaks' are not unique".
-  res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsPath = .pgs_weightsfile,
+  res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsFile = .pgs_weightsfile,
                  weightingMode = "both", responseCol = "phenotype", covCols = "sex",
                  showDistPlot = TRUE, showRocPlot = TRUE, showCalibPlot = TRUE,
                  showForestPlot = TRUE)
@@ -409,7 +409,7 @@ test_that("distPlotType switches the distribution plot geometry", {
   skip_if_not_installed("ggplot2")
   grDevices::pdf(NULL); on.exit(grDevices::dev.off())
   geoms <- function(ptype) {
-    r <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsPath = .pgs_weightsfile,
+    r <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsFile = .pgs_weightsfile,
                  weightingMode = "weighted", responseCol = "phenotype",
                  showDistPlot = TRUE, distPlotType = ptype)
     r$distPlot$.render()
@@ -431,7 +431,7 @@ test_that("QC missingness filter excludes SNPs above threshold", {
   D <- .pgs_dosage()
   pct_miss <- colMeans(is.na(D)) * 100
   thr <- min(pct_miss) + (max(pct_miss) - min(pct_miss)) / 2   # between min and max
-  res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsPath = .pgs_weightsfile,
+  res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsFile = .pgs_weightsfile,
                  weightingMode = "weighted", qcFilterMissing = TRUE, qcMaxMissingPct = thr)
   grid <- as_df(res$snpGridTable)
   excluded <- grid$rsid[grepl("excl \\(missing", grid$allele_status)]
@@ -443,7 +443,7 @@ test_that("QC missingness filter excludes SNPs above threshold", {
 # ══════════════════════════════════════════════════════════════════════════════
 
 test_that("GOLDEN pgs scores and association", {
-  res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsPath = .pgs_weightsfile,
+  res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsFile = .pgs_weightsfile,
                  weightingMode = "both", responseCol = "phenotype", showAssoc = TRUE)
   w <- smry(res, "Weighted"); u <- smry(res, "Unweighted")
   expect_close(num(w$mean), 0.17651, tol = 5e-4)
@@ -454,4 +454,54 @@ test_that("GOLDEN pgs scores and association", {
   expect_close(num(lr$estimate), 1.3327, tol = 2e-3)
   expect_close(num(lr$ci_low),   0.9304, tol = 2e-3)
   expect_close(num(lr$ci_high),  1.9089, tol = 2e-3)
+})
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Weights source — content only, never a filesystem path
+#
+# Analysis options are serialised into the .omv and re-run when it is opened, so
+# a path option would be resolved against the *opener's* filesystem. These pin
+# the property that there is no path to resolve.
+# ══════════════════════════════════════════════════════════════════════════════
+
+test_that("snpPGS exposes no file-path option", {
+  expect_false("weightsPath" %in% names(formals(SNPstats::snpPGS)))
+  expect_false("weightsPath" %in% SNPstats::snpPGSOptions$new()$names)
+})
+
+test_that("pgs_weights round-trips a file into the content/name pair", {
+  w <- SNPstats::pgs_weights(.pgs_weightsfile)
+  expect_named(w, c("weightsContent", "weightsFilename"))
+  expect_equal(w$weightsFilename, basename(.pgs_weightsfile))
+  expect_equal(rawToChar(base64enc::base64decode(w$weightsContent)),
+               paste0(paste(readLines(.pgs_weightsfile), collapse = "\n"), "\n"))
+  expect_error(SNPstats::pgs_weights(file.path(tempdir(), "no-such-file.csv")),
+               "file not found")
+})
+
+test_that("a parse failure reports expectations, not file content", {
+  secret <- tempfile(fileext = ".csv")
+  writeLines(c("TOP_SECRET_HEADER,another_private_column", "1,2"), secret)
+  res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsFile = secret,
+                 weightingMode = "weighted")
+  # Scan every result element, not just validationMsg: the parse-failure notice
+  # is overwritten downstream by "No SNPs passed QC filters" (pre-existing), so
+  # what is pinned here is that no part of the file's content is echoed anywhere.
+  all_out <- paste(capture.output(print(res)), collapse = "\n")
+  expect_false(grepl("TOP_SECRET_HEADER", all_out, fixed = TRUE))
+  expect_false(grepl("another_private_column", all_out, fixed = TRUE))
+  expect_false(grepl("TOP_SECRET_HEADER", res$validationMsg$content, fixed = TRUE))
+})
+
+test_that("an oversized gunzipped payload is refused rather than expanded", {
+  # A '.gz' name makes .weightsRawLines gunzip the embedded bytes; the result is
+  # rejected above PGS_MAX_WEIGHTS_BYTES so a crafted .omv cannot exhaust the
+  # engine. Scored output falls back to unit weights.
+  bomb <- memCompress(charToRaw(strrep("A", 70 * 1024^2)), "gzip")
+  expect_true(length(bomb) < 1e6)                     # small on the wire
+  res <- run_pgs(data = .test_data, snpCols = .pgs_snps,
+                 weightsContent  = base64enc::base64encode(bomb),
+                 weightsFilename = "bomb.tsv.gz",
+                 weightingMode   = "weighted")
+  expect_gt(nrow(as_df(res$summaryTable)), 0L)
 })

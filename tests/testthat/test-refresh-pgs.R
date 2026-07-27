@@ -66,10 +66,10 @@ jmvcore:::initProtoBuf()
   f
 })
 
-.pgs_base <- list(snpCols = as.list(.pgs_snps4), weightsPath = .pgs_wfile,
+.pgs_base <- c(list(snpCols = as.list(.pgs_snps4)), SNPstats::pgs_weights(.pgs_wfile), list(
                   weightingMode = "both", responseCol = "phenotype",
                   covCols = list("sex"), showCoverage = TRUE, showSnpGrid = TRUE,
-                  showAssoc = TRUE, showInteraction = TRUE, showPercentiles = TRUE)
+                  showAssoc = TRUE, showInteraction = TRUE, showPercentiles = TRUE))
 
 .summary_of <- function(a) a$results$summaryTable
 

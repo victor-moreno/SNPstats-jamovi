@@ -13,6 +13,7 @@ importFrom(graphics, abline, axis, hist, legend, lines, mtext, par, plot.new,
            points, polygon, rect, text, title)
 importFrom(grDevices, adjustcolor)
 export(snpStats, snpPGS)
+export(pgs_weights)
 
 export(snpStatsClass)
 export(snpStatsOptions)

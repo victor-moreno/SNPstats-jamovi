@@ -10,7 +10,6 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             responseCol = NULL,
             covCols = NULL,
             weightingMode = "both",
-            weightsPath = "",
             weightsContent = "",
             weightsFilename = "",
             missingStrategy = "SNP-wise",
@@ -89,10 +88,6 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "unweighted",
                     "both"),
                 default="both")
-            private$..weightsPath <- jmvcore::OptionString$new(
-                "weightsPath",
-                weightsPath,
-                default="")
             private$..weightsContent <- jmvcore::OptionString$new(
                 "weightsContent",
                 weightsContent,
@@ -101,8 +96,7 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             private$..weightsFilename <- jmvcore::OptionString$new(
                 "weightsFilename",
                 weightsFilename,
-                default="",
-                hidden=TRUE)
+                default="")
             private$..missingStrategy <- jmvcore::OptionList$new(
                 "missingStrategy",
                 missingStrategy,
@@ -271,7 +265,6 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..responseCol)
             self$.addOption(private$..covCols)
             self$.addOption(private$..weightingMode)
-            self$.addOption(private$..weightsPath)
             self$.addOption(private$..weightsContent)
             self$.addOption(private$..weightsFilename)
             self$.addOption(private$..missingStrategy)
@@ -312,7 +305,6 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         responseCol = function() private$..responseCol$value,
         covCols = function() private$..covCols$value,
         weightingMode = function() private$..weightingMode$value,
-        weightsPath = function() private$..weightsPath$value,
         weightsContent = function() private$..weightsContent$value,
         weightsFilename = function() private$..weightsFilename$value,
         missingStrategy = function() private$..missingStrategy$value,
@@ -352,7 +344,6 @@ snpPGSOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..responseCol = NA,
         ..covCols = NA,
         ..weightingMode = NA,
-        ..weightsPath = NA,
         ..weightsContent = NA,
         ..weightsFilename = NA,
         ..missingStrategy = NA,
@@ -435,7 +426,6 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 visible="(showSnpGrid)",
                 clearWith=list(
                     "snpCols",
-                    "weightsPath",
                     "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
@@ -512,7 +502,6 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 visible="(showCoverage)",
                 clearWith=list(
                     "snpCols",
-                    "weightsPath",
                     "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
@@ -538,7 +527,6 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 visible="(showSummary)",
                 clearWith=list(
                     "snpCols",
-                    "weightsPath",
                     "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
@@ -611,7 +599,6 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 initInRun=TRUE,
                 clearWith=list(
                     "snpCols",
-                    "weightsPath",
                     "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
@@ -631,7 +618,6 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 visible="(showPercentiles)",
                 clearWith=list(
                     "snpCols",
-                    "weightsPath",
                     "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
@@ -670,7 +656,6 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 visible="(showPercentiles)",
                 clearWith=list(
                     "snpCols",
-                    "weightsPath",
                     "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
@@ -740,7 +725,6 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 visible="(showAssoc)",
                 clearWith=list(
                     "snpCols",
-                    "weightsPath",
                     "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
@@ -821,7 +805,6 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 visible="(showInteraction)",
                 clearWith=list(
                     "snpCols",
-                    "weightsPath",
                     "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
@@ -883,7 +866,6 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 clearWith=list(
                     "snpCols",
                     "responseCol",
-                    "weightsPath",
                     "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
@@ -912,7 +894,6 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 clearWith=list(
                     "snpCols",
                     "responseCol",
-                    "weightsPath",
                     "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
@@ -937,7 +918,6 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 height=400,
                 clearWith=list(
                     "snpCols",
-                    "weightsPath",
                     "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
@@ -967,7 +947,6 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 height=400,
                 clearWith=list(
                     "snpCols",
-                    "weightsPath",
                     "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
@@ -995,7 +974,6 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 height=400,
                 clearWith=list(
                     "snpCols",
-                    "weightsPath",
                     "weightsContent",
                     "weightingMode",
                     "qcFilterMissing",
@@ -1052,21 +1030,22 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'   weight 1 to every SNP regardless of the file. 'both' computes and reports
 #'   both scores side by side in the summary and association tables. If no
 #'   weights file is loaded, unweighted scoring is used automatically.
-#' @param weightsPath Path to a PGS Catalog-format file. Lines starting with
-#'   '#' are skipped automatically. Recognised columns: rsID/variant_id,
-#'   effect_allele, other_allele, effect_weight/beta, chr_name/chr,
-#'   chr_position/pos. Missing expected columns are hidden in output; extra
-#'   columns are shown concatenated in an 'Extra fields' column. On desktop this
-#'   may be a real file path; in jamovi cloud the file contents are embedded via
-#'   'weightsContent' instead (the browser cannot pass a server-visible path).
-#' @param weightsContent Base64-encoded contents of the selected weights file,
-#'   embedded by the file-browse button (jamovi/js/snpPGS.js) so the file works
-#'   in jamovi cloud where the R engine runs on a different machine than the
-#'   browser. When set, it takes priority over 'weightsPath'. A '.gz'
-#'   'weightsFilename' is decompressed automatically. Not intended to be set by
-#'   hand.
-#' @param weightsFilename Original name of the embedded weights file. Used for
-#'   display and to detect gzip ('.gz'). Set by the file-browse button.
+#' @param weightsContent Base64-encoded contents of the PGS Catalog-format
+#'   weights file. This is the only way weights enter the analysis: the
+#'   file-browse button embeds the bytes here, and from R the 'pgs_weights()'
+#'   helper produces the same value. There is deliberately no file-path option —
+#'   analysis options are saved into the .omv and re-run when it is opened, so a
+#'   path would be resolved on the opener's machine rather than the author's.
+#'   Embedding the content also makes the analysis work unchanged in jamovi
+#'   cloud, where the R engine runs on a different machine than the browser.
+#'   Lines starting with '#' are skipped automatically. Recognised columns:
+#'   rsID/variant_id, effect_allele, other_allele, effect_weight/beta,
+#'   chr_name/chr, chr_position/pos. Missing expected columns are hidden in
+#'   output; extra columns are shown concatenated in an 'Extra fields' column. A
+#'   '.gz' 'weightsFilename' is decompressed automatically.
+#' @param weightsFilename Name of the weights file whose contents are in
+#'   'weightsContent'. Used for display and to detect gzip ('.gz'). Set by the
+#'   file-browse button, or by 'pgs_weights()' from R.
 #' @param missingStrategy Strategy for handling missing genotype values.
 #'   'SNP-wise' scores each individual using only their observed SNPs and
 #'   divides by that individual's observed SNP count, keeping all individuals
@@ -1221,7 +1200,6 @@ snpPGS <- function(
     responseCol = NULL,
     covCols = NULL,
     weightingMode = "both",
-    weightsPath = "",
     weightsContent = "",
     weightsFilename = "",
     missingStrategy = "SNP-wise",
@@ -1275,7 +1253,6 @@ snpPGS <- function(
         responseCol = responseCol,
         covCols = covCols,
         weightingMode = weightingMode,
-        weightsPath = weightsPath,
         weightsContent = weightsContent,
         weightsFilename = weightsFilename,
         missingStrategy = missingStrategy,

@@ -87,7 +87,7 @@ children:
         label: Weights
         children:
           - type: TextBox
-            name: weightsPath
+            name: weightsFilename
             label: 'Weights file (PGS catalog format):'
             format: string
             width: largest
