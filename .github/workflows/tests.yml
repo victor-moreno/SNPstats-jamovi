@@ -30,8 +30,11 @@ jobs:
       - name: Install dependencies
         uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          # Depends (genetics, haplo.stats), Imports (jmvcore, R6, nnet) and
-          # Suggests (testthat) are read from DESCRIPTION automatically.
+          # Imports (jmvcore, R6, nnet, haplo.stats, ggplot2, base64enc) and
+          # Suggests (testthat, genetics) are read from DESCRIPTION
+          # automatically. genetics is Suggests-only: it is not used at runtime,
+          # it is the oracle the HWE/LD reimplementation is checked against, so
+          # CI must keep installing Suggests or those checks silently skip.
           extra-packages: any::testthat
 
       - name: Install SNPstats

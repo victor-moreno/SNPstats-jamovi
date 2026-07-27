@@ -19,7 +19,7 @@ See the mini [tutorial](https://victor-moreno.github.io/SNPstats-jamovi/TUTORIAL
 * **Multi-SNP analysis:** Linkage disequilibrium (D, D′, r²) statistics, matrices, and heatmaps.
 * **Haplotypes:** Frequency estimation (EM algorithm) and association testing with phase uncertainty propagation, including haplotype x covariate interactions.
 * **Interaction testing:** SNP × covariate and Haplotype × covariate interaction testing.
-* **Polygenic Risc Score:** Unweighted and weighted PGS using an auxiliary file with PGS catalog format.
+* **Polygenic Risk Score:** Unweighted and weighted PGS using an auxiliary file in PGS Catalog format, loaded with the file-browse button (works on jamovi desktop and cloud) or, from R, via the exported `pgs_weights()` helper.
 
 ## Limitations
 
@@ -44,10 +44,21 @@ Missing values: `'', NA, 'NA', 'N/A', 'N|A', '0/0'`
 
 ## R package dependencies
 
-- `genetics` — genotype objects, HWE.exact, LD
-- `haplo.stats` — setupGeno, haplo.em, haplo.glm
 - `jmvcore` — jamovi framework
 - `R6` — class system
+- `nnet` — multinomial regression (categorical responses)
+- `haplo.stats` — `setupGeno`, `haplo.em`, `haplo.glm` (haplotype estimation
+  and association)
+- `ggplot2` — LD heatmap and all PGS plots
+- `base64enc` — decoding the embedded PGS weights file
+
+Genotype parsing, the Hardy-Weinberg exact test and pairwise LD are implemented
+in the module itself (`R/snp_genetics.R`). The `genetics` package was dropped as
+a dependency in v1.0.0 because it is marked obsolete upstream, and jamovi
+resolves modules from a pinned package snapshot — a dependency that leaves the
+snapshot makes the module fail to install rather than degrade. It is retained
+under `Suggests` purely as a test oracle: the test suite cross-checks the
+replacements against it, and skips those checks when it is absent.
 
 ---
 
@@ -63,7 +74,10 @@ This tool was migrated from SNPstats.net using Claude AI.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
+This project is licensed under the **GNU General Public License v3** — see
+[LICENSE.md](LICENSE.md) for the summary and [COPYING](COPYING) for the full
+text.
+
 
 ## Report issues
 

@@ -21,10 +21,12 @@ case "$ARCH" in
 esac
 mkdir -p "$PD"
 
-# Direct + recursive dependencies (genetics/haplo.stats pull combinat, gdata,
-# gtools, mvtnorm, MASS, arsenal; jmvcore pulls rlang, jsonlite, base64enc).
-# ggplot2 and base64enc are declared Imports (plot rendering / embedded weights
-# decoding), so they must be present for R CMD INSTALL to succeed.
+# Direct + recursive dependencies (haplo.stats pulls arsenal, MASS; jmvcore
+# pulls rlang, jsonlite). ggplot2 and base64enc are declared Imports (plot
+# rendering / embedded weights decoding), so they must be present for
+# R CMD INSTALL to succeed. genetics is NOT a dependency any more — it is
+# installed here only as the oracle the HWE/LD reimplementation in
+# R/snp_genetics.R is cross-checked against; without it those tests skip.
 PKGS='c("R6","jmvcore","nnet","genetics","haplo.stats","ggplot2","base64enc","testthat")'
 
 R_LIBS_USER="$PD" Rscript --vanilla -e "

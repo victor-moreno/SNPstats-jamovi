@@ -12,8 +12,8 @@
 All 17 findings were investigated:
 
 - **11 fixed** outright.
-- **1 partly fixed by agreement** — `genetics` moved out of `Depends:` now, its
-  removal planned with an agreed approach.
+- **1 fixed in two stages** — `genetics` moved out of `Depends:` in the first
+  pass and then removed altogether (see the last section).
 - **2 deliberately not done** — the long-function refactor and translation, both
   optional and both large; recorded in `NEWS.md` rather than silently dropped.
 - **3 turned out to be incorrect as stated.** In each case the underlying
@@ -22,11 +22,14 @@ All 17 findings were investigated:
   would have broken a working feature.
 
 The full test suite (`bash tests/run_tests.sh`) is green after every phase:
-**9 files, 474 assertions, 0 failures**. Five new tests were added — four
+**9 files, 1096 assertions, 0 failures**. Five new tests were added — four
 pinning the security properties of the weights-file change (two of which
 exercise the new public helper) and one pinning the missingness-plot state fix.
 
-Work landed in five commits:
+Two further pieces of work followed the audit, both agreed separately and both
+documented at the end of this file: **UI refinements to the weights control**
+after it was tried in jamovi, and **removal of the `genetics` dependency** —
+the audit's longest-tail item, now done.
 
 | Commit | Scope |
 |---|---|
@@ -35,6 +38,9 @@ Work landed in five commits:
 | `da72bce` | Status messages, `.init` read, plot state |
 | `ebb822b` | Version 1.0.0, NEWS/CLAUDE.md |
 | `c57b09d` | This document, tutorial update |
+| `e7bb8ec` | Weights field greyed out |
+| `b370403` | Browse button first; field hidden until a file is chosen |
+| `d082ce3` | **`genetics` dependency removed**; licence corrected to GPL-3 |
 
 ---
 
@@ -48,7 +54,7 @@ Work landed in five commits:
 | 4 | HIGH | Browse button never wired up | **Not a defect** — it was wired; see below |
 | 5 | MEDIUM | `menuSubgroup` missing from snpStats | **Fixed** |
 | 6 | MEDIUM | Haplotype interaction columns built in `.run()` | **Not the stated defect** — see below |
-| 7 | MEDIUM | `genetics` is a `Depends:` | **Partly fixed** — moved to `Imports:`; removal planned |
+| 7 | MEDIUM | `genetics` is a `Depends:` | **Fixed in full** — dependency removed entirely |
 | 8 | MEDIUM | Hand-styled HTML with hardcoded colours | **Fixed** — but not via `type: Notice`, which is unavailable |
 | 9 | LOW | `.init()` reads the dataset six times | **Fixed** |
 | 10 | LOW | Checkbox labels start with "Show" | **Fixed** |
@@ -266,17 +272,10 @@ as not surviving jamovi's restore. Recorded in `NEWS.md` as a follow-up.
 
 ## [MEDIUM] Finding 7 — `genetics`
 
-Done now: `genetics` and `haplo.stats` moved from `Depends:` to `Imports:`.
-Zero code impact — every call already goes through `::` or `importFrom()`. The
-module no longer attaches anything to the user's search path.
-
-**Flagged for the next round, as agreed.** The plan recorded in `NEWS.md` is to
-**vendor** the four functions actually used — `genotype`, `allele`,
-`HWE.exact`, `LD` — into an auxiliary R file, so the functionality survives if
-the package leaves CRAN, and then drop the `Imports:` entry. This is preferable
-to reimplementing from scratch: it preserves numeric behaviour, so the golden
-values stay meaningful. They will still need re-verification against current
-outputs.
+Fixed in two stages. First `genetics` and `haplo.stats` moved from `Depends:` to
+`Imports:` (zero code impact — every call already went through `::` or
+`importFrom()`). Then `genetics` was removed as a dependency altogether; that
+work is written up in its own section at the end of this document.
 
 ---
 
@@ -371,7 +370,7 @@ Module installed successfully
 
 $ bash tests/run_tests.sh
 association:      177 ✓
-descriptive:       42 ✓
+descriptive:      664 ✓   (per-SNP checks of the genetics replacement)
 edgecases:         21 ✓
 golden-external:   23 ✓
 golden:            38 ✓
@@ -387,7 +386,143 @@ the x86_64 machine and in CI. **They should be run there before release**, since
 the `weightsContent`-only option set and the new `.init_data` memoisation both
 touch the restore path they exercise.
 
-Also worth doing by hand before release, as the audit suggested: install into a
-clean jamovi and confirm the 📁 button appears next to the (now read-only)
-Weights file box and that picking a file populates the analysis. The wiring is
-verified at the compiler level here, but not clicked.
+The 📁 button was confirmed working by hand in jamovi.
+
+---
+
+# Follow-on work (after the audit)
+
+Two items were agreed separately once the audit fixes were in.
+
+## 1. Weights control — UI refinements
+
+Confirmed working in jamovi, then refined over two rounds of feedback.
+
+- **The field is greyed out** (`disabled`, not just `readonly`). It only ever
+  shows the name of the file the button loaded, and it looked editable.
+  `disabled` greys it using the platform's own stylesheet rather than a colour
+  chosen by hand — which matters here, since hardcoded colours are exactly what
+  finding 8 was about. Re-asserted on every `view_updated`, so a refresh cannot
+  re-enable it.
+- **The button comes before the field**, and **the field is hidden entirely
+  until a file has been chosen** — the empty state is just the label and the
+  button. Moving the button also required flipping the already-injected guard
+  from `.next()` to `.prev()`; left as `.next()` it would never have matched and
+  a fresh button would have been injected on every `view_updated`.
+- `_getName()` reads the **options model**, not the input's DOM value: on the
+  first `view_loaded` of a restored analysis the field may not be populated yet,
+  and reading the DOM there would hide a field that does have a file.
+
+One route was tried and rejected: `enable: (false)` in the `.u.yaml`. It
+compiles, but to the runtime expression string `"(false)"` — evaluated the same
+way `"(showSnpGrid)"` is. Whether jamovi resolves `false` as a boolean literal or
+as a lookup of a non-existent option could not be determined without clicking, so
+the JS route (fully deterministic, re-asserted every update) was used instead.
+
+## 2. `genetics` removed — the audit's longest-tail item
+
+The audit called this "the single biggest risk to the module's long-term
+availability", and it was right: jamovi resolves modules from a pinned package
+snapshot, so a dependency that leaves the snapshot makes the module **fail to
+install**, not merely degrade.
+
+### What replaced it
+
+`R/snp_genetics.R` covers the only four entry points the module ever used:
+
+| was | now |
+|---|---|
+| `genetics::genotype`, `allele`, `summary` | `snp_genotype`, `snp_allele`, `summary.snpgeno` |
+| `genetics::HWE.exact` | `snp_hwe_exact` |
+| `genetics::LD` | `snp_ld` |
+
+### Provenance
+
+Written from the published definitions, not ported from the GPL source:
+Wigginton, Cutler & Abecasis (2005) for the HWE exact test; Excoffier & Slatkin
+(1995) for the haplotype EM; Lewontin (1964) for D/D′; Hill & Robertson (1968)
+for r. The `genetics` source was not opened while writing.
+
+Three *output conventions* had to match or table labels and golden values would
+shift. These were established by **running** `genetics` and recording its
+behaviour — observation, not copying:
+
+1. Alleles order by **descending count, ties broken by allele name descending**.
+2. `genotype.freq` rows follow that allele order (a1/a1, a1/a2, a2/a2), with a
+   trailing `"NA"` row only when something is missing.
+3. `snp_hwe_exact` **stops** on a monomorphic locus rather than returning `NA` —
+   every caller wraps it in `tryCatch` and treats the failure as "no HWE
+   result", which is the correct output there.
+
+One deliberate difference: `summary()` always returns a matrix, where `genetics`
+collapsed a single observed genotype to a named vector. Callers already guarded
+for both.
+
+### Validation — all 64 SNPs of the shipped dataset
+
+| Check | Result |
+|---|---|
+| Allele & genotype labels, order, counts | **identical** |
+| `n.typed` | **identical** |
+| Allele matrix fed to `haplo.stats::setupGeno` | **identical** |
+| HWE exact p-values | equal to **1.5e-11** |
+| LD — sign of D (66 pairs) | **no flips** |
+| LD — r² at the 3 printed decimals | **identical** |
+| LD — D′ | differs by up to 6.6e-4 |
+
+That last row favours the new code. `snp_ld` runs the EM to 1e-12; `genetics`
+stops early. On the worst-affected pair an independent 1-D numerical
+optimisation of the two-locus multinomial likelihood puts the MLE at
+D = −0.001056822 — `snp_ld` is 1.6e-11 away, `genetics` 1.4e-5 away, and
+`snp_ld` has the higher log-likelihood. **`snp_ld` is more accurate, not merely
+different.** The test asserts that property (log-likelihood ≥ the `genetics`
+one) rather than a fixed number, so it cannot rot.
+
+**The entire pre-existing suite passed unchanged** — no golden value needed
+touching.
+
+### Test-suite consequences
+
+- `genetics` moved `Imports:` → `Suggests:`; it is now a **test oracle only**.
+  The checks that use it carry `skip_if_not_installed("genetics")`.
+- Proven end-to-end by **removing `genetics` from the library entirely** and
+  running the whole suite: exactly those 8 oracle tests skip, everything else
+  passes — including `golden` and `golden-external`, which pin LD, HWE and
+  haplotype values.
+- **`test-refresh.R` traced `genetics::LD`** to count LD invocations. Left alone
+  it would not have failed — it would have counted 0 forever and passed
+  *vacuously*. It now traces `SNPstats:::snp_ld`.
+- New per-SNP oracle tests in `test-descriptive.R` take that file from 42 to 664
+  assertions.
+
+### Licence
+
+`DESCRIPTION` said `GPL-3` while `LICENSE.md` carried the full MIT text — two
+contradictory claims. Resolved to **GPL-3**, with the verbatim licence in
+`COPYING` (copied from R's own `share/licenses/GPL-3`, so it is authoritative
+rather than retyped).
+
+Removing `genetics` does **not** open a route to MIT, and the docs now say why:
+`jmvcore` (GPL ≥ 2) is inherited by every jamovi analysis class, and
+`haplo.stats` (GPL ≥ 2) is the haplotype engine. Neither is removable, and a
+work that requires GPL libraries to run is distributed under the GPL. The
+`genetics` removal was an **availability** fix, not a licensing one.
+
+## Documentation brought into line
+
+- `README.md` — dependency list rewritten; **licence section corrected from MIT
+  to GPL-3**; PGS feature note mentions the browse button and `pgs_weights()`.
+- `docs/ENVIRONMENT.md` — version table re-verified against the actual installed
+  stack (four entries were wrong) and given a `role` column marking `genetics`
+  as oracle-only; dependency lists and the manual-install command updated; the
+  note claiming ggplot2 is "intentionally not declared" and that the PGS plots
+  use base graphics was wrong on both counts and has been rewritten; added the
+  warning that a bare `jmvtools::prepare()` needs `tools/patch_h.sh` afterwards;
+  fixed the stale `install_jamovi.sh` path.
+- `docs/TUTORIAL.md` — weights section rewritten around the browse button and
+  `pgs_weights()`.
+- `.github/workflows/tests.yml` — dependency comment corrected, with a note that
+  CI must keep installing `Suggests` or the oracle checks silently skip.
+- `tests/setup_test_env.sh` — package list and rationale updated.
+- `NEWS.md`, `CLAUDE.md` — v1.0.0 entry and the conventions `snp_genetics.R`
+  must preserve.
