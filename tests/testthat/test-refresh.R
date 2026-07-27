@@ -11,6 +11,30 @@ skip_if_not_installed("RProtoBuf")
 
 jmvcore:::initProtoBuf()
 
+# ── Positive control for the snp_ld call counter ─────────────────────────────
+# Two tests below assert that snp_ld is NOT called (n == 0) after an option
+# click that cannot affect LD. That assertion passes for the wrong reason if the
+# trace never attaches — which is exactly what happened when the traced symbol
+# was genetics::LD and the module moved to its own snp_ld: the counter would
+# have stayed 0 forever and both tests would have passed vacuously. Prove the
+# counter moves on a run that does compute LD, so 0 elsewhere means something.
+test_that("the snp_ld trace attaches and counts (guards the n == 0 assertions)", {
+  n <- 0L; bump <- function() n <<- n + 1L
+  suppressMessages(trace("snp_ld", tracer = bquote(.(bump)()), print = FALSE,
+                         where = asNamespace("SNPstats")))
+  on.exit(suppressMessages(untrace("snp_ld", where = asNamespace("SNPstats"))))
+
+  four <- .snps4
+  invisible(run_snp(data = .test_data, snps = four, response = .resp,
+                    ldAnalysis = TRUE))
+  expect_equal(n, choose(length(four), 2))     # one call per SNP pair
+
+  n <- 0L
+  invisible(run_snp(data = .test_data, snps = four, response = .resp,
+                    ldAnalysis = FALSE, snpSummary = TRUE))
+  expect_equal(n, 0L)
+})
+
 # ── Build an AnalysisOptions protobuf ────────────────────────────────────────
 # snpStatsOptions$new() leaves the options protobuf empty, so jmvcore computes
 # no option changes and clearWith can never fire. Options must arrive the way

@@ -27,12 +27,16 @@ mkdir -p "$PD"
 # R CMD INSTALL to succeed. genetics is NOT a dependency any more — it is
 # installed here only as the oracle the HWE/LD reimplementation in
 # R/snp_genetics.R is cross-checked against; without it those tests skip.
-PKGS='c("R6","jmvcore","nnet","genetics","haplo.stats","ggplot2","base64enc","testthat")'
+# RProtoBuf is likewise test-only: jmvcore's save/load is protobuf-based, and
+# the refresh suites replay jamovi's option-click cycle through it. Without
+# RProtoBuf both refresh files skip entirely — the restore path then goes
+# completely untested, which is how it stayed untested for a while.
+PKGS='c("R6","jmvcore","nnet","genetics","haplo.stats","ggplot2","base64enc","testthat","RProtoBuf")'
 
 R_LIBS_USER="$PD" Rscript --vanilla -e "
   install.packages($PKGS, lib='$PD', repos='$CRAN', dependencies=c('Depends','Imports','LinkingTo'))
   miss <- Filter(function(p) !requireNamespace(p, quietly=TRUE),
-                 c('R6','jmvcore','nnet','genetics','haplo.stats','ggplot2','base64enc','testthat'))
+                 c('R6','jmvcore','nnet','genetics','haplo.stats','ggplot2','base64enc','testthat','RProtoBuf'))
   if (length(miss)) stop('missing after install: ', paste(miss, collapse=', '))
   cat('all dependencies available in', '$PD', '\n')
 "

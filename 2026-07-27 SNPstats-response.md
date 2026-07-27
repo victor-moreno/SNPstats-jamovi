@@ -22,7 +22,7 @@ All 17 findings were investigated:
   would have broken a working feature.
 
 The full test suite (`bash tests/run_tests.sh`) is green after every phase:
-**9 files, 1096 assertions, 0 failures**. Five new tests were added — four
+**9 files, 1193 assertions, 0 failures, 0 skips**. Five new tests were added — four
 pinning the security properties of the weights-file change (two of which
 exercise the new public helper) and one pinning the missingness-plot state fix.
 
@@ -376,15 +376,22 @@ golden-external:   23 ✓
 golden:            38 ✓
 ldhaplo:           76 ✓
 pgs:               97 ✓
-refresh-pgs:        S   (RProtoBuf not installed on arm64)
-refresh:            S   (RProtoBuf not installed on arm64)
-DONE — 0 failures
+refresh-pgs:       38 ✓
+refresh:           59 ✓
+DONE — 1193 assertions, 0 failures, 0 skips
 ```
 
-The two refresh suites skip on this machine for want of `RProtoBuf`; they run on
-the x86_64 machine and in CI. **They should be run there before release**, since
-the `weightsContent`-only option set and the new `.init_data` memoisation both
-touch the restore path they exercise.
+`RProtoBuf` was installed (binary, 0.4.27) so the **two refresh suites now run
+here too** — they had been skipping on this machine throughout. They pass. That
+matters because they are the only tests that replay jamovi's option-click /
+restore cycle, and three of this round's changes land on it: the
+`weightsContent`-only option set, the `.init_data` memoisation, and the
+`snp_ld` trace rewrite.
+
+It also turned up a gap worth naming: `RProtoBuf` was not in `DESCRIPTION`, so
+**CI had never run the refresh suites either** — they skipped there silently.
+It is now under `Suggests`, alongside `genetics`, so both the local setup script
+and CI install it.
 
 The 📁 button was confirmed working by hand in jamovi.
 
@@ -491,7 +498,10 @@ touching.
   haplotype values.
 - **`test-refresh.R` traced `genetics::LD`** to count LD invocations. Left alone
   it would not have failed — it would have counted 0 forever and passed
-  *vacuously*. It now traces `SNPstats:::snp_ld`.
+  *vacuously*. It now traces `SNPstats:::snp_ld`, and a new positive-control
+  test proves the counter actually moves (6 calls = the 4 SNP pairs with LD on,
+  0 with it off), so the `n == 0` assertions cannot silently become vacuous
+  again.
 - New per-SNP oracle tests in `test-descriptive.R` take that file from 42 to 664
   assertions.
 

@@ -52,13 +52,6 @@ Missing values: `'', NA, 'NA', 'N/A', 'N|A', '0/0'`
 - `ggplot2` — LD heatmap and all PGS plots
 - `base64enc` — decoding the embedded PGS weights file
 
-Genotype parsing, the Hardy-Weinberg exact test and pairwise LD are implemented
-in the module itself (`R/snp_genetics.R`). The `genetics` package was dropped as
-a dependency in v1.0.0 because it is marked obsolete upstream, and jamovi
-resolves modules from a pinned package snapshot — a dependency that leaves the
-snapshot makes the module fail to install rather than degrade. It is retained
-under `Suggests` purely as a test oracle: the test suite cross-checks the
-replacements against it, and skips those checks when it is absent.
 
 ---
 
