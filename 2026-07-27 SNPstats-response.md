@@ -22,7 +22,7 @@ All 17 findings were investigated:
   would have broken a working feature.
 
 The full test suite (`bash tests/run_tests.sh`) is green after every phase:
-**9 files, 1193 assertions, 0 failures, 0 skips**. Five new tests were added — four
+**9 files, 1303 assertions, 0 failures, 0 skips**. Five new tests were added — four
 pinning the security properties of the weights-file change (two of which
 exercise the new public helper) and one pinning the missingness-plot state fix.
 
@@ -370,7 +370,7 @@ Module installed successfully
 
 $ bash tests/run_tests.sh
 association:      177 ✓
-descriptive:      664 ✓   (per-SNP checks of the genetics replacement)
+descriptive:      774 ✓   (per-SNP checks of the genetics replacement)
 edgecases:         21 ✓
 golden-external:   23 ✓
 golden:            38 ✓
@@ -378,7 +378,7 @@ ldhaplo:           76 ✓
 pgs:               97 ✓
 refresh-pgs:       38 ✓
 refresh:           59 ✓
-DONE — 1193 assertions, 0 failures, 0 skips
+DONE — 1303 assertions, 0 failures, 0 skips
 ```
 
 `RProtoBuf` was installed (binary, 0.4.27) so the **two refresh suites now run
@@ -490,19 +490,35 @@ touching.
 
 ### Test-suite consequences
 
-- `genetics` moved `Imports:` → `Suggests:`; it is now a **test oracle only**.
-  The checks that use it carry `skip_if_not_installed("genetics")`.
-- Proven end-to-end by **removing `genetics` from the library entirely** and
-  running the whole suite: exactly those 8 oracle tests skip, everything else
-  passes — including `golden` and `golden-external`, which pin LD, HWE and
-  haplotype values.
+- `genetics` is **gone completely** — not `Imports`, not `Suggests`, not
+  installed. It was briefly kept as a test oracle, then removed on request; the
+  oracles it was serving were rewritten so nothing in the test path needs it.
+- The replacement oracles (in `helper-data.R`) are independent of the
+  implementation **by construction**, which the old ones were not:
+
+  | oracle | method |
+  |---|---|
+  | `geno_counts_oracle` | counts straight off the raw `"A/B"` strings |
+  | `hwe_bruteforce` | enumerates every pairing of the allele pool — the combinatorial definition, no formula at all |
+  | `hwe_closed_oracle` | the same probability written a different way (multinomial / `C(2n,n1)`) |
+  | `ld_oracle_mle` | maximises the two-locus likelihood by 1-D numerical search instead of by EM |
+
+  `ld_oracle_mle` is a **stronger** check than the old `genetics::LD`
+  comparison: it answers the same estimation question by a different numerical
+  method, so it validates the EM's *answer* rather than its agreement with
+  another EM — and the one it used to be compared against stopped short of the
+  MLE. `hwe_bruteforce` and `hwe_closed_oracle` agree with each other to 1e-16,
+  and the exact test is additionally checked against the asymptotic chi-square
+  it converges to on large near-equilibrium samples.
+- Proven end-to-end by **deleting `genetics` from the library** and running the
+  whole suite: 1303 assertions, 0 failures, **0 skips**.
 - **`test-refresh.R` traced `genetics::LD`** to count LD invocations. Left alone
   it would not have failed — it would have counted 0 forever and passed
   *vacuously*. It now traces `SNPstats:::snp_ld`, and a new positive-control
   test proves the counter actually moves (6 calls = the 4 SNP pairs with LD on,
   0 with it off), so the `n == 0` assertions cannot silently become vacuous
   again.
-- New per-SNP oracle tests in `test-descriptive.R` take that file from 42 to 664
+- New per-SNP oracle tests in `test-descriptive.R` take that file from 42 to 774
   assertions.
 
 ### Licence
@@ -512,7 +528,9 @@ contradictory claims. Resolved to **GPL-3**, with the verbatim licence in
 `COPYING` (copied from R's own `share/licenses/GPL-3`, so it is authoritative
 rather than retyped).
 
-Removing `genetics` does **not** open a route to MIT, and the docs now say why:
+`genetics` is now absent from the project entirely, which makes the point
+cleaner: nothing GPL was copied, and nothing GPL-of-that-origin is linked.
+It still does **not** open a route to MIT, and the docs say why:
 `jmvcore` (GPL ≥ 2) is inherited by every jamovi analysis class, and
 `haplo.stats` (GPL ≥ 2) is the haplotype engine. Neither is removable, and a
 work that requires GPL libraries to run is distributed under the GPL. The

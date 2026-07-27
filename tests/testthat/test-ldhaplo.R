@@ -1,29 +1,20 @@
-# Tab 3: LD and haplotype — LD verified against genetics::LD, haplotype
-# frequencies against haplo.stats::haplo.em.
+# Tab 3: LD and haplotype — LD verified against a numerical maximisation of the
+# two-locus likelihood, haplotype frequencies against haplo.stats::haplo.em.
 
-# genetics is a Suggests-only oracle now: the module no longer uses it at
-# runtime (see R/snp_genetics.R), but cross-checking against it is still the
-# strongest available check that the LD reimplementation stayed faithful. Only
-# the LD-oracle test skips without it; the haplotype tests use haplo.stats,
-# which is a real dependency.
 suppressMessages(library(haplo.stats))
 
-# genetics::LD on the pairwise-complete genotype objects (matches the backend).
-ld_oracle <- function(snp1, snp2) {
-  s1 <- as.character(.test_data[[snp1]]); s1[grepl("0", s1)] <- NA
-  s2 <- as.character(.test_data[[snp2]]); s2[grepl("0", s2)] <- NA
-  m  <- !is.na(s1) & !is.na(s2)
-  g1 <- genetics::genotype(s1[m], sep = "/")
-  g2 <- genetics::genotype(s2[m], sep = "/")
-  genetics::LD(g1, g2)
-}
+# ld_oracle_mle (helper-data.R) estimates the same haplotype frequencies the
+# backend does, but by 1-D numerical search over D rather than by EM. It is
+# therefore a genuine cross-check on the EM's answer — unlike the old oracle,
+# which called genetics::LD (a second EM, and one that stops short of the MLE).
+ld_oracle <- function(snp1, snp2)
+  ld_oracle_mle(.test_data[[snp1]], .test_data[[snp2]])
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ldTable — r², D', D and p-value for every SNP pair
 # ══════════════════════════════════════════════════════════════════════════════
 
-test_that("ldAnalysis: every pair matches genetics::LD", {
-  skip_if_not_installed("genetics")
+test_that("ldAnalysis: every pair matches the likelihood-maximising estimate", {
   result <- run_snp(data = .test_data, snps = .snps4, ldAnalysis = TRUE, ldMetric = "r2")
   tbl <- as_df(result$ldHaploGroup$ldGroup$ldResults$get(key = "Overall")$ldTable)
 
@@ -32,12 +23,12 @@ test_that("ldAnalysis: every pair matches genetics::LD", {
   for (i in seq_len(nrow(tbl))) {
     o <- ld_oracle(tbl$snp1[i], tbl$snp2[i])
     lab <- paste(tbl$snp1[i], tbl$snp2[i])
-    expect_close(num(tbl$r2[i]),     as.numeric(o$`r`)^2, tol = 0.0015, label = paste(lab, "r2"))
-    expect_close(num(tbl$Dprime[i]), as.numeric(o$`D'`),  tol = 0.0015, label = paste(lab, "D'"))
-    expect_close(num(tbl$D[i]),      as.numeric(o$`D`),   tol = 0.0015, label = paste(lab, "D"))
+    expect_close(num(tbl$r2[i]),     o$R2,     tol = 0.0015, label = paste(lab, "r2"))
+    expect_close(num(tbl$Dprime[i]), o$Dprime, tol = 0.0015, label = paste(lab, "D'"))
+    expect_close(num(tbl$D[i]),      o$D,      tol = 0.0015, label = paste(lab, "D"))
     mp <- num(tbl$pval[i])
-    if (is.na(mp)) expect_lt(o$`P-value`, 0.001)
-    else expect_close(mp, o$`P-value`, tol = 0.01, label = paste(lab, "p"))
+    if (is.na(mp)) expect_lt(o$p, 0.001)
+    else expect_close(mp, o$p, tol = 0.01, label = paste(lab, "p"))
   }
 })
 

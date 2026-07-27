@@ -1,5 +1,6 @@
 # Golden / regression values — captured from a known-good run and verified
-# against glm/lm/multinom/genetics/haplo.stats (see the other test files).
+# against glm/lm/multinom/haplo.stats and the independent HWE/LD oracles
+# (see the other test files).
 #
 # Purpose: these pin the *exact* numbers the module currently produces, so a
 # future change in R or in a dependency (e.g. a different confint() or EM

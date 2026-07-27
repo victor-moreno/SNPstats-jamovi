@@ -2,8 +2,8 @@
 # Run the suite with tests/run_tests.R (see that file for the library setup).
 #
 # The oracles below re-derive every quantity the module reports using only base R
-# (glm / lm / nnet::multinom) and genetics/haplo.stats, independently of the
-# module's internal functions, so the comparison is a genuine cross-check.
+# (glm / lm / nnet::multinom) and haplo.stats, independently of the module's
+# internal functions, so the comparison is a genuine cross-check.
 
 .test_data <- local({
   candidates <- c(
@@ -154,3 +154,128 @@ expect_close <- function(actual, expected, tol = 0.0015, label = NULL) {
                       label = label %||% deparse(substitute(actual)))
 }
 `%||%` <- function(a, b) if (is.null(a)) b else a
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Independent oracles for the in-house genotype / HWE / LD code
+#
+# The module used to lean on the `genetics` package for these, and the tests
+# cross-checked against it. `genetics` is gone (obsolete upstream), so these
+# oracles have to stand on their own. They deliberately do NOT mirror the
+# implementation in R/snp_genetics.R:
+#
+#   geno_counts_oracle  counts straight off the raw "A/B" strings
+#   hwe_bruteforce      enumerates every pairing of the allele pool - the
+#                       combinatorial definition of the test, no formula at all
+#   hwe_closed_oracle   the same probability written a different way
+#                       (multinomial / C(2n,n1)) from the implementation's
+#   ld_oracle_mle       maximises the two-locus likelihood by 1-D numerical
+#                       search instead of by EM
+#
+# The last one is the strongest of the four: it answers the same estimation
+# question by a different numerical method, so it validates the EM's *answer*
+# rather than its agreement with some other implementation.
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Allele and genotype counts read directly off the raw column.
+geno_counts_oracle <- function(col) {
+  s     <- as.character(col); s[grepl("0", s)] <- NA
+  typed <- s[!is.na(s)]
+  parts <- strsplit(typed, "/", fixed = TRUE)
+  al    <- unlist(parts)
+  acnt  <- table(al)
+  # module convention: descending count, ties broken by allele name descending
+  nms   <- sort(names(acnt), decreasing = TRUE)
+  order_al <- nms[order(-as.integer(acnt[nms]))]
+  canon <- vapply(parts, function(p) {
+    i <- match(p, order_al)
+    paste0(order_al[min(i)], "/", order_al[max(i)])
+  }, character(1))
+  list(alleles     = order_al,
+       allele_cnt  = as.integer(acnt[order_al]),
+       geno_cnt    = table(canon),
+       n_typed     = length(typed),
+       n_missing   = sum(is.na(s)))
+}
+
+# Exact HWE p-value by brute force: enumerate every way of pairing the 2n
+# alleles into n genotypes and count the resulting heterozygote counts. This is
+# the definition the exact test formalises, with no probability formula used.
+# Only feasible for tiny n - the number of pairings grows as (2n-1)!!.
+hwe_bruteforce <- function(n11, n12, n22) {
+  pool <- c(rep("A", 2*n11 + n12), rep("B", 2*n22 + n12))
+  n    <- (n11 + n12 + n22)
+  stopifnot(n <= 6)
+  counts <- new.env(parent = emptyenv())
+  pair_up <- function(v, nhet) {
+    if (length(v) == 0) {
+      k <- as.character(nhet)
+      assign(k, (if (exists(k, counts)) get(k, counts) else 0) + 1, counts)
+      return(invisible(NULL))
+    }
+    first <- v[1]
+    for (j in 2:length(v)) {
+      rest <- v[-c(1, j)]
+      pair_up(rest, nhet + (first != v[j]))
+    }
+  }
+  pair_up(pool, 0)
+  ks <- as.integer(ls(counts))
+  w  <- vapply(ls(counts), function(k) get(k, counts), 0)
+  p  <- w / sum(w)
+  obs <- p[as.character(n12)]
+  sum(p[p <= obs * (1 + 1e-9)])
+}
+
+# Same exact test, written as 2^k * multinomial(n; n11,k,n22) / C(2n, n1) -
+# algebraically identical to the implementation but a different code path, so a
+# transcription slip in either shows up.
+hwe_closed_oracle <- function(n11, n12, n22) {
+  n  <- n11 + n12 + n22
+  n1 <- 2*n11 + n12; n2 <- 2*n22 + n12
+  if (n1 == 0 || n2 == 0) return(NA_real_)
+  ks <- seq(n1 %% 2, min(n1, n2), by = 2)
+  lp <- vapply(ks, function(k) {
+    a <- (n1 - k)/2; b <- (n2 - k)/2
+    lfactorial(n) - lfactorial(a) - lfactorial(k) - lfactorial(b) +
+      k * log(2) - lchoose(2*n, n1)
+  }, 0)
+  p   <- exp(lp)
+  obs <- p[ks == n12]
+  sum(p[p <= obs * (1 + 1e-9)])
+}
+
+# Two-locus LD by direct numerical maximisation of the multinomial likelihood
+# over D, with the allele frequencies fixed at their observed values. No EM.
+ld_oracle_mle <- function(col1, col2) {
+  s1 <- as.character(col1); s1[grepl("0", s1)] <- NA
+  s2 <- as.character(col2); s2[grepl("0", s2)] <- NA
+  m  <- !is.na(s1) & !is.na(s2)
+  a  <- strsplit(s1[m], "/", fixed = TRUE)
+  b  <- strsplit(s2[m], "/", fixed = TRUE)
+  n  <- length(a)
+  A  <- names(sort(table(unlist(a)), decreasing = TRUE))[1]
+  B  <- names(sort(table(unlist(b)), decreasing = TRUE))[1]
+  nA <- vapply(a, function(z) sum(z == A), 0L)
+  nB <- vapply(b, function(z) sum(z == B), 0L)
+  tb <- table(factor(nA, 0:2), factor(nB, 0:2))
+  pA <- sum(nA) / (2*n); pB <- sum(nB) / (2*n)
+
+  ll <- function(D) {
+    p <- c(pA*pB + D, pA*(1-pB) - D, (1-pA)*pB - D, (1-pA)*(1-pB) + D)
+    if (min(p) <= 0) return(-Inf)
+    P <- matrix(0, 3, 3)
+    P[3,3] <- p[1]^2;      P[3,2] <- 2*p[1]*p[2];              P[3,1] <- p[2]^2
+    P[2,3] <- 2*p[1]*p[3]; P[2,2] <- 2*(p[1]*p[4] + p[2]*p[3]); P[2,1] <- 2*p[2]*p[4]
+    P[1,3] <- p[3]^2;      P[1,2] <- 2*p[3]*p[4];              P[1,1] <- p[4]^2
+    sum(tb * log(P))
+  }
+  lo <- max(-pA*pB, -(1-pA)*(1-pB)) + 1e-12
+  hi <- min(pA*(1-pB), (1-pA)*pB) - 1e-12
+  D  <- stats::optimize(ll, c(lo, hi), maximum = TRUE, tol = 1e-14)$maximum
+
+  Dmax <- if (D > 0) min(pA*(1-pB), (1-pA)*pB) else max(-pA*pB, -(1-pA)*(1-pB))
+  r    <- D / sqrt(pA*(1-pA)*pB*(1-pB))
+  X2   <- 2 * n * r^2
+  list(D = D, Dprime = D/Dmax, r = r, R2 = r^2, n = n,
+       p = stats::pchisq(X2, 1, lower.tail = FALSE), loglik = ll)
+}

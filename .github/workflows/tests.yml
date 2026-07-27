@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       R_KEEP_PKG_SOURCE: yes
-      # renv-style frozen CRAN snapshot: keeps genetics / haplo.stats / jmvcore
+      # renv-style frozen CRAN snapshot: keeps haplo.stats / jmvcore
       # at fixed versions so a dependency upgrade never turns the golden tests
       # red on an unrelated push. Bump this date deliberately (and re-verify the
       # golden values) when you want to test against newer packages.
@@ -31,10 +31,10 @@ jobs:
         uses: r-lib/actions/setup-r-dependencies@v2
         with:
           # Imports (jmvcore, R6, nnet, haplo.stats, ggplot2, base64enc) and
-          # Suggests (testthat, genetics) are read from DESCRIPTION
-          # automatically. genetics is Suggests-only: it is not used at runtime,
-          # it is the oracle the HWE/LD reimplementation is checked against, so
-          # CI must keep installing Suggests or those checks silently skip.
+          # Suggests (testthat, RProtoBuf) are read from DESCRIPTION
+          # automatically. RProtoBuf matters: jmvcore's save/load is protobuf-
+          # based, so without it both refresh suites skip and jamovi's
+          # option-click / restore cycle goes untested.
           extra-packages: any::testthat
 
       - name: Install SNPstats

@@ -52,6 +52,9 @@ Missing values: `'', NA, 'NA', 'N/A', 'N|A', '0/0'`
 - `ggplot2` — LD heatmap and all PGS plots
 - `base64enc` — decoding the embedded PGS weights file
 
+Genotype parsing, the Hardy-Weinberg exact test and pairwise LD are implemented
+in the module itself (`R/snp_genetics.R`); the `genetics` package was dropped in
+v1.0.0 as it is marked obsolete upstream.
 
 ---
 
@@ -64,6 +67,7 @@ Solé X, Guinó E, Valls J, Iniesta R, Moreno V. *SNPStats: a web tool for the a
 This tool has been developed with support of the Instituto de Salud Carlos III (ISCIII), “Programa FORTALECE del Ministerio de Ciencia e Innovación”, through the project number FORT23/00032 and the Consortium for Biomedical Research in Epidemiology and Public Health (CIBERESP), action Genrisk.
 
 This tool was migrated from SNPstats.net using Claude AI.
+Some results are inspired in genetics R package.
 
 ## License
 

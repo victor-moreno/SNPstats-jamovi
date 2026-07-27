@@ -24,19 +24,18 @@ mkdir -p "$PD"
 # Direct + recursive dependencies (haplo.stats pulls arsenal, MASS; jmvcore
 # pulls rlang, jsonlite). ggplot2 and base64enc are declared Imports (plot
 # rendering / embedded weights decoding), so they must be present for
-# R CMD INSTALL to succeed. genetics is NOT a dependency any more — it is
-# installed here only as the oracle the HWE/LD reimplementation in
-# R/snp_genetics.R is cross-checked against; without it those tests skip.
-# RProtoBuf is likewise test-only: jmvcore's save/load is protobuf-based, and
-# the refresh suites replay jamovi's option-click cycle through it. Without
-# RProtoBuf both refresh files skip entirely — the restore path then goes
-# completely untested, which is how it stayed untested for a while.
-PKGS='c("R6","jmvcore","nnet","genetics","haplo.stats","ggplot2","base64enc","testthat","RProtoBuf")'
+# R CMD INSTALL to succeed. RProtoBuf is test-only: jmvcore's save/load is
+# protobuf-based and the refresh suites replay jamovi's option-click cycle
+# through it. Without RProtoBuf both refresh files skip entirely — the restore
+# path then goes completely untested, which is how it stayed untested for a
+# while. The `genetics` package is deliberately absent: it is neither a
+# dependency nor an oracle any more (see helper-data.R).
+PKGS='c("R6","jmvcore","nnet","haplo.stats","ggplot2","base64enc","testthat","RProtoBuf")'
 
 R_LIBS_USER="$PD" Rscript --vanilla -e "
   install.packages($PKGS, lib='$PD', repos='$CRAN', dependencies=c('Depends','Imports','LinkingTo'))
   miss <- Filter(function(p) !requireNamespace(p, quietly=TRUE),
-                 c('R6','jmvcore','nnet','genetics','haplo.stats','ggplot2','base64enc','testthat','RProtoBuf'))
+                 c('R6','jmvcore','nnet','haplo.stats','ggplot2','base64enc','testthat','RProtoBuf'))
   if (length(miss)) stop('missing after install: ', paste(miss, collapse=', '))
   cat('all dependencies available in', '$PD', '\n')
 "

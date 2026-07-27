@@ -15,10 +15,13 @@ History:
   - `.init()` reads the dataset once per option click instead of six times.
   - Missingness plot renders from image state instead of a private field.
   - `menuSubgroup` added to snpStats so both analyses sit together in the menu.
-  - `genetics` removed as a runtime dependency (obsolete upstream; a dropped
-    package would make the module fail to install). `genotype`/`allele`/
-    `HWE.exact`/`LD` reimplemented in `R/snp_genetics.R` from the published
-    definitions. Kept in `Suggests` as a test oracle. Licensing is unchanged and
+  - `genetics` removed completely — not a dependency, not a Suggests (obsolete
+    upstream; a dropped package would make the module fail to install).
+    `genotype`/`allele`/`HWE.exact`/`LD` reimplemented in `R/snp_genetics.R`
+    from the published definitions, and verified against oracles that need no
+    package: direct counting off the genotype strings, a brute-force
+    enumeration of the allele pairings for the exact HWE test, and a numerical
+    maximisation of the two-locus likelihood for LD. Licensing is unchanged and
     stays GPL-3: `jmvcore` and `haplo.stats` are both GPL and neither is
     removable. `LICENSE.md` used to carry MIT text contradicting
     `DESCRIPTION`; it and the new `COPYING` now both say GPL-3.
