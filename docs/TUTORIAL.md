@@ -305,7 +305,18 @@ To remove SNPs that do not pass QC from the table, use **Show valid SNPs only**.
 
 #### Weights file
 
-The **Weights file** field accepts a path to a file in [PGS Catalog scoring file format](https://www.pgscatalog.org/downloads/#dl_ftp_scoring). The file may be plain text (`.csv`, `.tsv`) with tab or comma separators. Header comment lines beginning with `#` are parsed for catalogue metadata (PGS ID, score name, trait, weight type, genome build, variant count); these appear in the SNP Coverage Summary table.
+Click the **📁** button next to the **Weights file** field to choose a file in [PGS Catalog scoring file format](https://www.pgscatalog.org/downloads/#dl_ftp_scoring). The file may be plain text (`.csv`, `.tsv`, `.gz`) with tab, semicolon or comma separators.
+
+The field itself is read-only and shows only the chosen file's *name*: the module stores the file's **contents** in the analysis, never its location. This is why it works identically in jamovi cloud, where the R engine runs on a different machine than the browser and a local path would mean nothing — and it is also what keeps a saved `.omv` safe to share, since re-opening it cannot make jamovi read a file from the new reader's own computer.
+
+From R, use the `pgs_weights()` helper, which reads the file in your session and returns the two arguments that carry it:
+
+```r
+w <- pgs_weights("CRCgenet-PGS.txt")
+do.call(snpPGS, c(list(data = mydata, snpCols = c("rs1", "rs2")), w))
+```
+
+Header comment lines beginning with `#` are parsed for catalogue metadata (PGS ID, score name, trait, weight type, genome build, variant count); these appear in the SNP Coverage Summary table.
 
 Required columns are `rsid` (or `variant_id`), `effect_allele`, `other_allele`, and `effect_weight`. Chromosomal position (`chr_name`, `chr_position`) and any additional columns present in the file are retained and displayed in the SNP Weights table. The module matches file entries to dataset columns by the SNP column name; names that appear in the file but not in the dataset are flagged as unmatched.
 
@@ -315,7 +326,7 @@ For our example data, file CRCgenet-PGS.txt has been generated with the weights 
 
 The **SNP weighting mode** dropdown controls which score variants are computed:
 
-- **Weighted** — uses effect sizes from the weights file; requires a valid file path. Each SNP's dosage is multiplied by its published effect weight before summing.
+- **Weighted** — uses effect sizes from the weights file; requires a weights file to have been loaded. Each SNP's dosage is multiplied by its published effect weight before summing.
 - **Unweighted** — assigns a weight of 1 to every SNP. The result is effectively a count of risk alleles across the selected loci.
 - **Both** — computes both versions in parallel and displays them side by side in all result tables and plots.
 
