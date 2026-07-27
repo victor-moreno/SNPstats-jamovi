@@ -2,7 +2,7 @@
 ---
 name: snpPGS
 title: Polygenic Score (PGS)
-version: '0.1.0'
+version: '1.0.0'
 jas: '1.2'
 menuGroup: SNPstats
 menuTitle: Polygenic Score (PGS)
