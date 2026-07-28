@@ -26,3 +26,4 @@ scratch_*.R
 !docs/_includes/head-custom.html
 docs/ENVIRONMENT.md
 docs/2026*
+docs/jmvcore*

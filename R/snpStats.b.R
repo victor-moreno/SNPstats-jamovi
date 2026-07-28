@@ -120,8 +120,10 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
     # and rebuild otherwise, so a wrong prediction costs a blank, never a wrong
     # number.
     .pre_rows = function(tbl, n) {
-      if (tbl$rowCount == 0L && n > 0L)
+      if (tbl$rowCount == 0L && n > 0L) {
+        fast_rows(tbl)              # stock addRow is quadratic (R/jmvcore_fastrows.R)
         for (i in seq_len(n)) tbl$addRow(rowKey = as.character(i))
+      }
     },
 
     # True when the table's existing rows can be setRow'd into rather than
@@ -151,9 +153,13 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
     .pre_ld_item = function(item, nms, opts) {
       n <- length(nms)
       if (n < 2L) return(invisible())
-      if (isTRUE(opts$ldAnalysis) && item$ldTable$rowCount == 0L)
+      if (isTRUE(opts$ldAnalysis) && item$ldTable$rowCount == 0L) {
+        # choose(n,2) rows: the one place the stock addRow's quadratic row-name
+        # rebuild dominates everything else the module does (41 s at 64 SNPs).
+        fast_rows(item$ldTable)     # R/jmvcore_fastrows.R
         for (pair in combn(nms, 2, simplify = FALSE))
           item$ldTable$addRow(rowKey = paste(pair, collapse = "___"))
+      }
       if (isTRUE(opts$ldMatrix)) {
         mtbl <- item$ldMatrixTable
         for (snp in nms) {
@@ -1787,6 +1793,7 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         if (all(ok) && private$.reuse_rows(tbl, length(pairs))) {
           for (i in seq_along(vals)) tbl$setRow(rowNo = i, values = vals[[i]])
         } else {
+          fast_rows(tbl)                    # R/jmvcore_fastrows.R
           tbl$deleteRows()                  # drop any .init-seeded rows before rebuild
           for (i in which(ok)) tbl$addRow(rowKey = keys[i], values = vals[[i]])
         }

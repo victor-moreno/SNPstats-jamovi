@@ -22,3 +22,5 @@
 ^CLAUDE\.md$
 ^2026-.*\.md$
 ^SNPstats\.Rcheck$
+^docs/2026-.*\.md$
+^docs/jmvcore-.*-pr$
