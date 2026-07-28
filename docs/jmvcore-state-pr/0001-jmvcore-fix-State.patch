@@ -1,0 +1,163 @@
+From fccf50c3d2dd2eb5fe5c9e9572f56f7959fb7629 Mon Sep 17 00:00:00 2001
+From: Victor Moreno <v.moreno@iconcologia.net>
+Date: Tue, 28 Jul 2026 11:02:29 +0100
+Subject: [PATCH] jmvcore: fix State so it can be constructed
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+State$initialize passed five positional arguments to
+ResultsElement$initialize, which takes six and gives none of them a
+default, so every State$new() raised
+
+    argument "refs" is missing, with no default
+
+This makes 'type: State' unusable in any module: the compiler accepts it
+(State is in the results type enum) and emits
+
+    jmvcore::State$new(
+        options=options,
+        name="myState",
+        clearWith=list("someOption"))
+
+after which the analysis fails to construct, before .init() runs.
+
+State was the only ResultsElement subclass calling the parent
+positionally, and the only one that neither accepted nor forwarded refs.
+Every sibling — Array, Group, Html, Image, Notice, Preformatted, Table —
+passes all six by name, which is what has kept them working as the parent
+signature grew.
+
+Three things were wrong in the one method, and the second masked the
+third: refs was not accepted or forwarded; the parent was called
+positionally; and no parameter had a default, so the compiler's
+three-argument call would fail on title/visible too — except that the
+body ignores both (it passes the literals '' and FALSE), so lazy
+evaluation never forces them and only refs errors.
+
+Brought into line with its siblings: defaults on every parameter, refs
+accepted and forwarded, parent called by name. title and visible stay
+hardcoded in the call, since a State is a carrier for saved analysis data
+and is never shown.
+
+Adds tests covering the compiler's call shape, refs round-tripping, the
+invisible/untitled guarantee and setState/state. All five fail before
+this change; the rest of the jmvcore suite is unaffected (the 5 errors in
+test-parseaddress/test-table/test-utils are pre-existing and unrelated —
+unexported internals under test_dir).
+---
+ jmvcore/R/state.R                   | 21 +++++----
+ jmvcore/tests/testthat/test-state.R | 69 +++++++++++++++++++++++++++++
+ 2 files changed, 81 insertions(+), 9 deletions(-)
+ create mode 100644 jmvcore/tests/testthat/test-state.R
+
+diff --git a/jmvcore/R/state.R b/jmvcore/R/state.R
+index d6319a7f..f27a3a75 100644
+--- a/jmvcore/R/state.R
++++ b/jmvcore/R/state.R
+@@ -6,15 +6,18 @@ State <- R6::R6Class("State",
+     public=list(
+         initialize=function(
+             options,
+-            name,
+-            title,
+-            visible,
+-            clearWith) {
++            name='',
++            title='',
++            visible=FALSE,
++            clearWith='*',
++            refs=character()) {
++
+         super$initialize(
+-            options,
+-            name,
+-            '',
+-            FALSE,
+-            clearWith)
++            options=options,
++            name=name,
++            title='',
++            visible=FALSE,
++            clearWith=clearWith,
++            refs=refs)
+     })
+ )
+diff --git a/jmvcore/tests/testthat/test-state.R b/jmvcore/tests/testthat/test-state.R
+new file mode 100644
+index 00000000..bd58dad2
+--- /dev/null
++++ b/jmvcore/tests/testthat/test-state.R
+@@ -0,0 +1,69 @@
++context('state')
++
++# State$initialize used to pass five positional arguments to
++# ResultsElement$initialize, which takes six and gives none of them a default,
++# so every State$new() raised
++#     argument "refs" is missing, with no default
++# It was also the only ResultsElement subclass that did not accept or forward
++# `refs`, and the only one calling the parent positionally.
++
++test_that('State can be constructed the way the compiler constructs it', {
++
++    # This is exactly what jamovi-compiler emits for
++    #     - name: myState
++    #       type: State
++    #       clearWith:
++    #           - someOption
++    # (compiler.js resultsify(): options=, then only the properties the .r.yaml
++    # declares — so title, visible and refs are never supplied).
++    expect_error(
++        State$new(
++            options=Options$new(),
++            name='myState',
++            clearWith=list('someOption')),
++        NA)
++})
++
++test_that('State accepts and forwards refs, like every other results element', {
++
++    expect_error(
++        State$new(
++            options=Options$new(),
++            name='myState',
++            clearWith='*',
++            refs=c('someref')),
++        NA)
++
++    state <- State$new(
++        options=Options$new(),
++        name='myState',
++        refs=c('someref'))
++    expect_equal(state$getRefs(), 'someref')
++})
++
++test_that('State stays untitled and not-visible whatever it is passed', {
++
++    # State is a carrier for saved analysis data, not something the user sees,
++    # so the parent is always called with title='' and visible=FALSE. Passing
++    # them must not change that. (`$visible` reads .visibleValue, which is only
++    # resolved from the expression during .update(), so the guarantee at
++    # construction is the *expression* the parent was given.)
++    state <- State$new(
++        options=Options$new(),
++        name='myState',
++        title='should be ignored',
++        visible=TRUE)
++
++    expect_equal(state$title, '')
++    expect_equal(state$.__enclos_env__$private$.visibleExpr, 'FALSE')
++})
++
++test_that('State round-trips its payload', {
++
++    state <- State$new(options=Options$new(), name='myState')
++    expect_null(state$state)
++
++    payload <- list(fitted=data.frame(a=1:3, b=c('x', 'y', 'z')), note='cached')
++    state$setState(payload)
++    expect_equal(state$state, payload)
++})
+-- 
+2.50.1 (Apple Git-155)
+
