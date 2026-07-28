@@ -21,7 +21,11 @@ All 17 findings were investigated:
   assumed; the evidence is below. One of them matters: acting on it as written
   would have broken a working feature.
 
-The full test suite (`bash tests/run_tests.sh`) is green: **9 files, 1303
+A subsequent **independent audit of the code** — not driven by the original
+report — turned up three further defects, one of them statistical. They are
+written up in their own section at the end.
+
+The full test suite (`bash tests/run_tests.sh`) is green: **9 files, 1348
 assertions, 0 failures, 0 skips**. Beyond the fixes, the suite gained tests
 pinning the security properties of the weights-file change, the missingness-plot
 state fix, and — replacing what the `genetics` package used to provide — a set
@@ -37,6 +41,10 @@ of oracles that depend on no package at all.
 | `d082ce3` | **`genetics` reimplemented in-house**; licence corrected to GPL-3 |
 | `e6fbb25` | `genetics` dropped entirely; package-free test oracles |
 | `8879c1b` | RProtoBuf installed; refresh suites run; `snp_ld` trace guarded |
+| `b1771cb` | Stop shipping `jamovi-src`; ggplot2 globals NOTE |
+| `ea24c52` | Validation messages kept; `pgs_weights` documented |
+| `fb3ef22` | jmvcore `State` bug report |
+| `0173fc9` | **Independent audit — three defects fixed** |
 | `ebb822b` `c57b09d` `fee52c3` `71a5f0d` `b5712d7` | Version 1.0.0, this document, tutorial and README |
 
 ---
@@ -499,16 +507,16 @@ wrote module: SNPstats_1.0.0.jmo
 Module installed successfully
 
 $ bash tests/run_tests.sh
-association:      177 ✓
+association:      186 ✓
 descriptive:      774 ✓   (per-SNP checks of the genetics replacement)
 edgecases:         21 ✓
 golden-external:   23 ✓
 golden:            38 ✓
 ldhaplo:           76 ✓
-pgs:               97 ✓
+pgs:              133 ✓
 refresh-pgs:       38 ✓
 refresh:           59 ✓
-DONE — 1303 assertions, 0 failures, 0 skips
+DONE — 1348 assertions, 0 failures, 0 skips
 ```
 
 The refresh suites need `RProtoBuf`, which was not installed here and — because
@@ -548,3 +556,148 @@ The 📁 button was confirmed working by hand in jamovi.
   preserve, and an explicit note not to reintroduce `genetics` as a test oracle.
 - `LICENSE.md` / `COPYING` — GPL-3, replacing the MIT text that contradicted
   `DESCRIPTION`.
+
+---
+
+# Independent audit — additional defects
+
+Separately from the report above, the module was audited from scratch: probing
+option validation, statistical conventions, missing-data handling and response
+detection against constructed edge cases. Three defects were found and fixed,
+plus one disclosure gap.
+
+## 1. The HWE quality filter tested the wrong group *(statistical)*
+
+**The most consequential thing in this document.**
+
+The PGS SNP-QC filter resolved "controls" as the response column's **raw first
+factor level**, read straight off `self$data`, and ignored the `caseLevel`
+("Reference level") option entirely — even though that option is already
+documented as the baseline for every model and as *"the control group for ROC
+and calibration plots"*.
+
+Two failures in one:
+
+- **It disregarded an explicit user choice.** Setting the reference level had no
+  effect on the HWE filter whatsoever.
+- **The default was backwards for the commonest labelling.** Factor levels are
+  alphabetical unless reordered, and `"Case"` sorts before `"Control"` — so the
+  first level is *Case*. Confirmed on the shipped dataset: the module's filtered
+  `hwe_p` values matched HWE computed by hand **within Cases** to every printed
+  digit.
+
+| SNP | HWE within Case | HWE within Control | module (before fix) |
+|---|---|---|---|
+| rs12080929 | 0.94171 | 0.94993 | **0.94171** |
+| rs10911251 | 0.31042 | 0.91848 | **0.31042** |
+| rs10936599 | 0.38364 | 0.30422 | **0.38364** |
+| rs6691170  | 0.35422 | 0.30624 | **0.35422** |
+
+Case-control QC tests HWE **in controls** precisely because departure from
+equilibrium *in cases* can be a genuine disease-association signal. Filtering on
+cases therefore preferentially discards true positives — the SNPs the analysis
+exists to find. rs10911251 illustrates the size of the effect: p = 0.31 in cases
+against 0.92 in controls, so a threshold anywhere between the two excludes a SNP
+that is in perfect equilibrium among controls.
+
+**Fixed.** `.hweRefLevel()` resolves the group from `caseLevel`, falling back to
+the response's first level. `caseLevel` is now in the `core_key` — it changes
+`hwe_p`, so a stale cached core would otherwise keep the old exclusions — and in
+the `clearWith` of `snpGridTable` and `coverageTable`. `.setHweGroupNote()`
+states the group on **every** run, outside the grid's fill gate, so it is visible
+even when no SNP is excluded (previously the group appeared only inside an
+exclusion label, so a user whose SNPs all passed never learned which group had
+been used).
+
+> Hardy-Weinberg equilibrium was tested in phenotype = 'Case' only. Case-control
+> QC conventionally tests HWE in controls, because departure from equilibrium in
+> cases can itself be an association signal; use 'Reference level' to choose the
+> group.
+
+**Worth knowing:** the default is still the first level, so on Case/Control data
+you should set **Reference level = Control** when using the HWE filter. The
+default is no longer silent, but it is not clairvoyant either.
+
+## 2. Two missing-genotype strategies were wrong
+
+`.applyDosageFilter` built `valid_counts` — the per-individual denominator for
+the missingness correction — from the pre-imputation NA pattern for *every*
+strategy. That produced two distinct bugs:
+
+- **`zero` did nothing at all.** It imputes 0, exactly as `SNP-wise` does, and
+  shared the same observed-only denominator — so the two were **byte-identical
+  in every configuration tested**, including at 28% missingness and across
+  weighted/unweighted, all scale methods, standardisation and
+  `missingCorrection` on/off. A user-facing dropdown option with no effect.
+- **`mean` broke its own scale.** The imputed column mean entered the numerator
+  while its SNP was left out of the denominator, so `scaleMethod: proportion` —
+  labelled "Proportion of maximum (0–1)" — returned values up to **3.05**.
+
+The rule is that a SNP counts toward the denominator when the strategy gives the
+individual a dosage the numerator will use. Only `SNP-wise` uses an observed-only
+denominator — that *is* what defines it. `zero` asserts the genotype is a real
+reference homozygote; `mean` substitutes an estimate that gets summed. Both now
+count.
+
+| strategy | max score, proportion scale | before | after |
+|---|---|---|---|
+| SNP-wise | 1.00 | ok | ok |
+| zero | 1.00 | *identical to SNP-wise* | distinct (mean 0.43 vs 0.61) |
+| mean | **3.05 → 1.00** | out of range | ok |
+| exclude | 1.00 | ok | ok |
+
+**No test exercised `missingStrategy = "zero"`**, which is why this survived a
+2,300-line suite; the oracle even carried the comment `# SNP-wise / zero`,
+encoding the bug as expected behaviour. The oracle is corrected and three tests
+added: each strategy against the oracle, `zero ≠ SNP-wise`, and an upper bound of
+1 for all four.
+
+One property worth stating, since the obvious test gets it wrong: there is **no**
+lower bound of 0 for a *weighted* score. The correction divides by positive
+weights only, so a negative effect weight legitimately drives the score below
+zero. Only the upper bound is an invariant.
+
+## 3. An unanalysable response rendered blank with no explanation
+
+`detect_response_type` returns `"none"` for a non-numeric response with more than
+6 distinct values, and every downstream computation then drops it. The
+association table rendered **four all-NA rows, with no note, no message, and
+`validationMsg` hidden** — the analysis silently did nothing.
+
+Now it says so, and points at the override:
+
+> ⚠ Response 'y7' has 7 distinct values and is not numeric, so it cannot be
+> analysed automatically. Auto-detect supports a binary (2-level) or categorical
+> (3–6 level) factor, or a numeric response. Set 'Response type' explicitly to
+> analyse it as quantitative.
+
+## 4. snpStats did not disclose odds-ratio direction
+
+`prepare_response` codes the first factor level 0 and the second 1, so the OR is
+for the **second** level. With `phenotype = (Case, Control)` the reported OR is
+the odds of being a **Control** — the opposite of what a reader assumes — and
+nothing on screen said so.
+
+The direction itself is correct and must not change: `test-golden-external.R`
+pins it against snpstats.net, the tool this module replicates. But snpPGS already
+stated it (`"Response: phenotype (Control vs Case)"`) while snpStats did not,
+contrary to the homogeneity rule in `CLAUDE.md`. snpStats now carries the same
+disclosure:
+
+> Odds ratios are for phenotype = 'Control' versus 'Case'.
+
+## Checked and found sound
+
+For the record, these were probed and no defect was found:
+
+- **`scaleFactor`** is declared with no `min`/`max`, but is guarded in code — 0
+  falls back to the default rather than dividing by zero. Negative values pass
+  through to a negative score, which is user error rather than a fault.
+- **`percentileBreaks`** (free-text) degrades sensibly: garbage and out-of-range
+  input fall back to the defaults, duplicates collapse, unsorted input is sorted.
+- **`snpGridSortField`** (free-text) is injection-safe and ignores unknown names.
+- **`snp_genetics.R`** behaves correctly on monomorphic strata and on subsets
+  that inherit their parent's allele set.
+- **Covariate degeneracies** (constant, single-level, duplicated) do not crash.
+- **Response auto-detection** treats numeric 0/1 and 1/2 as binary and 0/1/2 as
+  quantitative, as documented.
