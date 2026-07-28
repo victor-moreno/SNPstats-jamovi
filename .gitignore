@@ -22,7 +22,7 @@ scratch_*.R
 *.log
 *.tar.gz
 *.Rcheck
-docs/ENVIRONMENT.md
 !docs/images/*.jpg
 !docs/_includes/head-custom.html
-jamovi-src
+docs/ENVIRONMENT.md
+docs/2026*
