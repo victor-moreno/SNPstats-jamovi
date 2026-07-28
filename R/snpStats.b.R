@@ -2235,6 +2235,13 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         list(ok = TRUE,
              coef_sum = cs,
              vcov_mat = vc,
+             # Gaussian deviance is on the variance scale, so the LRT statistic
+             # is the deviance difference divided by the model dispersion —
+             # exactly as the association LRT already does. Binomial dispersion
+             # is 1. Without this the interaction p on a quantitative response
+             # was wildly anti-conservative (bmi x 3 SNPs: 9.7e-26 vs 0.041).
+             dispersion = if (identical(family_int, "binomial")) 1
+                          else tryCatch(summary(fm)$dispersion, error = function(e) NA_real_),
              haplo.base = fm$haplo.base, haplo.unique = fm$haplo.unique, haplo.freq = fm$haplo.freq,
              haplo.common = fm$haplo.common, haplo.rare = fm$haplo.rare, haplo.rare.term = fm$haplo.rare.term,
              mult_deviance = fm$deviance, mult_df.residual = fm$df.residual,
@@ -2322,8 +2329,12 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         inter_terms <- rownames(coef_sum)[grepl(":", rownames(coef_sum)) &
                                           grepl("geno", rownames(coef_sum))]
         df_diff  <- length(inter_terms)
-        p_inter  <- if (!is.na(dev_diff) && df_diff > 0)
-          pchisq(dev_diff, df = df_diff, lower.tail = FALSE) else NA_real_
+        # Scale by the dispersion so the statistic is chi-square on any family
+        # (1 for binomial); see the cached `dispersion` above.
+        disp     <- hfits$dispersion %||% NA_real_
+        p_inter  <- if (!is.na(dev_diff) && df_diff > 0 &&
+                        length(disp) == 1L && !is.na(disp) && disp > 0)
+          pchisq(dev_diff / disp, df = df_diff, lower.tail = FALSE) else NA_real_
       }
       covar_main_nms <- grep(paste0("^", int_var, ".+$"), all_coef_names, value = TRUE)
       covar_main_nms <- covar_main_nms[!grepl(":", covar_main_nms)]

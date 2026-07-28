@@ -255,3 +255,40 @@ test_that("every LD row's values land under its own pre-created row key", {
   expect_equal(unlist(tbl$rowKeys, use.names = FALSE),
                paste(df$snp1, df$snp2, sep = "___"))
 })
+
+# Gaussian deviance is on the variance scale, so the raw deviance difference is
+# NOT chi-square: it must be divided by the model dispersion, exactly as the
+# association LRT does. Without that the quantitative interaction p was wildly
+# anti-conservative (bmi x 3 SNPs: 9.7e-26 against a true 0.041).
+test_that("haploInteraction LRT scales the gaussian deviance by the dispersion", {
+  res <- run_snp(data = .test_data, snps = .snps2, response = "bmi",
+                 responseType = "quantitative", covariates = list("sex"),
+                 haploInteraction = TRUE, haploFreqMin = 0.05)
+  notes <- res$ldHaploGroup$haploGroup$haploInteractionTable$notes
+  note  <- Filter(function(n) n$key == "lrt_inter", notes)[[1]]$note
+  mod_p <- num(sub(".*: *", "", note))
+
+  na.geno.keep <- getFromNamespace("na.geno.keep", "SNPstats")
+  mat <- do.call(cbind, lapply(.snps2, function(s) {
+    p <- strsplit(as.character(.test_data[[s]]), "/", fixed = TRUE)
+    a1 <- sapply(p, `[`, 1); a2 <- sapply(p, `[`, 2)
+    a1[grepl("0", a1)] <- NA; a2[grepl("0", a2)] <- NA; cbind(a1, a2)
+  }))
+  geno <- haplo.stats::setupGeno(mat, locus.label = .snps2)
+  md <- data.frame(y = .test_data$bmi, sex = .test_data$sex)
+  md$geno <- geno
+  ctl <- haplo.stats::haplo.glm.control(haplo.effect = "additive", haplo.freq.min = 0.05)
+  set.seed(20240920L)
+  fm <- haplo.stats::haplo.glm(y ~ geno * sex, family = gaussian, data = md,
+                               na.action = na.geno.keep, control = ctl)
+  set.seed(20240920L)
+  fa <- haplo.stats::haplo.glm(y ~ geno + sex, family = gaussian, data = md,
+                               na.action = na.geno.keep, control = ctl)
+  inter_df <- sum(grepl(":", rownames(summary(fm)$coefficients)) &
+                  grepl("geno", rownames(summary(fm)$coefficients)))
+  ora_p <- pchisq((fa$deviance - fm$deviance) / summary(fm)$dispersion,
+                  df = inter_df, lower.tail = FALSE)
+
+  expect_gt(summary(fm)$dispersion, 1)          # the scaling actually bites here
+  expect_close(mod_p, ora_p, tol = 0.005, label = "gaussian interaction LRT p")
+})
