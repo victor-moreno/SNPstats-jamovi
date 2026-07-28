@@ -939,42 +939,58 @@ snpPGSClass <- R6::R6Class(
       # ── Step 2: raw weighted sum ──────────────────────────────────────────
       scores <- as.numeric(dosage %*% wvec)
 
-      # ── Step 3: per-individual maximum (used by correction and proportion) ─
-      # Always compute this; the rescaling branch needs it even when
+      # ── Step 3: per-individual attainable range ───────────────────────────
+      # Always computed; the rescaling branch needs it even when
       # missingCorrection = FALSE (for 'proportion'/'percent' to be valid).
+      #
+      # A NEGATIVE weight on the effect allele is the same thing as the positive
+      # weight |w| on the OTHER allele, because dosage_other = 2 - dosage_effect:
+      #
+      #     w·d  =  -|w|·d  =  |w|·(2 - d) - 2|w|
+      #
+      # so such a SNP contributes just as much to the spread of achievable scores
+      # as a positive one — it simply runs the other way. The bounds a genotyped
+      # individual can attain over their observed SNPs are therefore
+      #
+      #     lo = 2·Σ min(w, 0)      hi = 2·Σ max(w, 0)      range = hi - lo = 2·Σ|w|
+      #
+      # and the corrected score is the position within that range, (raw - lo)/range,
+      # which is algebraically identical to flipping every negative-weight SNP to
+      # its other allele and scoring with |w|. Doing it here rather than rewriting
+      # the dosage matrix keeps the raw score the standard signed Σw·d that every
+      # other PGS tool reports, and leaves the catalog's own effect allele intact
+      # in the SNP grid.
+      #
+      # The denominator used to be 2·Σ max(w, 0), i.e. negative-weight SNPs were
+      # dropped from it entirely. That put "proportion of maximum (0-1)" scores in
+      # [-1, 1], left the missingness correction blind to those SNPs, and — when
+      # every SNP an individual had typed carried a negative weight — produced a
+      # denominator of 0, so that person scored NA and silently left the analysis.
+      #
+      # For all-positive weights lo = 0 and range = 2·Σw, so this reduces exactly
+      # to the previous formula; unweighted (w ≡ 1) gives lo = 0 and
+      # range = 2·n_observed, also unchanged. Only mixed-sign weights move.
       vc_cols <- intersect(names(wvec), colnames(qc$valid_counts))
 
       if (length(vc_cols) > 0) {
-        vc <- qc$valid_counts[, vc_cols, drop = FALSE]   # logical TRUE/FALSE matrix
-        if (is_unweighted || scale_wts) {
-          # After weight-scaling, all effective weights are ≈ 1, so use SNP count.
-          # For truly unweighted: max = 2 × n_observed_SNPs.
-          max_possible <- 2 * rowSums(vc)
-        } else {
-          # Max weighted = 2 × sum of positive weights for observed SNPs.
-          # Negative weights reduce the score, so they cannot be part of the
-          # maximum — including them would underestimate the denominator.
-          w_sub        <- wvec[vc_cols]
-          w_pos        <- pmax(w_sub, 0)
-          max_possible <- 2 * as.numeric(vc %*% w_pos)
-        }
+        vc     <- qc$valid_counts[, vc_cols, drop = FALSE]  # logical TRUE/FALSE
+        w_sub  <- wvec[vc_cols]
+        lo_possible    <- 2 * as.numeric(vc %*% pmin(w_sub, 0))
+        range_possible <- 2 * as.numeric(vc %*% abs(w_sub))
       } else {
         # valid_counts unavailable — fall back to global (same for all individuals)
-        if (is_unweighted || scale_wts) {
-          max_possible <- rep(2 * length(wvec), nrow(dosage))
-        } else {
-          max_possible <- rep(2 * sum(pmax(wvec, 0), na.rm = TRUE), nrow(dosage))
-        }
+        lo_possible    <- rep(2 * sum(pmin(wvec, 0), na.rm = TRUE), nrow(dosage))
+        range_possible <- rep(2 * sum(abs(wvec),     na.rm = TRUE), nrow(dosage))
       }
-      max_possible[max_possible == 0] <- NA_real_
+      range_possible[range_possible == 0] <- NA_real_
 
       # ── Step 4: missingness correction ───────────────────────────────────
       # Divide by per-individual maximum to remove the effect of missingness.
       # Required for 'proportion' and 'percent' to be valid.
       if (missing_corr) {
-        scores <- scores / max_possible
-        # After correction, scores ≈ proportion in [0, 1] (may exceed 1 slightly
-        # when some weights are negative, which is mathematically correct).
+        # Position within the attainable range: genuinely in [0, 1] for every
+        # combination of weight signs and observed SNPs.
+        scores <- (scores - lo_possible) / range_possible
       }
 
       # ── Step 5: rescaling ─────────────────────────────────────────────────
@@ -999,16 +1015,19 @@ snpPGSClass <- R6::R6Class(
         perNAlleles = {
           # Reconstruct the raw (uncorrected) score so the per-N denominator
           # is applied to the actual weighted sum, not the proportion.
-          # When missing_corr=TRUE, scores == raw/max_possible, so
-          # raw = scores * max_possible.  NAs propagate correctly because
-          # max_possible is NA wherever the score was already NA.
-          raw <- if (missing_corr) scores * max_possible else scores
+          # When missing_corr=TRUE, scores == (raw - lo)/range, so
+          # raw = scores * range + lo.  NAs propagate correctly because
+          # range_possible is NA wherever the score was already NA.
+          raw <- if (missing_corr) scores * range_possible + lo_possible else scores
           if (is_unweighted || scale_wts) {
             raw / scale_factor
           } else {
-            mean_pos_w <- mean(pmax(wvec, 0), na.rm = TRUE)
-            if (is.na(mean_pos_w) || mean_pos_w == 0) mean_pos_w <- 1
-            raw / (scale_factor * mean_pos_w)
+            # Mean |weight|: a negative weight carries just as much scale as the
+            # positive weight of the same size, so it must not be dropped here
+            # either (pmax() used to zero it, inflating the per-N unit).
+            mean_abs_w <- mean(abs(wvec), na.rm = TRUE)
+            if (is.na(mean_abs_w) || mean_abs_w == 0) mean_abs_w <- 1
+            raw / (scale_factor * mean_abs_w)
           }
         },
 
@@ -1627,6 +1646,18 @@ snpPGSClass <- R6::R6Class(
         }
       }  # end per-SNP loop
 
+      # A SNP the catalog lists without a usable effect_weight passes QC and is
+      # still scored in the UNWEIGHTED mode, but .run drops it from the WEIGHTED
+      # one (names(wvec)[is.na(wvec)]). Nothing said so, leaving a row that looked
+      # like any other while quietly sitting out half the analysis.
+      if (private$.hasWeights()) {
+        nw <- which(is.na(wtable$effect_weight) & !(wtable$rsid %in% qc_exclude) &
+                    wtable$rsid %in% useCols)
+        if (length(nw) > 0)
+          wtable$allele_status[nw] <- paste0(wtable$allele_status[nw],
+                                             "; no weight → unweighted only")
+      }
+
       # ── Step 5: per-SNP statistics (on cleaned data, before imputation) ────
       # Computed for ALL SNPs (including qc_exclude) so the table always shows
       # complete statistics even for excluded SNPs.
@@ -2004,7 +2035,21 @@ snpPGSClass <- R6::R6Class(
       if (isTRUE(self$options$qcFilterHwe))
         add("Excluded by HWE filter",
             sum(grepl("\u274c excl (HWE", wtable$allele_status, fixed = TRUE)))
-      add("SNPs used in score",                length(valid_snps))
+      # A SNP that passes QC but has no usable effect_weight is dropped from the
+      # WEIGHTED score (see .run: names(wvec)[is.na(wvec)]) while still counting
+      # toward the unweighted one, so a single number here was wrong — the table
+      # claimed 4 SNPs were used when the weighted score had summed 3. Report both
+      # counts, but only when they actually differ, so the common case stays a
+      # bare number and the row set remains a pure function of the options (which
+      # .coverageNRows relies on).
+      n_noweight <- if (has_file)
+        sum(is.na(wtable$effect_weight[wtable$rsid %in% valid_snps])) else 0L
+      add("SNPs used in score",
+          if (n_noweight > 0)
+            paste0(length(valid_snps) - n_noweight, " weighted / ",
+                   length(valid_snps), " unweighted (", n_noweight,
+                   " with no weight in the file)")
+          else length(valid_snps))
       add("Missing genotype strategy",         missing_st)
       run_w  <- self$options$weightingMode %in% c("weighted", "both") && has_file
       run_uw <- self$options$weightingMode %in% c("unweighted", "both") || !has_file

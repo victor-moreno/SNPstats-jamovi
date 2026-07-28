@@ -58,9 +58,17 @@ pgs_oracle <- function(unweighted = FALSE, scale = "proportion", factor = 10,
   cnt <- if (missing %in% c("zero", "mean")) matrix(TRUE, nrow(obs), ncol(obs)) else obs
 
   num <- as.numeric(Dimp %*% w)
-  den <- if (unweighted) 2 * rowSums(cnt) else 2 * as.numeric(cnt %*% pmax(w, 0))
-  den[den == 0] <- NA
-  score <- if (corrected) num / den else num
+  # Attainable bounds over the SNPs that count. A negative weight is the positive
+  # weight |w| on the other allele, so it widens the range just as much as a
+  # positive one; the corrected score is the position within [lo, hi]. Using
+  # 2*sum(pmax(w,0)) instead (the old formula) drops negative-weight SNPs from
+  # the denominator, which puts "proportion" scores outside [0,1] and can leave
+  # an individual with a denominator of 0. For all-positive weights lo is 0 and
+  # this reduces to the old expression; unweighted (w = 1) likewise.
+  lo  <- 2 * as.numeric(cnt %*% pmin(w, 0))
+  rng <- 2 * as.numeric(cnt %*% abs(w))
+  rng[rng == 0] <- NA
+  score <- if (corrected) (num - lo) / rng else num
   score <- switch(scale,
                   percent  = score * 100,
                   multiply = score * factor,
@@ -451,17 +459,27 @@ test_that("QC missingness filter excludes SNPs above threshold", {
 # ══════════════════════════════════════════════════════════════════════════════
 
 test_that("GOLDEN pgs scores and association", {
+  # The WEIGHTED values here were re-pinned when the missingness correction began
+  # treating a negative weight as the positive weight on the other allele
+  # (was mean 0.17651 / sd 0.20799, OR 1.3327 [0.9304, 1.9089]). The fixture
+  # carries one negative weight, rs10911251 = -0.3, which the old denominator
+  # dropped: the corrected score was raw / 2*sum(pmax(w,0)), so it was divided by
+  # a maximum that ignored that SNP. The new values were verified against the
+  # independent oracle in this file and against a hand-oriented score (flip the
+  # negative-weight SNP to its other allele, use |w|), which they reproduce
+  # exactly. The UNWEIGHTED golden is unchanged, as it must be — with all weights
+  # equal to 1 the two formulas coincide.
   res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsFile = .pgs_weightsfile,
                  weightingMode = "both", responseCol = "phenotype", showAssoc = TRUE)
   w <- smry(res, "Weighted"); u <- smry(res, "Unweighted")
-  expect_close(num(w$mean), 0.17651, tol = 5e-4)
-  expect_close(num(w$sd),   0.20799, tol = 5e-4)
+  expect_close(num(w$mean), 0.31355, tol = 5e-4)
+  expect_close(num(w$sd),   0.17333, tol = 5e-4)
   expect_close(num(u$mean), 0.31730, tol = 5e-4)
   at <- as_df(res$assocTable)
   lr <- at[at$test == "Logistic regression" & at$score_type == "Weighted", ]
-  expect_close(num(lr$estimate), 1.3327, tol = 2e-3)
-  expect_close(num(lr$ci_low),   0.9304, tol = 2e-3)
-  expect_close(num(lr$ci_high),  1.9089, tol = 2e-3)
+  expect_close(num(lr$estimate), 1.3997, tol = 2e-3)
+  expect_close(num(lr$ci_low),   0.9095, tol = 2e-3)
+  expect_close(num(lr$ci_high),  2.1541, tol = 2e-3)
 })
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -651,4 +669,137 @@ test_that("the group HWE was tested in is always stated, not only on an exclusio
                      weightsFile = .pgs_weightsfile, showSnpGrid = TRUE)
   n_off <- off_res$snpGridTable$notes[["hweGroupNote"]]
   expect_true(is.null(n_off) || is.null(n_off$note))
+})
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Negative effect weights
+#
+# A negative weight on the effect allele is the positive weight |w| on the OTHER
+# allele, because dosage_other = 2 - dosage_effect. Such a SNP therefore widens
+# the range of attainable scores exactly as much as a positive one. The
+# correction denominator used to be 2*sum(pmax(w, 0)), which dropped those SNPs.
+# ══════════════════════════════════════════════════════════════════════════════
+
+.pgs_mixed_wfile <- local({
+  f <- tempfile(fileext = ".tsv")
+  writeLines("# mixed-sign weights", f)
+  w  <- c(rs12080929 = 0.5, rs10911251 = -0.3, rs10936599 = 0.8, rs6691170 = -0.2)
+  df <- data.frame(rsID = .pgs_snps,
+                   effect_allele = .pgs_effect[.pgs_snps],
+                   other_allele  = .pgs_other[.pgs_snps],
+                   effect_weight = w[.pgs_snps],
+                   chr_name = seq_along(.pgs_snps),
+                   chr_position = seq_along(.pgs_snps) * 100L)
+  suppressWarnings(write.table(df, f, sep = "\t", row.names = FALSE,
+                               quote = FALSE, append = TRUE))
+  f
+})
+.pgs_mixed_w <- c(rs12080929 = 0.5, rs10911251 = -0.3, rs10936599 = 0.8, rs6691170 = -0.2)
+
+test_that("a negative weight scores as the positive weight on the other allele", {
+  # Hand-orient: flip the negative-weight SNPs to their other allele (2 - d) and
+  # score with |w|. The module must reproduce this exactly.
+  D    <- .pgs_dosage()
+  w    <- .pgs_mixed_w[.pgs_snps]
+  flip <- w < 0
+  Dor  <- D; Dor[, flip] <- 2 - D[, flip]
+  obs  <- !is.na(D)
+  Dz   <- Dor; Dz[!obs] <- 0
+  oriented <- as.numeric(Dz %*% abs(w)) / (2 * as.numeric(obs %*% abs(w)))
+
+  res <- run_pgs(data = .test_data, snpCols = .pgs_snps,
+                 weightsFile = .pgs_mixed_wfile, weightingMode = "weighted")
+  r <- smry(res, "Weighted")
+  expect_close(num(r$mean), mean(oriented, na.rm = TRUE), tol = 5e-4)
+  expect_close(num(r$sd),   sd(oriented,   na.rm = TRUE), tol = 5e-4)
+  expect_close(num(r$min),  min(oriented,  na.rm = TRUE), tol = 5e-4)
+  expect_close(num(r$max),  max(oriented,  na.rm = TRUE), tol = 5e-4)
+})
+
+test_that("mixed-sign weights keep proportion scores inside [0, 1]", {
+  for (ms in c("SNP-wise", "zero", "mean", "exclude")) {
+    res <- run_pgs(data = .pgs_gappy, snpCols = .pgs_snps,
+                   weightsFile = .pgs_mixed_wfile, weightingMode = "weighted",
+                   missingStrategy = ms, scaleMethod = "proportion")
+    st <- as_df(res$summaryTable); st <- st[st$group == "Overall", ]
+    expect_gte(min(num(st$min)), -1e-9, label = paste(ms, "min"))
+    expect_lte(max(num(st$max)), 1 + 1e-9, label = paste(ms, "max"))
+  }
+})
+
+test_that("nobody is dropped for having only negative-weight SNPs observed", {
+  # The old denominator was 2*sum(pmax(w,0)) over observed SNPs, so an individual
+  # whose every typed SNP carried a negative weight got 0 -> NA and vanished.
+  d <- .test_data
+  # leave only the two negative-weight SNPs typed for the first 300 people
+  pos <- names(.pgs_mixed_w)[.pgs_mixed_w > 0]
+  for (s in pos) d[[s]][seq_len(300)] <- NA
+  res <- run_pgs(data = d, snpCols = .pgs_snps, weightsFile = .pgs_mixed_wfile,
+                 weightingMode = "weighted")
+  n_scored <- as.integer(smry(res, "Weighted")$n)
+
+  D <- sapply(.pgs_snps, function(s) {
+    g <- as.character(d[[s]]); g[grepl("0", g)] <- NA
+    p <- strsplit(g, "/", fixed = TRUE)
+    vapply(p, function(x) if (length(x) != 2 || any(is.na(x))) NA_real_ else 1, 0)
+  })
+  expect_equal(n_scored, sum(rowSums(!is.na(D)) > 0))
+})
+
+test_that("all-positive weights are unaffected by the negative-weight handling", {
+  # lo = 0 and range = 2*sum(w) when no weight is negative, so the corrected
+  # score is the old raw/max_possible exactly.
+  D   <- .pgs_dosage()
+  w   <- abs(.pgs_weights[.pgs_snps])          # same magnitudes, all positive
+  f   <- tempfile(fileext = ".tsv"); writeLines("# all positive", f)
+  df  <- data.frame(rsID = .pgs_snps, effect_allele = .pgs_effect[.pgs_snps],
+                    other_allele = .pgs_other[.pgs_snps], effect_weight = w[.pgs_snps],
+                    chr_name = seq_along(.pgs_snps),
+                    chr_position = seq_along(.pgs_snps) * 100L)
+  suppressWarnings(write.table(df, f, sep = "\t", row.names = FALSE,
+                               quote = FALSE, append = TRUE))
+  obs <- !is.na(D); Dz <- D; Dz[!obs] <- 0
+  expected <- as.numeric(Dz %*% w) / (2 * as.numeric(obs %*% w))
+  res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsFile = f,
+                 weightingMode = "weighted")
+  expect_close(num(smry(res, "Weighted")$mean), mean(expected, na.rm = TRUE), tol = 5e-4)
+})
+
+test_that("a SNP with no weight is reported, not silently dropped", {
+  # It passes QC and still counts toward the UNWEIGHTED score, but .run drops it
+  # from the weighted one. Coverage used to report the full count regardless, so
+  # the table said 4 SNPs were used while the weighted score had summed 3.
+  f  <- tempfile(fileext = ".tsv"); writeLines("# one blank weight", f)
+  w  <- .pgs_weights; w["rs10911251"] <- NA
+  df <- data.frame(rsID = .pgs_snps, effect_allele = .pgs_effect[.pgs_snps],
+                   other_allele = .pgs_other[.pgs_snps], effect_weight = w[.pgs_snps],
+                   chr_name = seq_along(.pgs_snps),
+                   chr_position = seq_along(.pgs_snps) * 100L)
+  suppressWarnings(write.table(df, f, sep = "\t", row.names = FALSE,
+                               quote = FALSE, append = TRUE))
+
+  res <- run_pgs(data = .test_data, snpCols = .pgs_snps, weightsFile = f,
+                 weightingMode = "both", showCoverage = TRUE, showSnpGrid = TRUE)
+  cov <- as_df(res$coverageTable)
+  used <- cov$value[cov$field == "SNPs used in score"]
+  expect_match(used, "3 weighted")
+  expect_match(used, "4 unweighted")
+  grid <- as_df(res$snpGridTable)
+  expect_match(grid$allele_status[grid$rsid == "rs10911251"], "no weight")
+
+  # the weighted score must equal one computed with that SNP simply removed
+  D <- .pgs_dosage(); keep <- setdiff(.pgs_snps, "rs10911251")
+  wk  <- .pgs_weights[keep]
+  obs <- !is.na(D[, keep]); Dz <- D[, keep]; Dz[!obs] <- 0
+  lo  <- 2 * as.numeric(obs %*% pmin(wk, 0))
+  rg  <- 2 * as.numeric(obs %*% abs(wk))
+  expected <- (as.numeric(Dz %*% wk) - lo) / rg
+  expect_close(num(smry(res, "Weighted")$mean), mean(expected, na.rm = TRUE), tol = 5e-4)
+
+  # and with every weight present the row stays a bare count
+  ok <- run_pgs(data = .test_data, snpCols = .pgs_snps,
+                weightsFile = .pgs_weightsfile, weightingMode = "both",
+                showCoverage = TRUE)
+  cov_ok <- as_df(ok$coverageTable)
+  expect_equal(cov_ok$value[cov_ok$field == "SNPs used in score"], "4")
 })
