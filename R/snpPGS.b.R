@@ -328,6 +328,8 @@ snpPGSClass <- R6::R6Class(
       summaryTbl <- self$results$summaryTable
       summaryTbl$setVisible(has_snps && isTRUE(self$options$showSummary))
       private$.clearRunNotes(summaryTbl, "orientNote")
+      private$.clearRunNotes(self$results$snpGridTable,  "hweGroupNote")
+      private$.clearRunNotes(self$results$coverageTable, "hweGroupNote")
 
       if (has_snps && summaryTbl$rowCount == 0) {
         # Pre-create EVERY row .run() will produce (one per group per mode), not
@@ -435,6 +437,45 @@ snpPGSClass <- R6::R6Class(
       }
     },
 
+    # Which response level counts as "controls" for the HWE QC filter.
+    #
+    # caseLevel ("Reference level") when the user has set it — that option is
+    # documented as the baseline and as the control group for ROC/calibration,
+    # so HWE must not disagree with it. Otherwise the response's first level,
+    # matching how every other model in the analysis picks its baseline.
+    .hweRefLevel = function(rv) {
+      lv <- if (is.factor(rv)) levels(droplevels(rv))
+            else sort(unique(rv[!is.na(rv)]))
+      cl <- trimws(self$options$caseLevel %||% "")
+      if (nchar(cl) > 0 && cl %in% as.character(lv)) return(cl)
+      lv[1]
+    },
+
+    # State which group the HWE filter tested, on every run and whether or not a
+    # SNP was actually excluded. Without this the group is only visible inside an
+    # exclusion label, so a user whose SNPs all pass never learns that the filter
+    # ran on cases. init = FALSE and set outside the grid's fill gate, so the note
+    # survives protobuf restore (see .clearRunNotes).
+    .setHweGroupNote = function() {
+      txt <- NULL
+      if (isTRUE(self$options$qcFilterHwe)) {
+        rc <- trimws(self$options$responseCol %||% "")
+        if (nzchar(rc) && rc %in% names(self$data)) {
+          rv <- self$data[[rc]]
+          if (length(unique(rv[!is.na(rv)])) == 2) {
+            lv  <- private$.hweRefLevel(rv)
+            txt <- paste0(
+              "Hardy-Weinberg equilibrium was tested in ", rc, " = \u2018", lv,
+              "\u2019 only. Case-control QC conventionally tests HWE in controls, ",
+              "because departure from equilibrium in cases can itself be an ",
+              "association signal; use \u2018Reference level\u2019 to choose the group.")
+          }
+        }
+      }
+      for (t in list(self$results$snpGridTable, self$results$coverageTable))
+        t$setNote("hweGroupNote", txt, init = FALSE)
+    },
+
     # Add a message to the validation panel.
     #
     # Several points in one run can have something to say, and the later ones
@@ -514,6 +555,9 @@ snpPGSClass <- R6::R6Class(
           wmode       = wmode,
           applyHwe    = apply_hwe,
           hweResp     = if (apply_hwe) respCol else NULL,
+          # caseLevel selects the group HWE is tested in, so it changes hwe_p
+          # and therefore which SNPs the filter excludes.
+          hweRef      = if (apply_hwe) (self$options$caseLevel %||% "") else NULL,
           levelOrder  = level_order
         )
         if (identical(core_key, private$.cache$core_key) &&
@@ -553,6 +597,9 @@ snpPGSClass <- R6::R6Class(
       # in the grid's clearWith, so a change sets isNotFilled() (which survives
       # protobuf restore) and an unrelated click leaves it FALSE → the restored
       # rows are shown without a rebuild.
+      # Un-gated: the grid's fill is skipped on a restored run, but this note must
+      # still be present.
+      private$.setHweGroupNote()
       if (self$results$snpGridTable$isNotFilled() ||
           self$results$snpGridTable$rowCount == 0) {
         private$.fillSnpGridTable(wtable, valid_snps)
@@ -1374,11 +1421,21 @@ snpPGSClass <- R6::R6Class(
       # the per-SNP hwe_p depend on the flag + response, but not on the threshold.
       apply_hwe   <- isTRUE(self$options$qcFilterHwe) && !is.na(self$options$qcHweP)
 
-      # ── Resolve HWE control vector ────────────────────────────────────────
-      # When a binary response variable is selected, HWE is automatically
-      # tested in controls only (first/lowest level), the standard approach
-      # in case-control GWAS QC.  No separate column is needed.
+      # ── Resolve HWE reference (control) group ─────────────────────────────
+      # Standard case-control GWAS QC tests HWE in CONTROLS only: departure from
+      # equilibrium in cases can be a genuine association signal, so filtering on
+      # cases throws away true positives.
+      #
+      # Which group is "controls" comes from the same place as everywhere else in
+      # this analysis — the `caseLevel` option ("Reference level"), which the
+      # docs already define as the baseline and the control group for ROC and
+      # calibration. It used to take the raw column's FIRST factor level and
+      # ignore caseLevel entirely, which is wrong twice over: it disregards an
+      # explicit user choice, and with the usual "Case"/"Control" labels the
+      # alphabetical first level is *Case* — so the filter ran on cases by
+      # default. The resolved level is reported in a note so it is never silent.
       ctrl_vec  <- NULL
+      ctrl_ref  <- NULL
       ctrl_note <- ""
       if (apply_hwe) {
         resp_col_nm <- self$options$responseCol
@@ -1387,11 +1444,9 @@ snpPGSClass <- R6::R6Class(
           rv      <- self$data[[resp_col_nm]]
           rv_vals <- unique(rv[!is.na(rv)])
           if (length(rv_vals) == 2) {
-            ctrl_levels <- if (is.factor(rv)) levels(rv)
-                           else sort(rv_vals)
-            ctrl_ref  <- ctrl_levels[1]   # lower value / first factor level = controls
+            ctrl_ref  <- private$.hweRefLevel(rv)
             ctrl_vec  <- rv
-            ctrl_note <- paste0(" (controls: ", resp_col_nm, "=", ctrl_ref, ")")
+            ctrl_note <- paste0(" (HWE in ", resp_col_nm, " = ", ctrl_ref, ")")
           }
         }
       }
@@ -1588,10 +1643,9 @@ snpPGSClass <- R6::R6Class(
 
         # ctrl_vec and ctrl_note were resolved above from the binary response variable.
         # When a binary response is present, HWE is computed in controls only.
-        if (!is.null(ctrl_vec) && length(ctrl_vec) == n_rows) {
-          ctrl_levels <- if (is.factor(ctrl_vec)) levels(ctrl_vec)
-                         else sort(unique(ctrl_vec[!is.na(ctrl_vec)]))
-          ctrl_ref    <- ctrl_levels[1]
+        if (!is.null(ctrl_vec) && !is.null(ctrl_ref) && length(ctrl_vec) == n_rows) {
+          # ctrl_ref was resolved once above (caseLevel-aware); do not re-derive
+          # it here from the raw level order.
           ctrl_mask   <- !is.na(ctrl_vec) & as.character(ctrl_vec) == as.character(ctrl_ref)
           col_hwe     <- col_for_stats
           col_hwe[!ctrl_mask] <- NA
@@ -1708,6 +1762,27 @@ snpPGSClass <- R6::R6Class(
           )
         }
       }
+
+      # Which SNPs count toward the per-individual denominator used by the
+      # missingness correction. The rule is: a SNP counts if this strategy gives
+      # the individual a dosage for it that the numerator will use.
+      #
+      #   SNP-wise  observed SNPs only — that observed-only denominator IS the
+      #             definition of the strategy.
+      #   zero      a missing genotype is asserted to BE a reference homozygote,
+      #             i.e. a real observation of dosage 0, so it counts.
+      #   mean      the imputed column mean is a dosage the numerator adds up, so
+      #             the SNP must count in the denominator too.
+      #   exclude   rows with any missing SNP are dropped below, so every
+      #             remaining cell is observed and this is already all-TRUE.
+      #
+      # Both corrections matter. Without the 'zero' case that strategy was
+      # byte-identical to 'SNP-wise' in every configuration — the option did
+      # nothing at all. Without the 'mean' case the numerator counted an imputed
+      # dosage that the denominator did not, so the "proportion of maximum
+      # (0-1)" score ran past its own range (up to ~3 on a column with heavy
+      # missingness).
+      if (missing_st %in% c("zero", "mean")) valid_counts[] <- TRUE
 
       # ── Step 8: row exclusion for missing_st == "exclude" ─────────────────
       if (missing_st == "exclude") {

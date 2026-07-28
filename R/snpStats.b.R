@@ -530,8 +530,24 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       }
 
       # Validation messages
-      if (nchar(prep$warnings) > 0) {
-        self$results$validationMsg$setContent(prep$warnings)
+      msgs <- prep$warnings
+      # A response that resolves to "none" is dropped by every downstream
+      # computation, so the association / interaction / haplotype tables come
+      # back empty with nothing on screen to say why. That happens for a
+      # non-numeric response with more than 6 distinct values — detect_response_type
+      # only recognises binary (2) and categorical (3-6). Say so, and point at the
+      # override, rather than rendering a blank table.
+      if (!is.null(prep$response_var) && identical(prep$response_type, "none")) {
+        nlev <- length(unique(stats::na.omit(prep$response_raw)))
+        msgs <- paste0(msgs, msg_warn(
+          "Response \u2018", html_escape(prep$response_var), "\u2019 has ", nlev,
+          " distinct values and is not numeric, so it cannot be analysed",
+          " automatically. Auto-detect supports a binary (2-level) or categorical",
+          " (3-6 level) factor, or a numeric response. Set \u2018Response type\u2019",
+          " explicitly to analyse it as quantitative."))
+      }
+      if (nchar(msgs) > 0) {
+        self$results$validationMsg$setContent(msgs)
         self$results$validationMsg$setVisible(TRUE)
       } else {
         self$results$validationMsg$setVisible(FALSE)

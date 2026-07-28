@@ -241,3 +241,35 @@ test_that("empty continuous cells render '—' consistently across stratified ta
   expect_true(any(as_df(item$stratByGenotype)$stat0 == dash, na.rm = TRUE))
   expect_true(any(as_df(item$crossClassTable)$stat0 == dash, na.rm = TRUE))
 })
+
+test_that("binary association states which level the odds ratio is for", {
+  # prepare_response codes the first factor level 0 and the second 1, so the OR
+  # is for the SECOND level. With phenotype = (Case, Control) that means the
+  # reported OR is the odds of being a *Control* — silently the opposite of what
+  # a reader assumes. snpPGS already says so on its association table; snpStats
+  # must too (CLAUDE.md: keep the two analyses homogeneous).
+  expect_equal(levels(.test_data$phenotype), c("Case", "Control"))
+  res <- run_snp(data = .test_data, snps = "rs10911251", response = .resp,
+                 snpAssoc = TRUE, modelLogAdditive = TRUE)
+  tbl <- res$assocGroup$assocSnpResults$get(key = "rs10911251")$assocTable
+  notes <- vapply(tbl$notes, function(n) n$note, "")
+  expect_true(any(grepl("Odds ratios are for", notes)))
+  hit <- notes[grepl("Odds ratios are for", notes)][1]
+  expect_match(hit, "phenotype")
+  expect_match(hit, "Control")       # the modelled outcome
+  expect_match(hit, "Case")          # the baseline
+})
+
+test_that("an unanalysable response explains itself instead of rendering blank", {
+  dd <- .test_data[seq_len(600), "rs12080929", drop = FALSE]
+  dd$y7 <- factor(rep(paste0("L", 1:7), length.out = 600))
+  res <- run_snp(data = dd, snps = "rs12080929", response = "y7", snpAssoc = TRUE)
+  expect_true(res$validationMsg$visible)
+  expect_match(res$validationMsg$content, "7 distinct values")
+  expect_match(res$validationMsg$content, "Response type")
+
+  # a normal binary response must not trip it
+  ok <- run_snp(data = .test_data, snps = "rs12080929", response = .resp,
+                snpAssoc = TRUE)
+  expect_false(ok$validationMsg$visible)
+})

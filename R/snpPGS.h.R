@@ -434,7 +434,8 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "qcHweP",
                     "snpGridSortBy",
                     "snpGridSortField",
-                    "filterValidSnps"),
+                    "filterValidSnps",
+                    "caseLevel"),
                 columns=list(
                     list(
                         `name`="rsid", 
@@ -510,7 +511,8 @@ snpPGSResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "qcHweP",
                     "missingStrategy",
                     "responseCol",
-                    "covCols"),
+                    "covCols",
+                    "caseLevel"),
                 columns=list(
                     list(
                         `name`="field", 
@@ -1063,9 +1065,13 @@ snpPGSBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #' @param qcHweP Threshold for the HWE filter (requires qcFilterHwe = TRUE).
 #'   SNPs with HWE p-value strictly below this value are excluded. Default:
 #'   0.001. HWE is computed using an exact test on the cleaned (NA-corrected)
-#'   genotype column. When a binary response variable is selected, HWE is
-#'   automatically tested in controls only (the lower/first level), following
-#'   standard GWAS QC practice.
+#'   genotype column. When a binary response variable is selected, HWE is tested
+#'   within one response group only, following standard GWAS QC practice — which
+#'   tests in CONTROLS, because departure from equilibrium in cases can itself
+#'   be an association signal. The group is the one named by 'caseLevel'
+#'   ('Reference level'), falling back to the response's first level when that
+#'   is not set; the group actually used is stated in a note on the SNP weights
+#'   and coverage tables.
 #' @param missingCorrection If TRUE, divides each individual's raw score by
 #'   the maximum score they could have achieved given their observed SNPs only.
 #'   For unweighted scoring: denominator = 2 × n_observed_SNPs. For weighted

@@ -1525,6 +1525,20 @@ compute_assoc <- function(snp_nm, prep,
     notes <- c(notes, paste0("Adjusted for: ", paste(names(cov_df_cc), collapse=", ")))
   if (n_miss > 0)
     notes <- c(notes, paste0(n_miss, " observation(s) excluded."))
+  # Which level the odds ratio is FOR. prepare_response codes the first factor
+  # level 0 and the second 1, so the OR is for the second level — and the first
+  # level is whatever the factor happens to order first, which for the common
+  # "Case"/"Control" labels is alphabetical and puts Case first. Reporting an OR
+  # without saying which way round it runs lets the reader assume "risk" when the
+  # model may be estimating the odds of being a control. snpPGS already states
+  # this on its association table ("Response: x (B vs A)"); say the same here.
+  if (rtype == "binary" && !is.null(response_raw)) {
+    rl <- levels(as.factor(response_raw))
+    if (length(rl) >= 2)
+      notes <- c(notes, paste0("Odds ratios are for ",
+                               prep$response_var %||% "the response",
+                               " = ‘", rl[2], "’ versus ‘", rl[1], "’."))
+  }
   if (is_categorical && !is.null(response_raw))
     notes <- c(notes, paste0("Reference category: ‘",
       levels(as.factor(response_raw))[1], "’"))

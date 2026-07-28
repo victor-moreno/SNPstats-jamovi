@@ -45,12 +45,20 @@ pgs_oracle <- function(unweighted = FALSE, scale = "proportion", factor = 10,
   if (missing == "mean") {
     for (j in seq_len(ncol(D))) Dimp[!obs[, j], j] <- mean(D[, j], na.rm = TRUE)
   } else {
-    Dimp[!obs] <- 0                       # SNP-wise / zero
+    Dimp[!obs] <- 0                       # SNP-wise / zero both impute 0
   }
   keep_row <- if (missing == "exclude") rowSums(!obs) == 0 else rep(TRUE, nrow(D))
 
+  # Which SNPs count toward the missingness-correction denominator. Only
+  # 'SNP-wise' uses an observed-only denominator — that is what defines it.
+  # 'zero' asserts the missing genotype is a real dosage 0 and 'mean' substitutes
+  # a dosage the numerator then uses, so under both the SNP counts. (Getting this
+  # wrong is what made 'zero' identical to 'SNP-wise' and let 'mean' produce
+  # "proportion of maximum" scores above 1.)
+  cnt <- if (missing %in% c("zero", "mean")) matrix(TRUE, nrow(obs), ncol(obs)) else obs
+
   num <- as.numeric(Dimp %*% w)
-  den <- if (unweighted) 2 * rowSums(obs) else 2 * as.numeric(obs %*% pmax(w, 0))
+  den <- if (unweighted) 2 * rowSums(cnt) else 2 * as.numeric(cnt %*% pmax(w, 0))
   den[den == 0] <- NA
   score <- if (corrected) num / den else num
   score <- switch(scale,
@@ -528,4 +536,119 @@ test_that("an oversized gunzipped payload is refused rather than expanded", {
                  weightsFilename = "bomb.tsv.gz",
                  weightingMode   = "weighted")
   expect_gt(nrow(as_df(res$summaryTable)), 0L)
+})
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Missing-genotype strategies
+#
+# Each of the four must do something distinct, and a "proportion of maximum"
+# score must stay inside [0, 1]. 'zero' used to be byte-identical to 'SNP-wise'
+# (both imputed 0 AND both kept the observed-only denominator, so the option did
+# nothing), and 'mean' added an imputed dosage to the numerator whose SNP the
+# denominator left out, pushing the score past 1.
+# ══════════════════════════════════════════════════════════════════════════════
+
+.pgs_gappy <- local({
+  d <- .test_data
+  set.seed(1)
+  for (s in .pgs_snps) d[[s]][sample(nrow(d), 800)] <- NA
+  d
+})
+
+test_that("each missing-genotype strategy matches the oracle", {
+  for (ms in c("SNP-wise", "zero", "mean", "exclude")) {
+    res <- run_pgs(data = .test_data, snpCols = .pgs_snps,
+                   weightsFile = .pgs_weightsfile, weightingMode = "weighted",
+                   missingStrategy = ms)
+    o <- pgs_oracle(missing = ms)
+    r <- smry(res, "Weighted")
+    expect_close(num(r$mean), mean(o, na.rm = TRUE), tol = 5e-4,
+                 label = paste(ms, "mean"))
+    expect_close(num(r$sd), sd(o, na.rm = TRUE), tol = 5e-4,
+                 label = paste(ms, "sd"))
+  }
+})
+
+test_that("'zero' and 'SNP-wise' are not the same strategy", {
+  g <- function(ms) num(smry(run_pgs(data = .pgs_gappy, snpCols = .pgs_snps,
+                                     weightsFile = .pgs_weightsfile,
+                                     weightingMode = "weighted",
+                                     missingStrategy = ms), "Weighted")$mean)
+  snpwise <- g("SNP-wise"); zero <- g("zero")
+  expect_false(isTRUE(all.equal(snpwise, zero)))
+  # zero counts the un-typed SNPs in the denominator, so it can only be lower
+  expect_lt(zero, snpwise)
+})
+
+test_that("proportion-scaled scores never exceed 1, for every strategy", {
+  # The upper bound is the invariant: the correction divides by the maximum the
+  # individual could have scored, so the ratio cannot exceed 1. ('mean' used to
+  # reach ~3 because the imputed dosage was in the numerator but its SNP was not
+  # in the denominator.)
+  #
+  # There is no matching lower bound for the WEIGHTED score: the denominator uses
+  # positive weights only, so a negative effect weight — the fixture has one,
+  # rs10911251 = -0.3 — legitimately drives the score below 0. Unweighted scores
+  # are sums of non-negative dosages and cannot be.
+  for (ms in c("SNP-wise", "zero", "mean", "exclude")) {
+    for (wm in c("weighted", "unweighted")) {
+      res <- run_pgs(data = .pgs_gappy, snpCols = .pgs_snps,
+                     weightsFile = .pgs_weightsfile, weightingMode = wm,
+                     missingStrategy = ms, scaleMethod = "proportion")
+      st <- as_df(res$summaryTable)
+      st <- st[st$group == "Overall", ]
+      lab <- paste(ms, wm)
+      expect_lte(max(num(st$max)), 1 + 1e-9, label = paste(lab, "max"))
+      if (wm == "unweighted")
+        expect_gte(min(num(st$min)), -1e-9, label = paste(lab, "min"))
+    }
+  }
+})
+
+test_that("HWE QC filter tests the group named by caseLevel, not the raw first level", {
+  # Standard case-control QC tests HWE in CONTROLS: departure from equilibrium in
+  # cases can be a real association signal, so filtering on cases discards true
+  # positives. The filter used to read the response column's raw first factor
+  # level and ignore caseLevel entirely — and with the usual "Case"/"Control"
+  # labels the alphabetical first level is Case, so it ran on cases by default.
+  G  <- asNamespace("SNPstats")
+  pg <- get("parse_genotype", envir = G)
+  hx <- get("snp_hwe_exact",  envir = G)
+  cl <- get("clean_null_alleles", envir = G)
+
+  hand <- function(level) vapply(.pgs_snps, function(s) {
+    sub <- .test_data[!is.na(.test_data$phenotype) & .test_data$phenotype == level, ]
+    gg  <- tryCatch(pg(cl(as.character(sub[[s]])), NULL), error = function(e) NULL)
+    if (is.null(gg)) return(NA_real_)
+    tryCatch(hx(gg)$p.value, error = function(e) NA_real_)
+  }, 0)
+  grid_hwe <- function(...) {
+    r <- run_pgs(data = .test_data, snpCols = .pgs_snps, responseCol = "phenotype",
+                 weightsFile = .pgs_weightsfile, qcFilterHwe = TRUE,
+                 showSnpGrid = TRUE, ...)
+    g <- as_df(r$snpGridTable)
+    num(g$hwe_p[match(.pgs_snps, g$rsid)])
+  }
+
+  expect_equal(levels(.test_data$phenotype)[1], "Case")   # the trap this guards
+  expect_equal(grid_hwe(caseLevel = "Control"), unname(hand("Control")), tolerance = 1e-8)
+  expect_equal(grid_hwe(caseLevel = "Case"),    unname(hand("Case")),    tolerance = 1e-8)
+  # caseLevel must actually change the answer — it used to be ignored
+  expect_false(isTRUE(all.equal(grid_hwe(caseLevel = "Control"),
+                                grid_hwe(caseLevel = "Case"))))
+})
+
+test_that("the group HWE was tested in is always stated, not only on an exclusion", {
+  on_res <- run_pgs(data = .test_data, snpCols = .pgs_snps, responseCol = "phenotype",
+                    weightsFile = .pgs_weightsfile, qcFilterHwe = TRUE,
+                    showSnpGrid = TRUE)
+  note <- on_res$snpGridTable$notes[["hweGroupNote"]]
+  expect_false(is.null(note))
+  expect_match(note$note, "phenotype")
+  expect_match(note$note, "Case")          # the level actually used
+
+  off_res <- run_pgs(data = .test_data, snpCols = .pgs_snps, responseCol = "phenotype",
+                     weightsFile = .pgs_weightsfile, showSnpGrid = TRUE)
+  n_off <- off_res$snpGridTable$notes[["hweGroupNote"]]
+  expect_true(is.null(n_off) || is.null(n_off$note))
 })

@@ -190,8 +190,13 @@ options:
               SNPs with HWE p-value strictly below this value are excluded.
               Default: 0.001. HWE is computed using an exact test on the
               cleaned (NA-corrected) genotype column. When a binary response
-              variable is selected, HWE is automatically tested in controls
-              only (the lower/first level), following standard GWAS QC practice.
+              variable is selected, HWE is tested within one response group only,
+              following standard GWAS QC practice — which tests in CONTROLS,
+              because departure from equilibrium in cases can itself be an
+              association signal. The group is the one named by 'caseLevel'
+              ('Reference level'), falling back to the response's first level
+              when that is not set; the group actually used is stated in a note
+              on the SNP weights and coverage tables.
 
 
     - name: missingCorrection
