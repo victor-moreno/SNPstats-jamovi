@@ -2069,6 +2069,12 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             p_lrt <- pchisq(dev_diff / disp, df = df_geno, lower.tail = FALSE)
         }
         list(ok = TRUE, p_lrt = p_lrt,
+             # The interaction's additive fit is this same model whenever every
+             # covariate appears in both; publish the deviance and a key proving
+             # that, so it can be reused instead of refitted (see
+             # .compute_haplo_interaction).
+             deviance = hf$deviance,
+             fit_key  = haplo_fit_key(formula_str, family, sum(keep), opts),
              coef_sum = tryCatch(summary(hf)$coefficients, error = function(e) NULL),
              ci_mat   = tryCatch(confint(hf, level = opts$ciWidth / 100), error = function(e) NULL),
              haplo.base = hf$haplo.base, haplo.unique = hf$haplo.unique, haplo.freq = hf$haplo.freq,
@@ -2182,20 +2188,38 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
             self$results$validationMsg$setContent(paste0("<b>Haplotype interaction GLM error:</b> ", e$message)); NULL
           })
         if (is.null(fm)) return(list(ok = FALSE))
-        fa <- tryCatch(
+        # The additive fit exists only for its deviance (the interaction LRT).
+        # It is the same model the association table already fitted, so take its
+        # cached deviance when the keys match and skip a whole haplo.glm.
+        assoc_st  <- self$results$ldHaploGroup$haploGroup$haploAssocTable$state$v
+        add_key   <- haplo_fit_key(formula_add_str, family_int, sum(keep), opts)
+        add_dev   <- if (isTRUE(assoc_st$ok) && identical(assoc_st$fit_key, add_key))
+                       assoc_st$deviance else NULL
+        fa <- if (!is.null(add_dev)) NULL else tryCatch(
           with_fixed_seed(haplo.stats::haplo.glm(as.formula(formula_add_str), family = family_int, data = m_int,
                                  na.action = na.geno.keep,
                                  control = haplo_glm_control(opts))),
           error = function(e) NULL)
+        cs <- tryCatch(summary(fm)$coefficients, error = function(e) NULL)
+        # vcov() also carries the EM haplotype-frequency parameters (180x180 for
+        # a 58-coefficient model), which nothing here indexes and which alone put
+        # the cached state at 250 kB — past jamovi's 500 kB state limit for a
+        # slightly larger model, at which point the cache silently stops
+        # persisting and every click refits. Keep only the coefficient block.
+        vc <- tryCatch(vcov(fm), error = function(e) NULL)
+        if (!is.null(vc) && !is.null(cs) && nrow(vc) > nrow(cs)) {
+          k  <- seq_len(nrow(cs))
+          vc <- if (identical(rownames(vc)[k], rownames(cs))) vc[k, k, drop = FALSE] else NULL
+        }
         list(ok = TRUE,
-             coef_sum = tryCatch(summary(fm)$coefficients, error = function(e) NULL),
-             vcov_mat = tryCatch(vcov(fm), error = function(e) NULL),
+             coef_sum = cs,
+             vcov_mat = vc,
              haplo.base = fm$haplo.base, haplo.unique = fm$haplo.unique, haplo.freq = fm$haplo.freq,
              haplo.common = fm$haplo.common, haplo.rare = fm$haplo.rare, haplo.rare.term = fm$haplo.rare.term,
              mult_deviance = fm$deviance, mult_df.residual = fm$df.residual,
-             add_deviance = if (!is.null(fa)) fa$deviance else NULL,
+             add_deviance = add_dev %||% fa$deviance,
              add_df.residual = if (!is.null(fa)) fa$df.residual else NULL,
-             has_add = !is.null(fa))
+             has_add = !is.null(add_dev) || !is.null(fa))
       })
       if (!isTRUE(hfits$ok)) return()
       coef_sum <- hfits$coef_sum

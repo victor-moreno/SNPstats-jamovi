@@ -1770,6 +1770,16 @@ haplo_glm_control <- function(opts) {
                                    haplo.freq.min = opts$haploFreqMin)
 }
 
+# Canonical signature of a haplo.glm call: two calls with the same key fit the
+# identical model, so one fit's deviance can stand in for the other's. Used to
+# skip the interaction's additive fit when the association table has already
+# fitted that same model (they coincide whenever every covariate is in both).
+haplo_fit_key <- function(formula_str, family, n, opts)
+  list(terms   = sort(attr(stats::terms(stats::as.formula(formula_str)), "term.labels")),
+       family  = family,
+       n       = n,
+       control = haplo_glm_control(opts))
+
 haplo_rare_label <- function(opts) {
   if (identical(opts$haploRareCriterion, "count"))
     paste0("Rare (count<", opts$haploMinCount, ")")

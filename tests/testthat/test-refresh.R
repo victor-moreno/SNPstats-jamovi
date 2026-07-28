@@ -493,3 +493,51 @@ test_that("haplotype EM/GLM are not refit on an unrelated click", {
   expect_equal(nglm, 0L)                # nor haplo.glm
   expect_equal(dfs(a1), base)           # tables rebuilt from cache, content identical
 })
+
+test_that("the interaction's additive fit is the association fit, not a third haplo.glm", {
+  # haplo.glm dominates the haplotype cost (~6 s per fit at 6 SNPs). The
+  # interaction needs an additive fit only for its LRT deviance, and that model
+  # is term-for-term the one the association table already fits — so with both
+  # tables on there must be 2 fits, not 3, and the results must be unchanged.
+  h_over <- list(snps = as.list(.snps2), covariates = list("sex"), covDesc = FALSE,
+                 snpSummary = FALSE, haploFreq = FALSE, haploInteraction = TRUE)
+
+  one_run <- function(over) {
+    n <- 0L
+    suppressMessages(trace("haplo.glm", tracer = bquote(.(function() n <<- n + 1L)()),
+                           print = FALSE, where = asNamespace("haplo.stats")))
+    on.exit(suppressMessages(untrace("haplo.glm", where = asNamespace("haplo.stats"))))
+    a <- snpStatsClass$new(options = .mk_opts(c(h_over, over)), data = .test_data,
+                           analysisId = 1, revision = 1)
+    a$init(); a$run()
+    tbl <- a$results$ldHaploGroup$haploGroup$haploInteractionTable
+    list(fits = n, df = as_df(tbl),
+         lrt = unlist(lapply(tbl$notes, function(x) x$note)))
+  }
+
+  both <- one_run(list(haploAssoc = TRUE))
+  only <- one_run(list(haploAssoc = FALSE))
+
+  expect_equal(both$fits, 2L)          # multiplicative + association (additive reused)
+  expect_equal(only$fits, 2L)          # multiplicative + additive (nothing to reuse)
+  expect_equal(both$df,  only$df)      # reuse changes no cell
+  expect_equal(both$lrt, only$lrt)     # nor the interaction LRT p-value
+})
+
+test_that("the cached interaction fit keeps only the coefficient block of vcov", {
+  # vcov(haplo.glm) also holds the EM haplotype-frequency parameters (180x180
+  # for a 58-coefficient model). Nothing indexes them and they alone pushed the
+  # cached state to 250 kB — past jamovi's 500 kB limit for a slightly larger
+  # model, at which point the state stops persisting and every click refits.
+  a <- snpStatsClass$new(
+    options = .mk_opts(list(snps = as.list(.snps4), covariates = list("sex"),
+                            covDesc = FALSE, snpSummary = FALSE,
+                            haploFreq = FALSE, haploInteraction = TRUE)),
+    data = .test_data, analysisId = 1, revision = 1)
+  a$init(); a$run()
+
+  st <- a$results$ldHaploGroup$haploGroup$haploInteractionTable$state$v
+  expect_true(isTRUE(st$ok))
+  expect_equal(nrow(st$vcov_mat), nrow(st$coef_sum))
+  expect_equal(rownames(st$vcov_mat), rownames(st$coef_sum))
+})
