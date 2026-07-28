@@ -239,3 +239,19 @@ test_that("haploAssoc is blocked (not implemented) for a categorical response", 
   expect_match(hg$haploNotImplMsg$content, "only implemented for binary and quantitative")
   expect_equal(nrow(as_df(hg$haploAssocTable)), 0L)
 })
+
+# The LD table is written with setRow into the rows .init pre-created (jmvcore's
+# addRow recomputes every row name on every call, so rebuilding 2016 pairs costs
+# 41 s against 1.5 s of LD computation). A setRow that lost the combn ordering
+# would silently write each pair's values one row off, and nothing else in the
+# suite would notice — the row's own key is the only witness.
+test_that("every LD row's values land under its own pre-created row key", {
+  res <- run_snp(data = .test_data, snps = as.list(.snps4), response = .resp,
+                 ldAnalysis = TRUE)
+  tbl <- res$ldHaploGroup$ldGroup$ldResults$get(key = "Overall")$ldTable
+
+  expect_equal(tbl$rowCount, choose(length(.snps4), 2))
+  df <- as_df(tbl)
+  expect_equal(unlist(tbl$rowKeys, use.names = FALSE),
+               paste(df$snp1, df$snp2, sep = "___"))
+})

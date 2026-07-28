@@ -1741,6 +1741,16 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       n     <- length(nms)
       if (n < 2) return()
       pairs <- combn(nms, 2, simplify = FALSE)
+      # Parse each SNP ONCE, not once per pair. Parsing dominated the LD block
+      # (62% of self time at 12 SNPs) purely because it ran 2*choose(n,2) times
+      # over the same columns. Subsetting the parsed object instead is exactly
+      # equivalent: snp_ld reads only a1/a2 (order-insensitive: it counts copies
+      # of the allele it picks itself) and geno's NA pattern, so the parse-time
+      # allele ordering — the one thing `[.snpgeno` deliberately does not
+      # recompute — cannot reach the result.
+      parsed <- lapply(nms, function(nm)
+        parse_genotype(prep$snp_data[[nm]]$clean, prep$snp_data[[nm]]$user_levels))
+      names(parsed) <- nms
       ld_store <- list()
       for (pair in pairs) {
         sd1 <- prep$snp_data[[pair[1]]]; sd2 <- prep$snp_data[[pair[2]]]
@@ -1748,26 +1758,37 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         pair_mask <- !is.na(sd1$clean) & !is.na(sd2$clean)
         if (complete_cases)         pair_mask <- pair_mask & prep$complete_mask
         if (!is.null(group_mask))   pair_mask <- pair_mask & group_mask
-        g1 <- parse_genotype(sd1$clean[pair_mask], sd1$user_levels)
-        g2 <- parse_genotype(sd2$clean[pair_mask], sd2$user_levels)
+        g1 <- parsed[[pair[1]]]; g2 <- parsed[[pair[2]]]
         if (is.null(g1) || is.null(g2)) next
+        g1 <- g1[pair_mask]; g2 <- g2[pair_mask]
         key    <- paste(pair, collapse = "___")
         ld_res <- tryCatch(snp_ld(g1, g2), error = function(e) NULL)
         if (!is.null(ld_res)) ld_store[[key]] <- ld_res
       }
       if (need_table) {
-        tbl <- item$ldTable
-        tbl$deleteRows()                    # drop any .init-seeded rows before rebuild
-        for (pair in pairs) {
-          key    <- paste(pair, collapse = "___")
-          ld_res <- ld_store[[key]]
-          if (is.null(ld_res)) next
-          tbl$addRow(rowKey = key, values = list(
-            snp1   = pair[1], snp2 = pair[2],
-            r2     = fmt3(ld_res$`r`^2),
-            Dprime = fmt3(ld_res$`D'`),
-            D      = fmt3(ld_res$`D`),
-            pval   = fmt_pval(ld_res$`P-value`)))
+        tbl  <- item$ldTable
+        keys <- vapply(pairs, function(p) paste(p, collapse = "___"), character(1))
+        vals <- lapply(seq_along(pairs), function(i) {
+          ld_res <- ld_store[[keys[i]]]
+          if (is.null(ld_res)) return(NULL)
+          list(snp1   = pairs[[i]][1], snp2 = pairs[[i]][2],
+               r2     = fmt3(ld_res$`r`^2),
+               Dprime = fmt3(ld_res$`D'`),
+               D      = fmt3(ld_res$`D`),
+               pval   = fmt_pval(ld_res$`P-value`))
+        })
+        ok <- !vapply(vals, is.null, logical(1))
+        # Write into the rows .init pre-created rather than deleting and re-adding
+        # them. jmvcore's addRow recomputes ALL row names on every call
+        # (.rowNames <- sapply(.rowKeys, toJSON)), so rebuilding is quadratic:
+        # 2016 pairs (64 SNPs) cost 41 s of addRow against 1.5 s of actual LD
+        # computation. .init and .run derive the keys from the same combn order,
+        # so an equal row count means an equal key order (see .reuse_rows).
+        if (all(ok) && private$.reuse_rows(tbl, length(pairs))) {
+          for (i in seq_along(vals)) tbl$setRow(rowNo = i, values = vals[[i]])
+        } else {
+          tbl$deleteRows()                  # drop any .init-seeded rows before rebuild
+          for (i in which(ok)) tbl$addRow(rowKey = keys[i], values = vals[[i]])
         }
       }
       if (need_matrix) {
