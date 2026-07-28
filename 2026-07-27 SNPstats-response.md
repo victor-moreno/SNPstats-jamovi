@@ -513,10 +513,10 @@ edgecases:         21 ✓
 golden-external:   23 ✓
 golden:            38 ✓
 ldhaplo:           76 ✓
-pgs:              133 ✓
+pgs:              152 ✓
 refresh-pgs:       38 ✓
 refresh:           59 ✓
-DONE — 1348 assertions, 0 failures, 0 skips
+DONE — 1367 assertions, 0 failures, 0 skips
 ```
 
 The refresh suites need `RProtoBuf`, which was not installed here and — because
@@ -701,3 +701,88 @@ For the record, these were probed and no defect was found:
 - **Covariate degeneracies** (constant, single-level, duplicated) do not crash.
 - **Response auto-detection** treats numeric 0/1 and 1/2 as binary and 0/1/2 as
   quantitative, as documented.
+
+## 5. Negative effect weights broke the missingness correction
+
+Prompted by the observation that **a negative weight on the effect allele is the
+same thing as the positive weight |w| on the other allele**. It is, and the code
+did not act as if it were.
+
+Since `dosage_other = 2 − dosage_effect`:
+
+```
+w·d  =  −|w|·d  =  |w|·(2 − d) − 2|w|
+```
+
+so a negative-weight SNP widens the range of attainable scores exactly as much as
+a positive one — it simply runs the other way. The missingness correction divided
+by `2·Σ max(w, 0)`, which **dropped those SNPs from the denominator entirely**.
+
+Three consequences, all reproduced on the shipped data with mixed-sign weights:
+
+| | before | after |
+|---|---|---|
+| range of a "proportion of maximum (0–1)" score | **[−1, 1]** | [0, 1] |
+| correction accounts for negative-weight SNPs | no | yes |
+| individual whose typed SNPs are all negative-weight | denominator **0** → score **NA**, silently removed | scored normally |
+
+The third is the worst of them: those people had perfectly good genotype data and
+simply disappeared from the analysis, with nothing reported.
+
+**Fixed** by correcting on the attainable *range* over the observed SNPs —
+`lo = 2·Σ min(w,0)`, `range = 2·Σ|w|`, score `= (raw − lo)/range`. That is
+algebraically identical to flipping every negative-weight SNP to its other allele
+and scoring with `|w|`, i.e. exactly the equivalence above. Doing it in the
+denominator rather than by rewriting the dosage matrix keeps two things intact:
+the raw score stays the standard signed `Σw·d` that every other PGS tool reports,
+and the SNP grid keeps showing the catalog's own effect allele rather than a
+silently rewritten one.
+
+Verified to reproduce a hand-oriented score exactly, and that the previously
+dropped individuals are scored (N scored now equals the number with ≥1 observed
+SNP).
+
+`perNAlleles` had the same flaw in its unit: it divided by `mean(pmax(w,0))`,
+zeroing negative weights and inflating the per-N denominator. Now `mean(|w|)`.
+
+**Golden values moved — deliberately.** All-positive weights and the unweighted
+score are untouched (`lo = 0`, `range = 2·Σw`, identical to the old formula), so
+only the **weighted** goldens changed; the fixture carries `rs10911251 = −0.3`.
+Every *oracle* test passed without modification, which is the signal that
+matters: the module and the independently-written reimplementation agree on the
+new numbers. The old values are recorded in a comment beside the new ones.
+
+| | old | new |
+|---|---|---|
+| weighted mean | 0.17651 | 0.31355 |
+| weighted sd | 0.20799 | 0.17333 |
+| logistic OR | 1.3327 [0.9304, 1.9089] | 1.3997 [0.9095, 2.1541] |
+
+## 6. A SNP with no weight was dropped without saying so
+
+A SNP the catalog lists with a blank or unparseable `effect_weight` passes QC and
+still counts toward the *unweighted* score, but `.run` drops it from the weighted
+one. Nothing reported this: the coverage table's **"SNPs used in score"** showed
+the full count — claiming 4 SNPs were used while the weighted score had in fact
+summed 3 — and the grid row looked like any other.
+
+Now the coverage row reads `"3 weighted / 4 unweighted (1 with no weight in the
+file)"` when the counts differ, and stays a bare number when they don't; the
+grid's Allele QC appends `"no weight → unweighted only"`.
+
+## Allele handling: checked, no change needed
+
+The rest of the reference-allele path was probed and behaves correctly:
+
+- **Allele mismatch** — a catalog claiming `A/T` for a `C/T` SNP is detected
+  (`❌ mismatch: C/T≠A/T`), excluded from scoring, and counted in the coverage
+  table under "Allele mismatch (excluded)".
+- **Strand flips** — complementary alleles (`A/G` for a `C/T` SNP) are recognised
+  and corrected rather than rejected, and reported as "Strand flipped".
+- **Effect/other swapped** in the catalog — handled; the reported effect-allele
+  frequency correctly becomes `1 − AF`.
+- **Selected SNP absent from the catalog** — `❌ no allele info`, excluded.
+- **Catalog SNP absent from the data** — shown in the grid as "in catalog but not
+  selected", excluded from scoring, no effect on N.
+- **A weight of exactly 0** — kept, contributing nothing to either the numerator
+  or the range, which is correct.
