@@ -16,11 +16,6 @@ Issues:
 
 Plan:
 - parallel speed-up (LD / association).
-- Themed status messages via `jmvcore::Notice` + `results$insert()`; `type:
-  Notice` is not accepted in the .r.yaml by this compiler version.
 - Haplotype tables recompute `haplo.em` on every option click
-  (~1.6 s for 4 SNPs) because their rows cannot be predicted in `.init()`. The
-  clean fix is to cache the ~5 KB of fitted rows in a `type: State` element,
-  which is invalidated automatically by its own `clearWith` — but
-  `jmvcore::State` cannot be constructed in jmvcore 2.7.38.
-- String translation
+  (~1.6 s for 4 SNPs) because their rows cannot be predicted in `.init()`. 
+- String translation.
