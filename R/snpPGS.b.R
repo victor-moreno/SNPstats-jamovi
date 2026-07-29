@@ -266,6 +266,15 @@ snpPGSClass <- R6::R6Class(
 
       show_mode_col <- length(mode_labels) > 1
 
+      private$.init_tables(mode_labels, show_mode_col, has_snps, has_resp, has_file)
+      private$.init_plots(mode_labels, has_snps)
+    },
+
+    # .init, part 1: every results table, each pre-creating the rows and
+    # dynamic columns restore needs (rows added in .run are never restored).
+    .init_tables = function(mode_labels, show_mode_col, has_snps, has_resp, has_file) {
+      snpCols <- self$options$snpCols
+      respCol <- self$options$responseCol
       # ── snpGridTable ───────────────────────────────────────────────────
       # Refresh-safe like the other tables: pre-create the rows (positional
       # integer keys) and the dynamic "extra" columns predicted from the weights
@@ -390,9 +399,15 @@ snpPGSClass <- R6::R6Class(
       if (has_snps && has_resp && has_covs && isTRUE(self$options$showInteraction))
         private$.pre_rows(interTbl, private$.interNRows(init_resp, n_modes))
       private$.clearRunNotes(interTbl, "intNote")
+    },
 
-
-
+    # .init, part 2: plot visibility and size. Both belong here, not in .run -
+    # see the comments below for why each would misbehave there.
+    .init_plots = function(mode_labels, has_snps) {
+      # .initResp() already returns NULL when no response is assigned, and
+      # .init_data() behind it is memoised, so recomputing here is free.
+      init_resp <- private$.initResp()
+      n_modes   <- length(mode_labels)
       # ── Plot visibility ──────────────────────────────────────────────────
       # Set here (not in .run) from the predicted response type: an image touched
       # during .run() is re-rendered by the engine every run, so setting the
@@ -2231,8 +2246,6 @@ snpPGSClass <- R6::R6Class(
                      else                                "continuous"
       }
 
-      has_covs    <- !is.null(covs) && ncol(covs) > 0
-      has_resp    <- resp_type %in% c("binary", "continuous")
       do_strat    <- resp_type %in% c("binary", "polytomous") && !is.null(resp)
       resp_levels <- if (do_strat) levels(droplevels(factor(resp[!is.na(resp)]))) else character(0)
 
@@ -2271,6 +2284,18 @@ snpPGSClass <- R6::R6Class(
         }
       )
 
+      private$.fillPercentileCounts(mode_data, cat_labels, resp, resp_type, resp_levels)
+      private$.fillPercentileModels(mode_data, cat_labels, ref_idx, resp, resp_type,
+                                    resp_levels, covs)
+    },
+
+    # Table 1 of the percentile pair: how many subjects fall in each score
+    # category, overall and within each response level. Counts only - no model.
+    .fillPercentileCounts = function(mode_data, cat_labels, resp, resp_type, resp_levels) {
+      n_cats        <- length(cat_labels)
+      do_strat      <- resp_type %in% c("binary", "polytomous") && !is.null(resp)
+      show_mode_col <- length(mode_data) > 1
+
       # ══════════════════════════════════════════════════════════════════════
       # TABLE 1: Counts  (percentileThreshTable) — shown first
       # ══════════════════════════════════════════════════════════════════════
@@ -2287,8 +2312,6 @@ snpPGSClass <- R6::R6Class(
             thr_tbl$addColumn(name = nm, title = as.character(lv), type = "text")
         }
       }
-
-      show_mode_col <- length(all_scores) > 1
 
       thr_rows <- list()
       for (mode_label in names(mode_data)) {
@@ -2333,6 +2356,14 @@ snpPGSClass <- R6::R6Class(
         }
       }
       private$.writeRows(thr_tbl, thr_rows)
+    },
+
+    # Table 2 of the percentile pair: the category-vs-reference model, one block
+    # of rows per scoring mode (and per outcome contrast when polytomous).
+    .fillPercentileModels = function(mode_data, cat_labels, ref_idx, resp, resp_type,
+                                     resp_levels, covs) {
+      n_cats   <- length(cat_labels)
+      has_covs <- !is.null(covs) && ncol(covs) > 0
 
       # ══════════════════════════════════════════════════════════════════════
       # TABLE 2: Regression  (percentileTable)

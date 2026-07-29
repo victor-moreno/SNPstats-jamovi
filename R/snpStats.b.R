@@ -279,6 +279,29 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
 
       res <- self$results
 
+      ld_ok <- has_snps && length(snps) >= 2
+
+      private$.init_descriptive(opts, res, has_snps, has_resp, has_covs)
+      private$.init_association(opts, res, has_snps, has_resp, has_covs)
+      private$.init_ldhaplo(opts, res, ld_ok, has_resp, has_covs)
+
+      # ── Hide sections when required variables are absent ───────────────────
+      if (!has_snps) {
+        res$descGroup$snpSummaryTablesGroup$setVisible(FALSE)
+        res$descGroup$descSnpResults$setVisible(FALSE)
+      }
+      if (!has_resp && !has_covs)
+        res$descGroup$covDescGroup$covDescTable$setVisible(FALSE)
+      if (!has_snps || !has_resp)
+        res$assocGroup$assocSnpResults$setVisible(FALSE)
+      if (!ld_ok)
+        res$ldHaploGroup$ldGroup$setVisible(FALSE)
+    },
+
+    # .init, part 1: the Descriptives group. Each table pre-creates the rows
+    # restore needs; see .pre_rows for why the count is all that must be right.
+    .init_descriptive = function(opts, res, has_snps, has_resp, has_covs) {
+      snps <- opts$snps
       # ── Descriptive: covDescTable — pre-create rows so restore can refill ──
       # Rows must exist by the end of .init or jamovi never restores their cells
       # (Table$fromProtoBuf only copies into rows that already exist), which is
@@ -379,11 +402,12 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       # ── Descriptive: missingnessPlot visibility ────────────────────────────
       res$descGroup$missingnessPlot$setVisible(
         has_snps && isTRUE(opts$showMissingnessPlot) && !isTRUE(opts$completeCases))
+    },
 
-      ld_ok        <- has_snps && length(snps) >= 2
-      haplo_ok     <- ld_ok   && has_resp
-      haplo_int_ok <- haplo_ok && has_covs
-
+    # .init, part 2: the Association and Interaction groups - one Array item
+    # per SNP, with each table pre-sized from the data.
+    .init_association = function(opts, res, has_snps, has_resp, has_covs) {
+      snps <- opts$snps
       # ── Association: hide the whole "Association" group header unless an ───
       # association or interaction analysis is requested (the compiler ignores
       # `visible` on a top-level Group; set it here, explicit both ways so it
@@ -439,7 +463,15 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           if (isTRUE(opts$showCrossClassTable))  private$.pre_rows(snpItem$crossClassTable,  n$cross)
         }
       }
+    },
 
+    # .init, part 3: the LD and Haplotype groups. ld_ok (>= 2 SNPs) gates both;
+    # the haplotype tables additionally need a response, and interaction a
+    # covariate.
+    .init_ldhaplo = function(opts, res, ld_ok, has_resp, has_covs) {
+      snps         <- opts$snps
+      haplo_ok     <- ld_ok   && has_resp
+      haplo_int_ok <- haplo_ok && has_covs
       # ── LD: hide immediately when no sub-option is active ─────────────────
       if (!isTRUE(opts$ldAnalysis) && !isTRUE(opts$ldMatrix) && !isTRUE(opts$ldPlot))
         res$ldHaploGroup$ldGroup$setVisible(FALSE)
@@ -480,18 +512,6 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         hg$haploCondHaploTable$setVisible(  haplo_int_vis)
         hg$haploNotImplMsg$setVisible(FALSE)
       }
-
-      # ── Hide sections when required variables are absent ───────────────────
-      if (!has_snps) {
-        res$descGroup$snpSummaryTablesGroup$setVisible(FALSE)
-        res$descGroup$descSnpResults$setVisible(FALSE)
-      }
-      if (!has_resp && !has_covs)
-        res$descGroup$covDescGroup$covDescTable$setVisible(FALSE)
-      if (!has_snps || !has_resp)
-        res$assocGroup$assocSnpResults$setVisible(FALSE)
-      if (!ld_ok)
-        res$ldHaploGroup$ldGroup$setVisible(FALSE)
     },
 
     # ══════════════════════════════════════════════════════════════════════════
