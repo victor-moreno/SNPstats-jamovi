@@ -56,14 +56,14 @@ datasets:
       - genetics
   - name: SNP sample2
     path: sample2.tsv
-    description: Example SNP dataset 566 individuals, 3 SNPs, case-control status
+    description: Example SNP dataset 706 individuals, 3 SNPs, case-control status
     tags:
       - SNP
       - genetics
   - name: SNP sample3
     path: sample3.tsv
     description: >
-      Example SNP dataset 706 individuals, 8 SNPs, case-control status, age,
+      Example SNP dataset 566 individuals, 8 SNPs, case-control status, age,
       sex, family history
     tags:
       - SNP
@@ -85,18 +85,19 @@ datasets:
   - name: CRC genetics
     path: CRCgenet-SNPs.tsv
     description: >
-      Example SNP dataset 2837 individuals, 65 SNPs from CRC WGAS, phenotype,
-      sex, age,  bmi (numerical and categorical) and FIT result. Real SNP
-      dataset with permuted SNPs by phenotype and sex.  Age, BMI and FIT result
-      have been randomly generated. - SNP - genetics
+      Example SNP dataset 2838 individuals, 64 SNPs from CRC WGAS, phenotype,
+      sex, age, bmi (numerical and categorical) and FIT result. Real SNP
+      dataset with permuted SNPs by phenotype and sex. Age, BMI and FIT result
+      have been randomly generated.
     tags:
       - SNP
       - genetics
   - name: CRC PGS
     path: CRCgenet-PGS.txt
     description: >
-      Weights table to be used with CRCgenet-SNPs.tsv with SNP risk allele and
-      weights from GWAS.
+      Weights table to be used with CRCgenet-SNPs.tsv: 65 SNPs with risk
+      allele and weight from GWAS (one more than the dataset carries, so SNP
+      coverage reporting is exercised).
     tags:
       - SNP
       - genetics

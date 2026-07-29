@@ -1009,9 +1009,14 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
         private$.ensure_item(assoc_arr, nm)
         # Categorical response: interaction is not supported. The global
         # validationMsg already explains this; add a note by the empty table.
+        # All four interaction tables are shown but empty, so all four need the
+        # note — not just the first.
         if (is_cat_blocked && length(int_models) > 0) {
-          assoc_arr$get(key = nm)$interactionTable$setNote(key = "catBlocked",
-            note = "Interaction analyses are only implemented for binary response.")
+          it <- assoc_arr$get(key = nm)
+          for (tn in c("interactionTable", "stratByCovariate",
+                       "stratByGenotype", "crossClassTable"))
+            it[[tn]]$setNote(key = "catBlocked",
+              note = "Interaction analyses are only implemented for binary response.")
         }
       }
 
