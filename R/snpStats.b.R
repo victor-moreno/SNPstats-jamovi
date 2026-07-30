@@ -1,6 +1,5 @@
 #' @importFrom R6 R6Class
 #' @import jmvcore
-#' @importFrom genetics genotype allele HWE.exact LD
 #' @importFrom haplo.stats setupGeno haplo.em haplo.glm haplo.glm.control
 
 
@@ -519,10 +518,10 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
       opts <- self$options
 
       # ── All preprocessing in one place ────────────────────────────────────
-      #' @return Named list with elements:
-      #'   $data, $snp_vars, $snp_data (per-SNP parsed objects),
-      #'   $response_var, $response_raw, $response_type, $response_enc,
-      #'   $cov_df, $complete_mask, $n_rows, $warnings
+      # snp_prepare() returns a named list with elements:
+      #   $data, $snp_vars, $snp_data (per-SNP parsed objects),
+      #   $response_var, $response_raw, $response_type, $response_enc,
+      #   $cov_df, $complete_mask, $n_rows, $warnings
       #
       # snp_prepare() parses every SNP genotype string and is the most expensive
       # step; cache it keyed on the inputs it depends on so a pure display-toggle

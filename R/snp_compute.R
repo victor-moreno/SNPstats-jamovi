@@ -20,7 +20,6 @@
 #  11. Haplotype analysis
 # ──────────────────────────────────────────────────────────────────────────────
 
-#' @importFrom genetics genotype allele HWE.exact LD
 #' @importFrom R6 R6Class
 #' @import jmvcore
 

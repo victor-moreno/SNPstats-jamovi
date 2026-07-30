@@ -494,6 +494,49 @@ test_that("haplotype EM/GLM are not refit on an unrelated click", {
   expect_equal(dfs(a1), base)           # tables rebuilt from cache, content identical
 })
 
+test_that("the three haplotype interaction tables survive an unrelated click, columns included", {
+  # The per-covariate-level COLUMNS of these three tables are added in .run, not
+  # .init, and a column added in .run is never restored. That is harmless only
+  # because their ROWS are added in .run too (the haplotype set is unknowable
+  # before haplo.em), so rowCount is 0 after restore, .need_fill is TRUE, and the
+  # whole table — columns and rows — is rewritten from the cached fits. Pinned
+  # here because it looks like the blanking bug .pre_strat_cols exists to prevent:
+  # pre-creating the columns in .init would not let the refill be skipped (the
+  # rows still force it) and would risk a phantom column whenever .init's guess at
+  # the level set differs from the model frame's.
+  statefile <- tempfile(fileext = ".pb")
+  i_over <- list(snps = as.list(.snps2), covariates = list("sex"),
+                 covDesc = FALSE, snpSummary = FALSE, haploFreq = FALSE,
+                 haploAssoc = FALSE, haploInteraction = TRUE)
+  int_of <- function(a) {
+    hg <- a$results$ldHaploGroup$haploGroup
+    lapply(list(hg$haploInteractionTable, hg$haploCondCovarTable, hg$haploCondHaploTable),
+           function(t) list(cols = names(t$columns), df = as_df(t)))
+  }
+
+  a0 <- snpStatsClass$new(options = .mk_opts(i_over), data = .test_data,
+                          analysisId = 1, revision = 1)
+  a0$.setStatePathSource(function() statefile)
+  a0$init(); a0$run(); a0$.save()
+  base <- int_of(a0)
+  # sex has two levels, so each table carries its two per-level columns
+  expect_equal(vapply(base, function(x) length(x$cols), 0L), rep(4L, 3))
+  expect_true(all(vapply(base, function(x) nrow(x$df), 0L) > 0L))
+
+  nglm <- 0L
+  suppressMessages(trace("haplo.glm", tracer = bquote(.(function() nglm <<- nglm + 1L)()),
+                         print = FALSE, where = asNamespace("haplo.stats")))
+  on.exit(suppressMessages(untrace("haplo.glm", where = asNamespace("haplo.stats"))))
+
+  a1 <- snpStatsClass$new(options = .mk_opts(c(i_over, list(hweTest = TRUE))),
+                          data = .test_data, analysisId = 1, revision = 2)
+  a1$.setStatePathSource(function() statefile)
+  a1$init(); a1$.load(); a1$run()
+
+  expect_equal(nglm, 0L)                # no refit on the unrelated click
+  expect_equal(int_of(a1), base)        # columns AND cells identical, not blanked
+})
+
 test_that("the interaction's additive fit is the association fit, not a third haplo.glm", {
   # haplo.glm dominates the haplotype cost (~6 s per fit at 6 SNPs). The
   # interaction needs an additive fit only for its LRT deviance, and that model
