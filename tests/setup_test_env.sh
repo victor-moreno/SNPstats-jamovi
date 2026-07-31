@@ -30,13 +30,33 @@ mkdir -p "$PD"
 # path then goes completely untested, which is how it stayed untested for a
 # while. The `genetics` package is deliberately absent: it is neither a
 # dependency nor an oracle any more (see helper-data.R).
-PKGS='c("R6","jmvcore","nnet","haplo.stats","ggplot2","base64enc","testthat","RProtoBuf")'
+
+# RProtoBuf goes in FIRST, on its own. jmvcore/R/protobuf.R resolves its three
+# RProtoBuf wrappers at jmvcore's own install time:
+#
+#   RProtoBuf_serialize <- if (requireNamespace('RProtoBuf', quietly=TRUE)) RProtoBuf::serialize
+#
+# RProtoBuf is only a Suggests of jmvcore, so listing them in one vector installs
+# jmvcore first and binds all three to NULL. Analysis$.save()/.load() then fail
+# with "could not find function RProtoBuf_serialize" inside their own try(),
+# which swallows it — the state file is never written and both refresh suites
+# fail against tables that are entirely NA. This is the same defect the CI
+# workflow works around; here the ordering is enough.
+R_LIBS_USER="$PD" Rscript --vanilla -e "
+  install.packages('RProtoBuf', lib='$PD', repos='$CRAN', dependencies=c('Depends','Imports','LinkingTo'))
+"
+
+PKGS='c("R6","jmvcore","nnet","haplo.stats","ggplot2","base64enc","testthat")'
 
 R_LIBS_USER="$PD" Rscript --vanilla -e "
   install.packages($PKGS, lib='$PD', repos='$CRAN', dependencies=c('Depends','Imports','LinkingTo'))
   miss <- Filter(function(p) !requireNamespace(p, quietly=TRUE),
                  c('R6','jmvcore','nnet','haplo.stats','ggplot2','base64enc','testthat','RProtoBuf'))
   if (length(miss)) stop('missing after install: ', paste(miss, collapse=', '))
+  # the wrappers above are the whole point of the ordering — prove they resolved
+  stopifnot(is.function(jmvcore:::RProtoBuf_serialize),
+            is.function(jmvcore:::RProtoBuf_read),
+            is.function(jmvcore:::RProtoBuf_new))
   cat('all dependencies available in', '$PD', '\n')
 "
 
