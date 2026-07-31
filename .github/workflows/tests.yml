@@ -37,6 +37,24 @@ jobs:
           # option-click / restore cycle goes untested.
           extra-packages: any::testthat
 
+      # jmvcore/R/protobuf.R resolves its RProtoBuf wrappers at *jmvcore's* own
+      # install time:
+      #
+      #   RProtoBuf_serialize <- if (requireNamespace('RProtoBuf', quietly=TRUE)) RProtoBuf::serialize
+      #
+      # RProtoBuf is only a Suggests of jmvcore, so nothing orders it before
+      # jmvcore — and when it is missing at that moment the three wrappers bind
+      # to NULL. Analysis$.save()/.load() then die with "could not find function
+      # RProtoBuf_serialize", which their own try() swallows: the state file is
+      # never written, the refresh suites see nothing restored, and ~10
+      # assertions fail with no visible cause. Reinstalling from source once
+      # RProtoBuf is present rebinds them (a prebuilt binary would just carry
+      # over whatever the build machine baked in, hence type="source").
+      - name: Rebuild jmvcore against RProtoBuf
+        run: |
+          Rscript -e 'install.packages("jmvcore", type = "source")'
+          Rscript -e 'stopifnot(is.function(jmvcore:::RProtoBuf_serialize), is.function(jmvcore:::RProtoBuf_read), is.function(jmvcore:::RProtoBuf_new))'
+
       - name: Install SNPstats
         run: R CMD INSTALL --no-byte-compile .
 
