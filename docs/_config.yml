@@ -6,3 +6,7 @@ theme: jekyll-theme-cayman
 # Only the documentation is published; keep build/source files out of the site.
 exclude:
   - ENVIRONMENT.md
+# Institutional logos: kept as the colour reference for assets/css/style.scss,
+# not shown on the page and not published.
+  - logo-ICO.png
+  - logoICO-vertical.png

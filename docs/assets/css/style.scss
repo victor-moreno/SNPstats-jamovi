@@ -1,0 +1,227 @@
+---
+---
+
+// Cayman is the base theme; everything below re-colours and re-types it so the
+// tutorial reads like jamovi.org, using the Institut Català d'Oncologia palette
+// sampled from the institutional logo:
+//   blue #5073A6 (titles), orange-red #EB5A3F (subtitles), amber #F6A22D (accents).
+
+@import "{{ site.theme }}";
+
+$ico-blue:       #5073a6;
+$ico-blue-dark:  #3c5a85;
+$ico-blue-light: #eaf0f7;
+$ico-orange:     #eb5a3f;
+$ico-orange-dk:  #c64429;
+$ico-amber:      #f6a22d;
+$ink:            #24292e;
+$muted:          #5c6b7a;
+$rule:           #dfe4ea;
+
+// Open Sans is already fetched by the cayman theme — no extra web font request.
+$sans: "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+       "Helvetica Neue", Arial, sans-serif;
+$mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+
+body {
+  font-family: $sans;
+  font-size: 16px;
+  line-height: 1.6;
+  color: $ink;
+  background-color: #fff;
+}
+
+// ---------------------------------------------------------------- page header
+
+// Flat blue banner with an amber rule, in place of cayman's blue-green hero.
+.page-header {
+  background-color: $ico-blue;
+  background-image: linear-gradient(120deg, $ico-blue-dark, $ico-blue);
+  border-bottom: 4px solid $ico-amber;
+  text-align: left;
+  padding: 2rem 1rem;
+
+  @media screen and (min-width: 42em) {
+    padding: 2.5rem 4rem;
+  }
+
+  @media screen and (min-width: 64em) {
+    padding: 3rem 6rem;
+  }
+}
+
+.project-name {
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  margin-bottom: 0.2rem;
+
+  @media screen and (min-width: 64em) {
+    font-size: 2.5rem;
+  }
+}
+
+.project-tagline {
+  font-weight: 400;
+  opacity: 0.85;
+  margin-bottom: 0;
+}
+
+.btn {
+  border-color: rgba(255, 255, 255, 0.5);
+
+  &:hover {
+    border-color: #fff;
+    background-color: rgba(255, 255, 255, 0.15);
+  }
+}
+
+// --------------------------------------------------------------- main content
+
+.main-content {
+  color: $ink;
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: $sans;
+    margin-top: 2rem;
+    margin-bottom: 0.6rem;
+    color: $ico-blue-dark;
+  }
+
+  // Blue for titles ...
+  h1 {
+    font-size: 2rem;
+    font-weight: 600;
+    color: $ico-blue-dark;
+    border-bottom: 3px solid $ico-amber;
+    padding-bottom: 0.3rem;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: $ico-blue;
+    border-bottom: 1px solid $rule;
+    padding-bottom: 0.25rem;
+  }
+
+  // ... orange for subtitles.
+  h3 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: $ico-orange;
+  }
+
+  h4 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: $ico-orange-dk;
+  }
+
+  h5, h6 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: $muted;
+  }
+
+  a {
+    color: $ico-blue;
+    text-decoration: none;
+
+    &:hover {
+      color: $ico-orange;
+      text-decoration: underline;
+    }
+  }
+
+  strong {
+    color: $ico-blue-dark;
+  }
+
+  // The horizontal rules separating sections: a light blue divider, not a bar.
+  hr {
+    height: 1px;
+    background: none;
+    border-top: 1px solid $rule;
+    margin: 2.5rem 0 0;
+  }
+
+  blockquote {
+    color: $muted;
+    border-left: 4px solid $ico-amber;
+    background-color: #fdf7ec;
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+    font-style: normal;
+  }
+
+  table {
+    display: table;
+    width: 100%;
+    font-size: 0.9rem;
+    border-collapse: collapse;
+    margin-bottom: 1.5rem;
+
+    th {
+      background-color: $ico-blue-light;
+      color: $ico-blue-dark;
+      font-weight: 600;
+      border: 1px solid $rule;
+    }
+
+    td {
+      border: 1px solid $rule;
+    }
+
+    tr:nth-child(even) td {
+      background-color: #f8fafc;
+    }
+  }
+
+  code, pre {
+    font-family: $mono;
+    font-size: 0.85rem;
+  }
+
+  code {
+    background-color: $ico-blue-light;
+    color: $ico-blue-dark;
+  }
+
+  pre {
+    background-color: #f6f8fa;
+    border: 1px solid $rule;
+
+    > code {
+      background: none;
+      color: inherit;
+    }
+  }
+
+  // Screenshots and their captions ("*Figure n. …*" on the line after the img).
+  img {
+    border: 1px solid $rule;
+    border-radius: 4px;
+  }
+
+  img + em {
+    display: block;
+    margin: 0.4rem 0 1.5rem;
+    font-size: 0.85rem;
+    font-style: normal;
+    color: $muted;
+    text-align: center;
+  }
+
+  ul, ol {
+    margin-bottom: 1rem;
+  }
+
+  li + li {
+    margin-top: 0.25rem;
+  }
+}
+
+.site-footer {
+  border-top: 1px solid $rule;
+  color: $muted;
+}
