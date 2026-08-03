@@ -1,8 +1,27 @@
-# SNP Analysis Tutorial
+# SNPstats jamovi module
+
+## What is jamovi
+
+[jamovi](https://www.jamovi.org) is a free and open statistical spreadsheet, built on R, that runs on Windows, macOS and Linux (and in the browser, as jamovi cloud). Analyses are chosen from menus and their results update immediately when options or data change, so no code has to be written — though every analysis can also be run as R syntax.
+
+Its functionality is extended with **modules**, installed from the jamovi library or from a module file. **SNPstats** is one such module: it brings the analyses of the [SNPstats web tool](https://www.snpstats.net) into jamovi, so the data never leaves your computer, datasets are not limited by the web upload, and results can be combined with the rest of jamovi's analyses and with jamovi's data editing, filtering and recoding.
+
+---
+
+## How to install
+
+1. **Install jamovi** — download it from [www.jamovi.org/download.html](https://www.jamovi.org/download.html) and install it as any other application. The *solid* release is recommended.
+2. **Get the module file** — download the latest `SNPstats_<version>.jmo` from the [SNPstats-jamovi repository](https://github.com/victor-moreno/SNPstats-jamovi).
+3. **Install the module in jamovi** — open jamovi and click the **+** (Modules) icon at the top right of the window, choose **Install** → **Side load…**, and select the `.jmo` file you downloaded.
+4. **Check the installation** — an **SNPstats** menu appears in the *Analyses* ribbon, with the *SNP Analysis* and *Polygenic Score (PGS)* entries described below.
+
+To update the module, side load the newer `.jmo` file over the installed one; to remove it, use **+** → **Manage installed** → **Remove**.
+
+---
 
 ## Overview
 
-The **snpstats** jamovi module provides a complete pipeline for single-SNP and multi-SNP genetic association analyses. It is organised into two modules accessible from the **SNPstats** menu:
+The **SNPstats** jamovi module provides a complete pipeline for single-SNP and multi-SNP genetic association analyses. It is organised into two modules accessible from the **SNPstats** menu:
 
 - **SNP Analysis** — a single module with three tabs: *Descriptive*, *Association*, and *LD and Haplotype*. Variable assignments (SNPs, response, covariates) are shared across tabs, so you configure them once and switch between analyses without re-entering variables.
 - **Polygenic Score (PGS)** — computes weighted or unweighted polygenic scores, applies QC filters, and tests score–outcome associations.
