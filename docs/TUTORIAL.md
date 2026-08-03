@@ -11,7 +11,7 @@ This module extends jamovi's functionality to bring the analyses of the [SNPstat
 ## How to install
 
 1. **Install jamovi** — download it from [www.jamovi.org/download.html](https://www.jamovi.org/download.html) and install it as any other application.
-2. **Install the module in jamovi** — open jamovi and click the **+** (Modules) icon at the top right of the window, choose **Jamovi library**, Write **SNPstats** in the search, and click **INSTALL**.
+2. **Install the module in jamovi** — open jamovi and click the **+** (Modules) icon at the top right of the window, choose **Jamovi library**, write **SNPstats** in the search, and click **INSTALL**.
 3. **Check the installation** — an **SNPstats** menu appears in the *Analyses* ribbon, with the *SNP Analysis* and *Polygenic Score (PGS)* entries described below.
 
 ## Open source
@@ -33,10 +33,15 @@ The code for this module can be found in [GitHub](https://github.com/victor-more
 
 Each row in the dataset represents one individual. SNP genotypes must be stored as character columns using diploid notation — two alleles separated by a delimiter, or concatenated as two characters. The module accepts the following formats:
 
+<!-- The pipe row uses <code>&#124;</code>, not `\|`: GitHub Pages renders this
+     page with kramdown, which does not process backslash escapes inside a code
+     span, so `\|` published the backslash. The entity has no literal pipe, so
+     the table cell still splits correctly in both renderers. -->
+
 | Format | Separator          | Example values   |
 | ------ | ------------------ | ---------------- |
 | A/B    | slash `/`        | T/T, T/C, C/C    |
-| A\|B   | pipe `\|`         | T\|T, T\|C, C\|C |
+| A\|B   | pipe <code>&#124;</code> | T\|T, T\|C, C\|C |
 | A>B    | greater-than `>` | T>T, T>C, C>C    |
 | AB     | none (2 chars)     | TT, TC, CC       |
 
