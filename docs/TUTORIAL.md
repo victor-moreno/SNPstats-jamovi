@@ -524,4 +524,6 @@ Daniel S, Sinnwell J (2026). haplo.stats: Statistical Analysis of Haplotypes wit
 
 ## Acknowledgments
 
-This project has received funding from Consortium for Biomedical Research in Epidemiology and Public Health (CIBERESP), action Genrisk
+This tool has been developed with support of the Instituto de Salud Carlos III (ISCIII), “Programa FORTALECE del Ministerio de Ciencia e Innovación”, through the project number FORT23/00032 and the Consortium for Biomedical Research in Epidemiology and Public Health (CIBERESP), action Genrisk.
+
+This tool was migrated from SNPstats.net using Claude AI.
