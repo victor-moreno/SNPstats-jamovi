@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Create a self-contained, project-local R library (.Rlib-arm / .Rlib-x64) to
-# build and test SNPstats without touching the user/site R libraries.
+# Create a self-contained R library (~/R/.Rlib-arm / ~/R/.Rlib-x64) to build and
+# test SNPstats without touching the user/site R libraries.
 #
 # Why: in restricted/CI sandboxes the personal R library (~/Library/R/...) may be
-# unreadable. Installing every dependency into the project-local library and
-# pointing R at it with --vanilla + R_LIBS_USER avoids that path entirely. The
-# library is architecture-specific and git-ignored (see docs/ENVIRONMENT.md);
-# this picks .Rlib-arm or .Rlib-x64 from `uname -m` like install_jamovi.sh does.
+# unreadable. Installing every dependency into a dedicated library and pointing R
+# at it with --vanilla + R_LIBS_USER avoids that path entirely. The library is
+# architecture-specific and lives outside the repo under ~/R (see
+# docs/ENVIRONMENT.md); this picks .Rlib-arm or .Rlib-x64 from `uname -m` like
+# install_jamovi.sh does.
 #
 # Usage:   bash tests/setup_test_env.sh        # from the package root
 # Then:    bash tests/run_tests.sh             # run the suite
@@ -15,8 +16,8 @@ set -euo pipefail
 CRAN="https://cloud.r-project.org"
 ARCH="$(uname -m)"
 case "$ARCH" in
-  arm64)   PD="$(pwd)/.Rlib-arm" ;;
-  x86_64)  PD="$(pwd)/.Rlib-x64" ;;
+  arm64)   PD="$HOME/R/.Rlib-arm" ;;
+  x86_64)  PD="$HOME/R/.Rlib-x64" ;;
   *)       echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
 esac
 mkdir -p "$PD"

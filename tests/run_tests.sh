@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Run the SNPstats test suite against the project-local library
-# (.Rlib-arm / .Rlib-x64, picked by `uname -m` like install_jamovi.sh).
+# Run the SNPstats test suite against the shared R library
+# (~/R/.Rlib-arm / ~/R/.Rlib-x64, picked by `uname -m` like install_jamovi.sh).
 # Requires: bash tests/setup_test_env.sh  (run once, or after changing R code).
 #
 # --vanilla + R_LIBS_USER keep R off the (possibly unreadable) user library;
@@ -9,8 +9,8 @@ set -euo pipefail
 
 ARCH="$(uname -m)"
 case "$ARCH" in
-  arm64)   PD="$(pwd)/.Rlib-arm" ;;
-  x86_64)  PD="$(pwd)/.Rlib-x64" ;;
+  arm64)   PD="$HOME/R/.Rlib-arm" ;;
+  x86_64)  PD="$HOME/R/.Rlib-x64" ;;
   *)       echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
 esac
 if [ ! -d "$PD/SNPstats" ]; then
