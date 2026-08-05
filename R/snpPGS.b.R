@@ -768,13 +768,6 @@ snpPGSClass <- R6::R6Class(
         return()
       }
 
-      # ── Cache everything the plot render functions need ─────────────────
-      # Always populated so any plot can render independently of the others.
-      private$.cache$all_scores <- all_scores
-      private$.cache$resp       <- resp
-      private$.cache$respCol    <- respCol
-      private$.cache$covs       <- covs
-
       # ── Reconcile plot visibility with the ACTUAL response type ───────────
       # .init already set visibility from the predicted type. Only correct here
       # when the actual differs (e.g. .init ran header-only), and touch each image
@@ -796,6 +789,27 @@ snpPGSClass <- R6::R6Class(
           private$.plotVis[[nm]] <- run_vis[[nm]]
         }
       }
+
+      # ── Hand each plot its data through the Image's own state ─────────────
+      # NOT through private$.cache: an R6 field only exists while the analysis
+      # object does, and the engine renders an image for saving/exporting on a
+      # path that never calls .run (enginer.cpp: perform == 5 calls .savePart
+      # straight after .load). Reading instance state there gave every exported
+      # PGS plot an empty cache and a blank page. Image state is restored from
+      # the results message by ResultsElement$fromProtoBuf, so it is there.
+      #
+      # Each plot gets only the fields it reads, so an .omv carries the scores
+      # once per plot that needs them and not the covariates for plots that
+      # do not. Set only when absent: jamovi drops the state whenever the
+      # image's clearWith fires, and re-asserting it on every run would touch
+      # the image and force a re-render on unrelated clicks.
+      private$.setPlotState('distPlot',
+        list(all_scores = all_scores, resp = resp, respCol = respCol))
+      private$.setPlotState('stratPlot',
+        list(all_scores = all_scores, resp = resp, respCol = respCol))
+      for (nm in c('forestPlot', 'rocPlot', 'calibPlot'))
+        private$.setPlotState(nm,
+          list(all_scores = all_scores, resp = resp, covs = covs))
 
       if (self$options$showPercentiles &&
           (self$results$percentileTable$isNotFilled()      || self$results$percentileTable$rowCount == 0 ||
@@ -3062,11 +3076,21 @@ snpPGSClass <- R6::R6Class(
         }
       }
     },
-  .plotDist        = function(image, ...) plotDist(image,        private$.cache, self$options),
-  .plotStrat       = function(image, ...) plotStrat(image,       private$.cache, self$options),
-  .plotForest      = function(image, ...) plotForest(image,      private$.cache, self$options),
-  .plotROC         = function(image, ...) plotROC(image,         private$.cache, self$options),
-  .plotCalibration = function(image, ...) plotCalibration(image, private$.cache, self$options)
+    # Give an image the data its render function needs, once. See the call site
+    # in .run for why this is state and not an R6 field.
+    .setPlotState = function(name, data) {
+      img <- self$results$get(name)
+      if (img$visible && is.null(img$state))
+        img$setState(data)
+    },
+
+  # ggtheme and theme are jamovi's own, carrying the user's light/dark theme,
+  # font settings and palette; the render functions apply them (snpPGS_plots.R).
+  .plotDist        = function(image, ggtheme, theme, ...) plotDist(image,        ggtheme, self$options),
+  .plotStrat       = function(image, ggtheme, theme, ...) plotStrat(image,       ggtheme, self$options),
+  .plotForest      = function(image, ggtheme, theme, ...) plotForest(image,      ggtheme, self$options),
+  .plotROC         = function(image, ggtheme, theme, ...) plotROC(image,         ggtheme, self$options),
+  .plotCalibration = function(image, ggtheme, theme, ...) plotCalibration(image, ggtheme, self$options)
   )  # end private
 )
 

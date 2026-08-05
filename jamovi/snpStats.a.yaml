@@ -7,6 +7,18 @@ menuGroup: SNPstats
 menuTitle: SNP Analysis
 menuSubgroup: Genetic epidemiology
 
+# Declared, not inherited. The compiler's fallback for an analysis with no
+# Output option is 'auto', under which jamovi physically replicates rows by
+# their integer weights before .run() sees the data: nrow(self$data) becomes
+# the sum of the weights, every model is fitted on the expanded frame, and the
+# LRTs, profile CIs and standard errors are anticonservative by that factor
+# with nothing said to the user. haplo.em cost scales with the same n.
+# 'none' makes jamovi run the analysis unweighted and warn prominently, which
+# is honest about what this module supports. Implementing weights properly
+# (integerOnly + attr(self$data, 'jmv-weights') threaded into every glm/lm and
+# into haplo.stats) is the upgrade, not this line.
+weightsSupport: none
+
 options:
   - name: data
     type: Data

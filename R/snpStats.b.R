@@ -1918,15 +1918,23 @@ snpStatsClass <- if (requireNamespace("jmvcore", quietly = TRUE)) R6::R6Class(
           limits   = c(0,1), na.value="grey85", name=colour_label) +
         ggplot2::scale_x_discrete(position="bottom") +
         ggplot2::labs(title=paste0("LD Heatmap  \u2022  upper: ",metric_label," | lower: p-value"),
-                      x=NULL, y=NULL) +
-        ggplot2::theme_minimal(base_size=11) +
+                      x=NULL, y=NULL)
+      # jamovi's own theme, so the panel background, fonts and axis text follow
+      # the user's light/dark setting. .gg_theme_only (snpPGS_plots.R) is what
+      # takes it: `ggtheme` is a list of the theme AND jamovi's two discrete
+      # palette scales, and adding those here replaces scale_fill_gradientn and
+      # fails outright with "Continuous value supplied to a discrete scale".
+      # The fill ramp and the in-tile text stay fixed on purpose — they are drawn
+      # on the heatmap's own light->red gradient, not on the panel background.
+      p <- p + list(
+        .gg_theme_only(ggtheme),
         ggplot2::theme(
           axis.text.x=ggplot2::element_text(angle=45,hjust=1,vjust=1),
           axis.text.y=ggplot2::element_text(hjust=1),
           panel.grid=ggplot2::element_blank(),
           legend.position="right",
           plot.title=ggplot2::element_text(size=11,face="bold",
-                                           margin=ggplot2::margin(b=8)))
+                                           margin=ggplot2::margin(b=8))))
       print(p); TRUE
     },
 

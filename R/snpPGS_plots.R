@@ -31,20 +31,52 @@
       c(w = round(w), h = round(ph * max(1L, nr)))
     }
 
-    .pgs_theme <- function(base_size = 12) {
-      ggplot2::theme_minimal(base_size = base_size) +
+    # What jamovi passes as `ggtheme` is NOT a theme: it is a plain list of the
+    # ggplot2 theme plus two discrete scales carrying jamovi's palette
+    # (jmvcore/R/themes.R, getGGTheme -> c(theme, ggPalette(palette))). Two
+    # consequences, both of them silent:
+    #   * `ggtheme + theme(...)` evaluates to NULL. A list has no `+` method, so
+    #     ggplot2's is dispatched on the right operand and yields nothing; the
+    #     plot then gets no theme at all and looks untouched.
+    #   * adding the whole list REPLACES whatever scales the plot already
+    #     declared, because they arrive after them.
+    # So take the theme element only, and hand it to the plot inside a list.
+    # The palette scales are deliberately dropped: these plots set their own
+    # (.pgs_pal with lab_fun legend labels; the LD heatmap's continuous fill
+    # gradient), and jamovi's discrete scales would override both.
+    # Used by snpStats' LD heatmap too — the only cross-file use in this file.
+    .gg_theme_only <- function(ggtheme) {
+      if (is.null(ggtheme)) return(NULL)
+      if (inherits(ggtheme, "theme")) return(ggtheme)
+      parts <- Filter(function(x) inherits(x, "theme"), ggtheme)
+      if (length(parts) == 0L) NULL else parts[[1L]]
+    }
+
+    # jamovi's theme carries the user's light/dark background, font family and
+    # base size; this module's structural preferences are layered on top and set
+    # no colour. It replaces a theme_minimal() that pinned white panel and plot
+    # backgrounds — unreadable under the dark theme, and deaf to the user's font
+    # settings and to jamovi's export tuning.
+    .pgs_theme <- function(ggtheme) {
+      list(
+        .gg_theme_only(ggtheme),
         ggplot2::theme(
-          plot.title       = ggplot2::element_text(face = "bold",
-                                                    size = base_size + 1),
-          plot.subtitle    = ggplot2::element_text(colour = "#555555",
-                                                    size = base_size - 2),
+          plot.title       = ggplot2::element_text(face = "bold"),
           strip.text       = ggplot2::element_text(face = "bold"),
           panel.grid.minor = ggplot2::element_blank(),
-          panel.grid.major = ggplot2::element_line(colour = "#ECECEC"),
           legend.position  = "bottom",
-          legend.title     = ggplot2::element_blank(),
-          plot.background  = ggplot2::element_rect(fill = "white", colour = NA),
-          panel.background = ggplot2::element_rect(fill = "white", colour = NA))
+          legend.title     = ggplot2::element_blank()))
+    }
+
+    # Text colour for annotations drawn with geom_text. ggplot2's geom default is
+    # a hardcoded black which the theme does not override, so an annotation is
+    # black-on-dark under jamovi's dark theme however good the theme is. Take the
+    # theme's own text colour instead, falling back to the previous grey.
+    .pgs_ink <- function(ggtheme) {
+      th <- .gg_theme_only(ggtheme)
+      col <- if (is.null(th)) NULL else
+        tryCatch(ggplot2::calc_element("text", th)$colour, error = function(e) NULL)
+      if (is.null(col) || is.na(col)) "#555555" else col
     }
 
     # ════════════════════════════════════════════════════════════════════════
@@ -53,11 +85,15 @@
     #   Binary response: one density/histogram per group, overlaid, with group
     #   mean lines and a Mann-Whitney annotation (two groups).
     # ════════════════════════════════════════════════════════════════════════
-    plotDist <- function(image, cache, opts) {
+    # The plot data comes from image$state, set in .run — see .setPlotState.
+    # An empty state is the ordinary "nothing to draw yet" case and returns
+    # FALSE, leaving the image blank rather than erroring.
+    plotDist <- function(image, ggtheme, opts) {
 
-      all_scores <- cache$all_scores
-      resp       <- cache$resp
-      respCol    <- cache$respCol
+      state      <- image$state
+      all_scores <- state$all_scores
+      resp       <- state$resp
+      respCol    <- state$respCol
       if (is.null(all_scores) || length(all_scores) == 0) return(FALSE)
 
       plot_type <- opts$distPlotType                 # density | histogram | both
@@ -132,12 +168,12 @@
         ggplot2::scale_colour_manual(values = .pgs_pal, labels = lab_fun) +
         ggplot2::scale_fill_manual(values = .pgs_pal, labels = lab_fun) +
         ggplot2::labs(x = "PGS Score", y = "Density") +
-        .pgs_theme()
+        .pgs_theme(ggtheme)
       if (n_modes > 1) p <- p + ggplot2::facet_wrap(~ mode, scales = "free")
       if (!is.null(ann_df))
         p <- p + ggplot2::geom_text(data = ann_df, inherit.aes = FALSE,
           ggplot2::aes(x = Inf, y = Inf, label = label),
-          hjust = 1.05, vjust = 1.5, size = 3, colour = "#555555")
+          hjust = 1.05, vjust = 1.5, size = 3, colour = .pgs_ink(ggtheme))
       if (!is_binary)
         p <- p + ggplot2::theme(legend.position = "none")
 
@@ -149,11 +185,12 @@
     # plotStrat — PGS vs continuous response scatter with a linear fit.
     # (Binary response is shown by plotDist.)
     # ════════════════════════════════════════════════════════════════════════
-    plotStrat <- function(image, cache, opts) {
+    plotStrat <- function(image, ggtheme, opts) {
 
-      all_scores <- cache$all_scores
-      resp       <- cache$resp
-      respCol    <- cache$respCol
+      state      <- image$state
+      all_scores <- state$all_scores
+      resp       <- state$resp
+      respCol    <- state$respCol
       if (is.null(all_scores) || is.null(resp)) return(FALSE)
       is_binary <- is.factor(resp) || length(unique(resp[!is.na(resp)])) == 2
       if (is_binary) return(FALSE)
@@ -197,12 +234,12 @@
                                     linewidth = 1)
       p <- p +
         ggplot2::labs(x = "PGS Score", y = y_lab) +
-        .pgs_theme() + ggplot2::theme(legend.position = "none")
+        c(.pgs_theme(ggtheme), list(ggplot2::theme(legend.position = "none")))
       if (n_modes > 1) p <- p + ggplot2::facet_wrap(~ mode, scales = "free")
       if (!is.null(ann_df))
         p <- p + ggplot2::geom_text(data = ann_df, inherit.aes = FALSE,
           ggplot2::aes(x = -Inf, y = Inf, label = label),
-          hjust = -0.05, vjust = 1.5, size = 3, colour = "#555555")
+          hjust = -0.05, vjust = 1.5, size = 3, colour = .pgs_ink(ggtheme))
 
       print(p)
       TRUE
@@ -214,11 +251,12 @@
     # reference category drawn as a diamond, others as point + CI whiskers.
     # (Polytomous response is skipped.)
     # ════════════════════════════════════════════════════════════════════════
-    plotForest <- function(image, cache, opts) {
+    plotForest <- function(image, ggtheme, opts) {
 
-      all_scores <- cache$all_scores
-      resp       <- cache$resp
-      covs       <- cache$covs
+      state      <- image$state
+      all_scores <- state$all_scores
+      resp       <- state$resp
+      covs       <- state$covs
       if (is.null(all_scores) || is.null(resp)) return(FALSE)
 
       n_lvls    <- length(unique(resp[!is.na(resp)]))
@@ -366,7 +404,7 @@
           ggplot2::geom_errorbarh(data = pt,
             ggplot2::aes(xmin = lo, xmax = hi), height = 0.22,
             colour = .pgs_pal[1], linewidth = 0.8, na.rm = TRUE) +
-          ggplot2::geom_point(data = pt, size = 2.4, colour = "#2C3E50",
+          ggplot2::geom_point(data = pt, size = 2.4, colour = .pgs_pal[1],
                               na.rm = TRUE)
       if (nrow(refp) > 0)
         p <- p + ggplot2::geom_point(data = refp, shape = 23, size = 3.4,
@@ -379,7 +417,7 @@
         # breaking the order.
         ggplot2::scale_y_discrete(limits = rev(cat_labels)) +
         ggplot2::labs(subtitle = sub, x = x_lab, y = NULL) +
-        .pgs_theme() + ggplot2::theme(legend.position = "none")
+        c(.pgs_theme(ggtheme), list(ggplot2::theme(legend.position = "none")))
       if (n_comps == 1L && n_modes > 1) p <- p + ggplot2::facet_wrap(~ mode)
       else if (n_comps > 1)             p <- p + ggplot2::facet_grid(mode ~ comparison)
 
@@ -393,11 +431,12 @@
     # covariates are present, PGS+covariates and covariates-only curves are
     # overlaid. AUC via the trapezoidal rule; a note flags AUC < 0.5.
     # ════════════════════════════════════════════════════════════════════════
-    plotROC <- function(image, cache, opts) {
+    plotROC <- function(image, ggtheme, opts) {
 
-      all_scores <- cache$all_scores
-      resp       <- cache$resp
-      covs       <- cache$covs
+      state      <- image$state
+      all_scores <- state$all_scores
+      resp       <- state$resp
+      covs       <- state$covs
       if (is.null(all_scores) || is.null(resp)) return(FALSE)
 
       lvls_all <- levels(droplevels(factor(resp[!is.na(resp)])))
@@ -510,8 +549,8 @@
           x = "1 − Specificity (FPR)", y = "Sensitivity (TPR)") +
         ggplot2::geom_text(data = lab_df, inherit.aes = FALSE,
           ggplot2::aes(x = 1, y = 0, label = label),
-          hjust = 1, vjust = 0, size = 3, colour = "#333333") +
-        .pgs_theme()
+          hjust = 1, vjust = 0, size = 3, colour = .pgs_ink(ggtheme)) +
+        .pgs_theme(ggtheme)
       if (n_comps == 1L && n_modes > 1) p <- p + ggplot2::facet_wrap(~ mode)
       else if (n_comps > 1) p <- p + ggplot2::facet_grid(mode ~ comparison)
 
@@ -524,11 +563,12 @@
     # probability, with a loess smooth and a Hosmer-Lemeshow annotation. Same
     # faceting as plotROC.
     # ════════════════════════════════════════════════════════════════════════
-    plotCalibration <- function(image, cache, opts) {
+    plotCalibration <- function(image, ggtheme, opts) {
 
-      all_scores <- cache$all_scores
-      resp       <- cache$resp
-      covs       <- cache$covs
+      state      <- image$state
+      all_scores <- state$all_scores
+      resp       <- state$resp
+      covs       <- state$covs
       if (is.null(all_scores) || is.null(resp)) return(FALSE)
 
       lvls_all <- levels(droplevels(factor(resp[!is.na(resp)])))
@@ -624,17 +664,17 @@
                                     linewidth = 0.9)
       p <- p +
         ggplot2::geom_point(ggplot2::aes(size = n), shape = 21,
-          fill = "#2C3E50", colour = "#2C3E50", alpha = 0.65, na.rm = TRUE) +
+          fill = .pgs_pal[1], colour = .pgs_pal[1], alpha = 0.65, na.rm = TRUE) +
         ggplot2::scale_size_area(max_size = 5, guide = "none") +
         ggplot2::coord_equal(xlim = c(0, 1), ylim = c(0, 1)) +
         ggplot2::labs(
           subtitle = if (n_comps > 1) paste0("Each category vs ", ref_lv) else NULL,
           x = "Mean predicted probability", y = "Observed event rate") +
-        .pgs_theme() + ggplot2::theme(legend.position = "none")
+        c(.pgs_theme(ggtheme), list(ggplot2::theme(legend.position = "none")))
       if (!is.null(ann_df))
         p <- p + ggplot2::geom_text(data = ann_df, inherit.aes = FALSE,
           ggplot2::aes(x = 0, y = 1, label = label),
-          hjust = 0, vjust = 1, size = 3, colour = "#555555")
+          hjust = 0, vjust = 1, size = 3, colour = .pgs_ink(ggtheme))
       if (n_comps == 1L && n_modes > 1) p <- p + ggplot2::facet_wrap(~ mode)
       else if (n_comps > 1) p <- p + ggplot2::facet_grid(mode ~ comparison)
 

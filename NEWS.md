@@ -4,6 +4,9 @@ History:
 - 260508 v0.4.0 Combined submenus for SNPstats and categorical response
 - 260717 v0.5.0 Refactored to eliminate table refresh
 - 260727 v1.0.0 Audit fixes
+- 260805 unreleased  PGS plots export correctly (were blank); all plots follow
+                the jamovi theme; snpStats declares weightsSupport: none.
+                DESCRIPTION/0000.yaml still say 1.0.0 — bump both when released.
 
 Issues:
 - snpPGS gets argument caseLevel without default: a `type: Level` option cannot
