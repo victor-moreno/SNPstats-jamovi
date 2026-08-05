@@ -1,4 +1,4 @@
-setwd("/Users/h501uvma/Downloads/claude/SNPstats")
+setwd("/Users/h501uvma/Downloads/claude/jamovi/SNPstats")
 
 
 data<-read.delim("data/CRCgenet-SNPs.tsv", header=TRUE, stringsAsFactors = TRUE)
