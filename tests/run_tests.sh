@@ -1,22 +1,8 @@
 #!/usr/bin/env bash
-# Run the SNPstats test suite against the shared R library
-# (~/R/.Rlib-arm / ~/R/.Rlib-x64, picked by `uname -m` like install_jamovi.sh).
-# Requires: bash tests/setup_test_env.sh  (run once, or after changing R code).
-#
-# --vanilla + R_LIBS_USER keep R off the (possibly unreadable) user library;
-# R_ENVIRON_USER/R_PROFILE_USER=/dev/null stop startup files re-adding it.
+# Run the SNPstats test suite against the active R's default library (managed
+# by rig). Requires: bash tests/setup_test_env.sh  (run once, or after adding
+# a new dependency).
 set -euo pipefail
-
-ARCH="$(uname -m)"
-case "$ARCH" in
-  arm64)   PD="$HOME/R/.Rlib-arm" ;;
-  x86_64)  PD="$HOME/R/.Rlib-x64" ;;
-  *)       echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
-esac
-if [ ! -d "$PD/SNPstats" ]; then
-  echo "SNPstats not installed in $PD — run: bash tests/setup_test_env.sh" >&2
-  exit 1
-fi
 
 # A bare jmvtools::prepare()/install() regenerates R/snpPGS.h.R and drops the
 # caseLevel default, which breaks every snpPGS() call in the suite with an
@@ -24,8 +10,6 @@ fi
 bash tools/patch_h.sh R/snpPGS.h.R || [ $? -eq 10 ]
 
 # Reinstall the package so source changes are picked up, then run testthat.
-R_ENVIRON_USER=/dev/null R_PROFILE_USER=/dev/null R_LIBS_USER="$PD" \
-  R CMD INSTALL --no-byte-compile --library="$PD" . >/dev/null
+R CMD INSTALL --no-byte-compile . >/dev/null
 
-R_ENVIRON_USER=/dev/null R_PROFILE_USER=/dev/null R_LIBS_USER="$PD" \
-  Rscript --vanilla tests/run_tests.R
+Rscript tests/run_tests.R
