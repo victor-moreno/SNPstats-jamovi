@@ -7,7 +7,12 @@
 build
 inst
 debug
-tools
+# tools/ is tracked now: patch_h.sh is required by tests/run_tests.sh, and
+# install.sh is what the other modules ship. The local-only material inside
+# it is excluded by tools/.gitignore instead of the whole directory.
+# .tools-git-backup is the old nested tools repo's history, kept after it was
+# dissolved: git --git-dir=.tools-git-backup log
+.tools-git-backup/
 .claude
 CLAUDE.md
 jmv

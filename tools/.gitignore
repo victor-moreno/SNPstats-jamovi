@@ -1,0 +1,15 @@
+# machine-specific absolute symlink to the jamovi checkout — recreate with:
+#   ln -s /path/to/jamovi-src tools/jamovi-src
+jamovi-src
+
+# Local-only maintainer material. The rest of tools/ is tracked and shipped
+# with the repo (same as every other module); these four are not:
+#   update_and_test.sh   pulls the jamovi source forward and rebuilds the
+#                        docker image -- needs a jamovi-src checkout that is
+#                        not part of this repo, so a cloner cannot run it
+#   haplo_standalone.R   validates the haplotype results against the web tool
+#   SNPStats-sample3.html  329 KB of captured reference output behind the
+#                        golden values; nothing in tests/ reads it
+update_and_test.sh
+haplo_standalone.R
+SNPStats-sample3.html
