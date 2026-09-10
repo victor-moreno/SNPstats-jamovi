@@ -1,4 +1,7 @@
-setwd("/Users/h501uvma/Downloads/claude/jamovi/SNPstats")
+# Scratch/exploratory script -- run it from the project root. It was pinned to
+# one machine with an absolute setwd(), which broke it for everyone else.
+if (!file.exists("data/CRCgenet-SNPs.tsv"))
+    stop("run this from the SNPstats project root (data/ must be visible)")
 
 
 data<-read.delim("data/CRCgenet-SNPs.tsv", header=TRUE, stringsAsFactors = TRUE)
