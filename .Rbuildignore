@@ -5,7 +5,6 @@
 ^\.tmp$
 ^\.cache$
 ^.*\.jmo$
-^install_jamovi\.sh$
 ^tests/run_tests\.R$
 ^tests/run_tests\.sh$
 ^tests/setup_test_env\.sh$

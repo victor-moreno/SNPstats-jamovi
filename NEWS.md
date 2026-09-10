@@ -30,7 +30,7 @@ Issues:
   UI compiler re-emits a bare `caseLevel,` formal on the public snpPGS()
   function and R-side calls that omit it fail. NOT resolved at the source —
   it is re-patched automatically by `tools/patch_h.sh`, which both
-  `tools/install_jamovi.sh` and `tests/run_tests.sh` call after any rebuild.
+  `tools/install.sh` and `tests/run_tests.sh` call after any rebuild.
   A bare `jmvtools::prepare()` on its own still leaves the tree broken.
 
 Plan:
