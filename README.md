@@ -4,12 +4,13 @@ A jamovi module for genetic epidemiology SNP analysis, replicating and enhancing
 
 ## Overview
 
-The **SNPstats** module provides an interface for conducting single-SNP and multi-SNP (haplotype) association studies. It handles the complexities of genetic data, including automated format detection, HWE testing, linkage disequilimium calculation and the estimation of haplotype phases via the EM algorithm. A submodule calculates polygenic risk scores.
+The **SNPstats** module provides an interface for conducting single-SNP and multi-SNP (haplotype) association studies. It handles the complexities of genetic data, including automated format detection, HWE testing, linkage disequilimium calculation and the estimation of haplotype phases via the EM algorithm. A submodule calculates polygenic risk scores, and a third one imports genotypes directly from PLINK and VCF files so the data never has to be reshaped by hand.
 
 See the mini [tutorial](https://victor-moreno.github.io/SNPstats-jamovi/TUTORIAL.html) for more detailed information.
 
 ## Features
 
+* **Import:** Genotypes read straight from PLINK (`.bed`/`.bim`/`.fam`, `.ped`/`.map`, `.tped`/`.tfam`) and VCF (`.vcf`, `.vcf.gz`) files and opened as a new jamovi dataset, for a chosen list of SNPs.
 * **Descriptives:** Allele and genotype frequencies with subpopulation stratification.
 * **Quality Control:** Hardy-Weinberg equilibrium (exact test) per SNP.
 * **Association:** Analysis of SNP-response associations under multiple genetic models.
@@ -29,7 +30,38 @@ Only biallelic SNPs are supported. Other polymorphism types cannot be analyzed.
 
 ---
 
+## Importing genotypes
+
+The **Import genotypes** analysis (menu *SNPstats → Data*) reads the standard
+genotype formats and writes the result out as a new jamovi dataset, laid out in
+the notation the analyses below expect:
+
+* PLINK binary `.bed` + `.bim` + `.fam`
+* PLINK text `.ped` + `.map`, and transposed `.tped` + `.tfam`
+* VCF `.vcf` and `.vcf.gz`
+
+**Only the SNPs you ask for are read.** For a `.bed` the byte offset of each
+requested variant is computed from the `.bim` and just those ranges are sliced
+out, so the source file can be arbitrarily large — 1 000 variants out of a
+1.19 GB `.bed` takes 0.09 s. The text formats have no index to seek with, so
+they are scanned once and only matching lines are kept.
+
+Covariates can be merged in by sample ID, and the usual QC filters (MAF, HWE,
+call rate) are applied and reported before anything is written.
+
+Files are chosen with a browse button and read in the browser — there is no
+file-path option, which is what lets the same analysis work on jamovi desktop
+and in jamovi cloud. One consequence worth knowing: the selected genotypes live
+in the analysis's own options while they are loaded, so an `.omv` saved with an
+import still in it contains that genotype data. Clear the file selection before
+sharing such a file.
+
+---
+
 ## Data Format
+
+The importer above produces this layout automatically; these rules matter when
+you bring a spreadsheet in by other means.
 
 SNP columns must use diploid notation. The module automatically detects:
 
@@ -50,11 +82,15 @@ Missing values: `'', NA, 'NA', 'N/A', 'N|A', '0/0'`
 - `haplo.stats` — `setupGeno`, `haplo.em`, `haplo.glm` (haplotype estimation
   and association)
 - `ggplot2` — LD heatmap and all PGS plots
-- `base64enc` — decoding the embedded PGS weights file
+- `base64enc` — decoding the embedded PGS weights file and the genotype
+  payloads the import panel sends from the browser
 
 Genotype parsing, the Hardy-Weinberg exact test and pairwise LD are implemented
 in the module itself (`R/snp_genetics.R`); the `genetics` package was dropped in
-v1.0.0 as it is marked obsolete upstream.
+v1.0.0 as it is marked obsolete upstream. The PLINK and VCF readers
+(`R/plink_read.R`, `R/text_formats.R`) are likewise implemented from the format
+specifications rather than by calling PLINK or htslib, so importing needs no
+external binary.
 
 ---
 

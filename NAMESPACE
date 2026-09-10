@@ -6,12 +6,19 @@
 # than reproduce it. Edit here by hand; the #' @import tags left in the R files
 # document intent only.
 
-import(jmvcore)
+# except=format: jmvcore exports format(str, ..., context) -- a {}-interpolation
+# helper with nothing in common with base::format(x, big.mark=, scientific=).
+# The snpImport sources use the base one two dozen times to punctuate counts,
+# and under a bare import(jmvcore) every one of them died with "missing value
+# where TRUE/FALSE needed" from inside jmvcore's grepl("{}", str). Nothing in
+# this package uses jmvcore's version. startsWith/endsWith are shadowed too but
+# jmvcore's are semantically base's, so they are left alone.
+import(jmvcore, except = format)
 import(R6)
 importFrom(base64enc, base64decode, base64encode)
 importFrom(haplo.stats, setupGeno, haplo.em, haplo.glm, haplo.glm.control)
 importFrom(nnet, multinom)
-importFrom(stats, AIC, BIC, anova, aov, as.formula, binomial, chisq.test,
+importFrom(stats, AIC, BIC, anova, aov, as.formula, ave, binomial, chisq.test,
            coef, complete.cases, confint, confint.default, density, glm, lm,
            loess, median, na.omit, pchisq, pnorm, predict, qnorm, qt, quantile,
            relevel, sd, setNames, t.test, vcov, deviance, df.residual, logLik,
@@ -19,7 +26,7 @@ importFrom(stats, AIC, BIC, anova, aov, as.formula, binomial, chisq.test,
 importFrom(graphics, abline, axis, hist, legend, lines, mtext, par, plot.new,
            points, polygon, rect, text, title)
 importFrom(grDevices, adjustcolor)
-importFrom(utils, globalVariables)
+importFrom(utils, getFromNamespace, globalVariables, head)
 export(snpStats, snpPGS)
 export(pgs_weights)
 
@@ -33,3 +40,12 @@ export(snpStatsOptions)
 
 export(snpPGSClass)
 export(snpPGSOptions)
+
+# snpImport exports nothing, unlike the two analyses above. jmvcore::create()
+# reaches an analysis through namespace[[paste0(name, "Class")]], which does not
+# consult the export list -- snpImportClass/snpImportOptions were found this way
+# throughout the standalone module's life. And snpImport() itself takes no
+# argument that could carry genotypes in: files reach it as base64 in hidden
+# options written by the panel's browse button, so there is deliberately no
+# path option and nothing an R-side caller could hand it. The #' @export tag in
+# the generated R/snpimport.h.R is inert here: this file is hand-maintained.

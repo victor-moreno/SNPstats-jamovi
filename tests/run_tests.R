@@ -20,8 +20,12 @@ suppressMessages(library(SNPstats))
 # stop_on_failure is off for the same reason: it aborts inside test_dir(), which
 # would suppress the counts on exactly the runs where they matter most. The
 # stop() below restores the non-zero exit that CI and run_tests.sh depend on.
-res <- testthat::test_dir("tests/testthat", reporter = "summary",
-                          stop_on_failure = FALSE)
+# package= runs the tests in a child of the SNPstats namespace, the same env
+# tests/testthat.R (and so R CMD check) already uses. Without it the snpImport
+# tests cannot see read_bim(), effect_freq() and the rest of the unexported
+# import internals they were written against.
+res <- testthat::test_dir("tests/testthat", package = "SNPstats",
+                          reporter = "summary", stop_on_failure = FALSE)
 
 df <- as.data.frame(res)
 cat(sprintf("\n[ PASS %d | FAIL %d | WARN %d | SKIP %d | ERROR %d ]\n",

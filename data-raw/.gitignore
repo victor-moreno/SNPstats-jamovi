@@ -1,0 +1,10 @@
+# Only the small tier is committed — it is ~1.5 MB and is what CI and the unit
+# tests run against. medium (~25 MB) and large (~1.2 GB) are regenerated on
+# demand with make_fixtures.sh, deterministically from the same seed.
+# No trailing slash: in this repo the two big tiers are usually symlinks to
+# the plink-importer working copy rather than real directories, and a
+# `dir/` pattern does not match a symlink -- they were staged once.
+fixtures/medium
+fixtures/large
+fixtures/**/*.log
+fixtures/**/*.nosex

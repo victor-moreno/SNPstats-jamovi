@@ -1,0 +1,117 @@
+---
+name: snpImport
+title: Import genotypes
+jrs: '1.1'
+
+# The byte layouts this module decodes, and nothing else. It reimplements
+# PLINK's and htslib's readers rather than calling them, so the specifications
+# are what it is answerable to and what someone checking an unexpected genotype
+# needs. Two references on an importer is the right number.
+refs:
+    - plinkformats
+    - vcfspec
+
+items:
+
+    # clearWith defaults to '*' for Html (jmvcore/R/html.R:40), which means
+    # jamovi wipes the element on *any* option change -- that is what made the
+    # panel flicker back to the instructions every time a checkbox was clicked.
+    # These only depend on whether data is loaded.
+    - name: instructions
+      title: ''
+      type: Html
+      clearWith:
+          - genoContent
+
+    # Load errors, and the reminder to press Open as new dataset once genotypes
+    # are loaded. Shown ahead of everything else.
+    - name: notice
+      title: ''
+      type: Html
+      visible: false
+      clearWith:
+          - genoContent
+
+    - name: provenance
+      title: Import report
+      type: Table
+      visible: (showProvenance)
+      rows: 0
+      # Deliberately short: only a change of data clears this table from the
+      # client. Filters change what it says, and it updates in one step rather
+      # than blanking, because the rows are rebuilt from scratch on every
+      # request anyway -- the engine constructs a fresh analysis object per
+      # request, .init() creates the rows into an empty table, and
+      # Table$fromProtoBuf then copies the previous cells into the rows it
+      # finds by name. It never adds a row, so a short clearWith cannot
+      # duplicate one. (An earlier version of this comment claimed a
+      # deleteRows + addRow rebuild that was never written and is not needed;
+      # it was read as a missing implementation in the 2026-09 review.)
+      # tests/testthat/test-restore-cycle.R pins this.
+      clearWith:
+          - genoContent
+          - variantContent
+          - sampleContent
+          - covContent
+          - hweGroup
+      columns:
+          - {name: item,  title: '', type: text}
+          - {name: value, title: '', type: text}
+
+    - name: summary
+      title: SNP summary
+      type: Table
+      visible: (showSummary)
+      rows: 0
+      clearWith:
+          - genoContent
+          - variantContent
+          - sampleContent
+          - hweGroup
+      columns:
+          - {name: snp,        title: SNP,            type: text}
+          - {name: chr,        title: Chr,            type: text}
+          # number, not integer: a base-pair position past 2^31 is a real
+          # position in a large genome, and an integer column silently clamped
+          # it to 2 147 483 647.
+          - {name: bp,         title: Position,       type: number, format: '.0f'}
+          - {name: alleles,    title: 'Alleles (A/B)', type: text}
+          - {name: n,          title: N,              type: integer}
+          - {name: missing,    title: Missing,        type: integer}
+          - {name: maf,        title: MAF,            type: number, format: zto}
+          - {name: genoCounts, title: AA / AB / BB,   type: text}
+          - {name: hwePval,    title: HWE p-value,    type: number, format: 'zto,pvalue'}
+          - {name: allele,     title: 'Effect allele', type: text, visible: false}
+          - {name: status,     title: Status,         type: text}
+      # Replaced at run time: with a weights file loaded the frequency column
+      # holds the effect allele's frequency, not the minor allele's, and says
+      # so. This is what the table says before any data arrives.
+      notes:
+          note: >
+              Alleles are (allele 1 / allele 2) as recorded in the source file;
+              the genotype counts follow that order. MAF is the frequency of
+              whichever allele is rarer.
+
+    # Internal state, not shown to the user: whether openNew's perform() has
+    # already fired. Cannot be the 'openNew' results item itself -- declaring
+    # a `type: Action` item in this jamovi/jmvcore version crashes at .init():
+    # the compiler requires and emits `operation=...` (resultelementschemas.yaml),
+    # but jmvcore's Action$new(options, name, action) has no such parameter and
+    # no ... to absorb it, so self$add(jmvcore::Action$new(...)) throws "unused
+    # argument (operation = ...)" building the results tree. Confirmed against
+    # jmvcore 2.7.38, what jamovi 28.1 ships -- a bug in jamovi's own toolchain,
+    # not something to work around by guessing at a different property name.
+    #
+    # A Table's rows do restore across the rebuild every option click causes
+    # (see the .init comment at the top of R/snpimport.b.R), which is what lets
+    # this survive to guard the next click -- an 'openNew' results item left for
+    # perform() to create on demand would not, since fromProtoBuf only restores
+    # into items already present in the freshly rebuilt tree (jmvcore's
+    # group.R), and an undeclared item is never in it.
+    - name: openNewState
+      title: ''
+      type: Table
+      visible: false
+      rows: 0
+      columns:
+          - {name: fired, title: '', type: text}

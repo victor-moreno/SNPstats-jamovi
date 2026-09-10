@@ -12,7 +12,9 @@ This module extends jamovi's functionality to bring the analyses of the [SNPstat
 
 1. **Install jamovi** — download it from [www.jamovi.org/download.html](https://www.jamovi.org/download.html) and install it as any other application.
 2. **Install the module in jamovi** — open jamovi and click the **+** (Modules) icon at the top right of the window, choose **Jamovi library**, write **SNPstats** in the search, and click **INSTALL**.
-3. **Check the installation** — an **SNPstats** menu appears in the *Analyses* ribbon, with the *SNP Analysis* and *Polygenic Score (PGS)* entries described below.
+3. **Check the installation** — an **SNPstats** menu appears in the *Analyses* ribbon, with the *Import genotypes*, *SNP Analysis* and *Polygenic Score (PGS)* entries described below.
+
+SNPstats 1.1.0 requires jamovi 28.1 or newer.
 
 ## Open source
 
@@ -22,8 +24,9 @@ The code for this module can be found in [GitHub](https://github.com/victor-more
 
 ## Overview
 
-**SNPstats** jamovi is organised into two modules accessible from the menu:
+**SNPstats** jamovi is organised into three modules accessible from the menu:
 
+- **Import genotypes** (under *Data*) — reads PLINK and VCF files and opens the genotypes as a new jamovi dataset. Optional: if your data is already a spreadsheet, skip it.
 - **SNP Analysis** — a single module with three tabs: *Descriptive*, *Association*, and *LD and Haplotype*. Variable assignments (SNPs, response, covariates) are shared across tabs, so you configure them once and switch between analyses without re-entering variables.
 - **Polygenic Score (PGS)** — computes weighted or unweighted polygenic scores, applies QC filters, and tests score–outcome associations.
 
@@ -50,6 +53,43 @@ Any allele names are accepted (single nucleotides, insertion/deletion codes, etc
 **Allele order** is initially defined by the frequency, sorting the most frequent allele first so it becomes the reference for analysis of association. This can be changed in Jamovi Data panel.
 
 The **response variable** should be a binary (case/control coded 0/1 or as a two-level factor), categorical (multi-level factor) or continuous column. **Covariates** can be numeric or categorical.
+
+---
+
+## Importing genotypes
+
+The analyses below expect a spreadsheet in the format just described. If your
+genotypes are in the files a genotyping pipeline actually produces, **SNPstats →
+Data → Import genotypes** will convert them for you.
+
+It reads PLINK binary (`.bed` + `.bim` + `.fam`), PLINK text (`.ped` + `.map`,
+`.tped` + `.tfam`) and VCF (`.vcf`, `.vcf.gz`). In outline:
+
+1. Choose the genotype files with the browse buttons.
+2. Give the list of SNPs you want — pasted rsIDs, or a file (a PGS Catalog
+   weights file works directly).
+3. Optionally add a covariate/phenotype file, matched to the samples by ID.
+4. Optionally set the QC filters (MAF, HWE, call rate).
+5. Press **Open as new dataset**.
+
+The genotypes open in a **new jamovi window**, already in the `A/B` notation and
+with sample ID, sex and phenotype as columns, ready to assign in SNP Analysis or
+PGS. The panel does not write into the sheet it is running in.
+
+Two things worth knowing:
+
+- **Only the SNPs you ask for are read**, so the source file can be very large —
+  the whole point of the SNP list. Selecting 1 000 variants from a 1.19 GB
+  `.bed` takes a fraction of a second.
+- Files are read **in the browser**, not by path, which is what makes this work
+  on jamovi cloud as well as on the desktop. The consequence is that the loaded
+  genotypes are held in the analysis while they are loaded, so an `.omv` saved
+  with an import still in it contains that genotype data — clear the file
+  selection before sharing such a file.
+
+The import report lists what was requested, what was found, what the QC filters
+removed and why, so a SNP that does not appear in the result is always accounted
+for.
 
 ---
 
@@ -546,6 +586,10 @@ When both Weighted and Unweighted scoring modes are active, every plot shows eac
 Sole X, Guino E, Valls J, Iniesta R, Moreno V (2006). SNPStats: a web tool for the analysis of association studies. *Bioinformatics* 22(15):1928–1929.
 
 Daniel S, Sinnwell J (2026). haplo.stats: Statistical Analysis of Haplotypes with Traits and Covariates when Linkage Phase is Ambiguous. R package version 1.9.8.3, https://CRAN.R-project.org/package=haplo.stats.
+
+Chang CC, Purcell S. PLINK 1.9 file format reference. https://www.cog-genomics.org/plink/1.9/formats — the layouts the importer decodes.
+
+The SAM/BCF/VCF specification working group. The Variant Call Format (VCF) specification. https://samtools.github.io/hts-specs/VCFv4.2.pdf
 
 ## Acknowledgments
 

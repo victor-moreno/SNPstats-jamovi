@@ -1,0 +1,354 @@
+---
+name: snpImport
+title: Import genotypes
+menuGroup: SNPstats
+menuSubgroup: Data
+menuTitle: Import genotypes
+version: '1.1.0'
+jas: '1.2'
+
+description:
+    main: >
+        Imports genotypes from PLINK (.bed/.bim/.fam, .ped/.map, .tped/.tfam)
+        and VCF (.vcf, .vcf.gz) files for a selected list of SNPs, and opens
+        the result -- samples, covariates and genotypes -- as a new dataset
+        in a new jamovi window, ready for SNP Analysis and Polygenic Score.
+    R:
+        dontrun: true
+        usage: |
+            # The genotype data travels as content, not as a path: the browse
+            # button reads the selected variants in the browser and embeds only
+            # those bytes. There is deliberately no file-path option.
+
+options:
+    - name: data
+      type: Data
+
+    # -- genotype files ----------------------------------------------------
+    # Three carriers, all filled by the browse button in snpImport.js. Only
+    # the SNPs the user asked for are ever placed in genoContent: the browser
+    # matches the list against the .bim, computes each variant's byte offset
+    # and slices just those ranges out of the .bed.
+
+    - name: sourceFormat
+      title: Source format
+      type: String
+      default: "bed"
+      hidden: true
+      description:
+          R: >
+              Which format the carriers below hold: 'bed', 'ped', 'tped' or
+              'vcf'. Set by the browse button from the chosen files'
+              extensions.
+
+    - name: genoContent
+      title: Genotype payload (base64)
+      type: String
+      default: ""
+      hidden: true
+      description:
+          R: >
+              Base64 of the selected genotypes, gzipped when it helps: the .bed
+              variant blocks in the order of variantContent, or the matched
+              .tped / VCF lines. Compression is detected by magic bytes rather
+              than by a flag.
+
+    - name: variantContent
+      title: Variant records (base64)
+      type: String
+      default: ""
+      hidden: true
+      description:
+          R: >
+              Base64 of the matched .bim lines, in the same order as
+              genoContent. Empty for .tped and VCF, whose lines carry their own
+              variant fields.
+
+    - name: sampleContent
+      title: Sample records (base64)
+      type: String
+      default: ""
+      hidden: true
+      description:
+          R: >
+              Base64 of the whole .fam or .tfam -- sample count, order and IDs.
+              Empty for VCF, which names its samples in the #CHROM header.
+
+    - name: sourceDims
+      title: Source dimensions
+      type: String
+      default: ""
+      hidden: true
+      description:
+          R: >
+              'bedBytes,bimLines,famLines' as the browser measured them, for the
+              .bed path only. R re-checks that the three agree, which is the one
+              thing the payload itself cannot reveal: the byte offset of a
+              variant is computed from the .fam's sample count and the .bim's
+              line number, and the length check in bed_decode_slices re-derives
+              its expectation from those same two numbers, so a stale .fam
+              agrees with itself and decodes the wrong variant's bytes. Empty
+              for a payload written before this check existed, which is reported
+              rather than refused.
+
+    - name: genoFilename
+      title: Genotype files
+      type: String
+      default: ""
+      description:
+          R: Display name of the loaded .bed/.bim/.fam trio.
+
+    - name: loadStatus
+      title: Status
+      type: String
+      default: ""
+      description:
+          R: >
+              What the Load button did, or why it could not. Display only --
+              picking files stores the handles, and nothing is read until Load
+              is pressed, which is what lets the files be chosen before the SNP
+              list.
+
+    - name: loadProblem
+      title: Load problem
+      type: String
+      default: ""
+      hidden: true
+      description:
+          R: >
+              Empty when the last Load worked or has yet to be pressed;
+              'error' or 'warn' when it refused, which is what makes R restate
+              loadStatus in the results panel. The browser classifies it rather
+              than R reading the message, because the status line is written in
+              a dozen places and matching its wording in R would be a contract
+              nobody can see. Needed because a refusal leaves the carriers empty
+              and so is otherwise indistinguishable from never having loaded.
+
+    # -- SNP selection -----------------------------------------------------
+
+    - name: snpListText
+      title: SNP list
+      type: String
+      default: ""
+      description:
+          R: >
+              Variant IDs, one per line or whitespace-separated. Used when no
+              selection file is loaded. Leaving both empty imports every variant
+              in the .bim, which is only practical for a small file -- the
+              transfer limit still applies.
+
+    - name: snpListContent
+      title: SNP list file (base64)
+      type: String
+      default: ""
+      hidden: true
+      description:
+          R: >
+              Base64 of a selection file: either one variant ID per line, or a
+              PGS-Catalog weights file. A weights file additionally supplies the
+              effect allele, which enables the orientation check.
+
+    - name: snpListFilename
+      title: Selection file
+      type: String
+      default: ""
+      description:
+          R: Display name of the loaded selection file.
+
+    # -- covariates --------------------------------------------------------
+
+    - name: covContent
+      title: Covariate file (base64)
+      type: String
+      default: ""
+      hidden: true
+      description:
+          R: >
+              Base64 of a delimited covariate file. Matched onto the genotype
+              samples by ID; the genotype order is authoritative, so covariate
+              rows that match nothing are dropped and genotype samples with no
+              covariate row keep NA.
+
+    - name: covFilename
+      title: Covariate file
+      type: String
+      default: ""
+      description:
+          R: Display name of the loaded covariate file.
+
+    - name: covIdCol
+      title: ID column
+      type: String
+      default: ""
+      description:
+          R: >
+              Name of the identifier column in the covariate file. Empty
+              detects it: IID first (the PLINK convention), then id / sample /
+              subject, and failing all of those the first column. FID is used
+              as well when the .fam's IIDs are not unique.
+
+    # -- what to emit ------------------------------------------------------
+
+    - name: emitSamples
+      title: Include sample ID, sex and phenotype
+      type: Bool
+      default: true
+      description:
+          R: >
+              Emits the .fam's within-family ID (IID), plus sex and phenotype
+              when they are not missing. The family ID (FID) is added as its own
+              column when it carries information -- that is, when the FIDs are
+              not all identical.
+
+    - name: dosage
+      title: Emit dosage instead of genotypes
+      type: Bool
+      default: false
+      description:
+          R: >
+              Numeric allele-2 dosage (0/1/2) instead of genotype factors.
+              Costs eight times as much to transfer, so it reduces the SNP
+              limit by roughly a factor of eight; genotype factors are what
+              SNP Analysis expects.
+
+    # -- filters -----------------------------------------------------------
+    # All filters act on data that is already loaded: changing a threshold
+    # re-runs the analysis over the payload that is already in the options and
+    # never re-reads the .bed. Only changing the SNP selection or the files
+    # needs a reload.
+    #
+    # Order follows PLINK: sample filters first, then variant filters, with the
+    # variant statistics computed on the retained samples.
+
+    - name: filterSamples
+      title: Drop low-quality samples
+      type: Bool
+      default: false
+      description:
+          R: >
+              Applied before the SNP filters, as PLINK does, so the per-SNP
+              statistics describe the samples that were kept.
+
+    - name: maxIndMissing
+      title: Max missing per sample (%)
+      type: Number
+      min: 0
+      max: 100
+      default: 10
+      description:
+          R: >
+              PLINK's --mind. Computed over the selected SNPs only, so it will
+              not agree with a PLINK run over a whole panel.
+
+    - name: hetSd
+      title: Heterozygosity outliers (SD)
+      type: Number
+      min: 0
+      max: 10
+      default: 0
+      description:
+          R: >
+              Drop samples whose heterozygosity rate is more than this many
+              standard deviations from the mean. 0 disables it. Heterozygosity
+              is a contamination and inbreeding signal, but over a few hundred
+              SNPs it is noisy -- the import report says so when the selection
+              is small.
+
+    - name: applyFilters
+      title: Apply SNP QC filters
+      type: Bool
+      default: false
+      description:
+          R: >
+              Drop SNPs failing the thresholds below. Applied after reading, so
+              the summary table shows every requested SNP with its reason for
+              being dropped.
+
+    - name: maxMissing
+      title: Max missing (%)
+      type: Number
+      min: 0
+      max: 100
+      default: 10
+      description:
+          R: PLINK's --geno. Drops SNPs missing in more than this share of samples.
+
+    - name: minMaf
+      title: Min MAF
+      type: Number
+      min: 0
+      max: 0.5
+      default: 0.01
+      description:
+          R: PLINK's --maf. Drops SNPs below this minor allele frequency.
+
+    - name: hweGroup
+      title: Compute HWE in
+      type: List
+      options:
+          - name: controls
+            title: Controls only
+          - name: all
+            title: All samples
+      default: controls
+      description:
+          R: >
+              Which samples the Hardy-Weinberg exact test uses. Departure from
+              equilibrium in cases can reflect association rather than a
+              genotyping problem, so the convention -- and PLINK's --hwe default
+              for case/control phenotypes -- is to test controls only. Falls back
+              to all samples when the .fam carries no phenotype. Every other
+              statistic in the summary always describes all samples.
+
+    - name: hweP
+      title: HWE p threshold
+      type: Number
+      min: 0
+      max: 1
+      default: 0.001
+      description:
+          R: PLINK's --hwe. Drops SNPs whose exact HWE test falls below this.
+
+    # -- reporting ---------------------------------------------------------
+
+    - name: showSummary
+      title: SNP summary table
+      type: Bool
+      default: false
+      description:
+          R: >
+              One row per imported SNP: position, alleles, N, missingness,
+              frequency, genotype counts and the HWE exact test. Off by default
+              because it is one row per SNP and an import can be thousands.
+
+    - name: showProvenance
+      title: Import report
+      type: Bool
+      default: true
+      description:
+          R: >
+              What was read and what happened to it: the files, how many
+              samples and SNPs arrived, what was not found, what the filters
+              removed, and how the covariates matched. This is the only place
+              several of those are stated, so it is on by default.
+
+    # openNew is the only way this analysis produces data: it does not write
+    # into the current sheet. perform() builds a data.frame from the same
+    # columns the import report describes and hands it to jamovi, which
+    # writes it straight to a temp .omv on disk and opens it through its
+    # normal file-open pipeline -- replacing the current window's data if it
+    # is still blank and unedited, opening a new window otherwise. One-shot:
+    # jamovi never resets an Action option's value once clicked, and the
+    # button disables itself client-side, so this fires at most once per
+    # analysis instance -- see .performOpen's guard in snpimport.b.R.
+
+    - name: openNew
+      title: Open as new dataset
+      type: Action
+      action: open
+      description:
+          R: >
+              Loads the samples, covariates and genotypes described above and
+              opens them as a new dataset in a new jamovi window (or the
+              current one, if it is still blank). Continue the analysis
+              there -- this panel does not write into the sheet it runs in.

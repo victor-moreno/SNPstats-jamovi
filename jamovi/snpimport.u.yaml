@@ -1,0 +1,138 @@
+title: Import genotypes
+name: snpImport
+jus: '3.0'
+stage: 0
+compilerMode: tame
+children:
+  # Files first, then SNPs, then an explicit Load. Picking files only stores
+  # the handles — nothing is read until Load is pressed — which is what lets
+  # this order work. Slicing on file selection would mean a user who has not
+  # given a SNP list yet gets the whole .bim selected and refused for size.
+  - type: LayoutBox
+    margin: large
+    children:
+      - type: Label
+        label: '1. Genotype files'
+        children:
+          - type: TextBox
+            name: genoFilename
+            label: ''
+            format: string
+            width: largest
+  - type: LayoutBox
+    margin: large
+    children:
+      - type: Label
+        label: '2. SNPs to import  (optional — all are imported if left empty)'
+        children:
+          - type: TextBox
+            name: snpListFilename
+            label: 'ID list or PGS weights file:'
+            format: string
+            width: largest
+          - type: TextBox
+            name: snpListText
+            label: 'or paste IDs:'
+            format: string
+            width: largest
+  - type: LayoutBox
+    margin: large
+    children:
+      - type: Label
+        label: '3. Covariates  (optional)'
+        children:
+          - type: TextBox
+            name: covFilename
+            label: ''
+            format: string
+            width: largest
+          - type: TextBox
+            name: covIdCol
+            label: 'ID column (blank = detect):'
+            format: string
+  - type: LayoutBox
+    margin: large
+    children:
+      - type: Label
+        label: '4. Load'
+        children:
+          - type: TextBox
+            name: loadStatus
+            label: ''
+            format: string
+            width: largest
+  - type: LayoutBox
+    margin: large
+    stretchFactor: 1
+    children:
+      - type: Label
+        label: '5. Open as new dataset'
+        children:
+          - type: ActionButton
+            name: openNew
+  - type: LayoutBox
+    margin: large
+    children:
+      - type: Label
+        label: Output
+        children:
+          - type: CheckBox
+            name: emitSamples
+            label: Sample ID, sex and phenotype
+          - type: CheckBox
+            name: dosage
+            label: Emit dosage (numeric) instead of genotypes (factor)
+  - type: LayoutBox
+    margin: large
+    children:
+      - type: Label
+        label: QC Filters
+        children:
+          - type: CheckBox
+            name: filterSamples
+            label: Drop low-quality samples
+            children:
+              - type: TextBox
+                name: maxIndMissing
+                format: number
+                label: 'Max missing per sample (%)'
+                enable: (filterSamples)
+              - type: TextBox
+                name: hetSd
+                format: number
+                label: 'Heterozygosity outliers (SD, 0 = off)'
+                enable: (filterSamples)
+          - type: ComboBox
+            name: hweGroup
+            label: 'Compute HWE in'
+          - type: CheckBox
+            name: applyFilters
+            label: Apply SNP QC filters
+            children:
+              - type: TextBox
+                name: maxMissing
+                format: number
+                label: 'Max missing (%)'
+                enable: (applyFilters)
+              - type: TextBox
+                name: minMaf
+                format: number
+                label: 'Min MAF'
+                enable: (applyFilters)
+              - type: TextBox
+                name: hweP
+                format: number
+                label: 'HWE p threshold'
+                enable: (applyFilters)
+  - type: LayoutBox
+    margin: large
+    children:
+      - type: Label
+        label: Reporting
+        children:
+          - type: CheckBox
+            name: showProvenance
+            label: Import report
+          - type: CheckBox
+            name: showSummary
+            label: SNP summary table

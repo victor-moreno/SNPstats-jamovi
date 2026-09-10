@@ -22,4 +22,16 @@
         `year`=2026, 
         `title`="SNPstats for jamovi \u2014 tutorial & documentation", 
         `publisher`="https://victor-moreno.github.io/SNPstats-jamovi/TUTORIAL.html", 
-        `url`="https://victor-moreno.github.io/SNPstats-jamovi/TUTORIAL.html"))
+        `url`="https://victor-moreno.github.io/SNPstats-jamovi/TUTORIAL.html"), 
+    `plinkformats`=list(
+        `type`="web", 
+        `author`="Chang, C. C., & Purcell, S.", 
+        `title`="PLINK 1.9 file format reference: .bed, .bim, .fam, .ped, .map, .tped, .tfam\n", 
+        `publisher`="www.cog-genomics.org", 
+        `url`="https://www.cog-genomics.org/plink/1.9/formats"), 
+    `vcfspec`=list(
+        `type`="web", 
+        `author`="The SAM/BCF/VCF specification working group", 
+        `title`="The Variant Call Format (VCF) specification", 
+        `publisher`="samtools.github.io/hts-specs", 
+        `url`="https://samtools.github.io/hts-specs/VCFv4.2.pdf"))

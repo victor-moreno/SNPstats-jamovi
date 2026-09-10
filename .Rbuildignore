@@ -25,3 +25,5 @@
 ^docs/2026-.*\.md$
 ^docs/jmvcore-.*-pr$
 ^docs/suggestion\.md$
+^data-raw$
+^tests/js$
