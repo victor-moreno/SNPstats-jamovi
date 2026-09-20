@@ -35,7 +35,7 @@ items:
     # on restore, which made the grid rebuild on every click.)
     clearWith:
         - snpCols
-        - weightsContent
+        - weightsFile
         - weightingMode
         - qcFilterMissing
         - qcMaxMissingPct
@@ -100,7 +100,7 @@ items:
     visible: (showCoverage)
     clearWith:
         - snpCols
-        - weightsContent
+        - weightsFile
         - weightingMode
         - qcFilterMissing
         - qcMaxMissingPct
@@ -125,7 +125,7 @@ items:
     visible: (showSummary)
     clearWith:
         - snpCols
-        - weightsContent
+        - weightsFile
         - weightingMode
         - qcFilterMissing
         - qcMaxMissingPct
@@ -188,7 +188,7 @@ items:
     initInRun: true
     clearWith:
         - snpCols
-        - weightsContent
+        - weightsFile
         - weightingMode
         - qcFilterMissing
         - qcMaxMissingPct
@@ -208,7 +208,7 @@ items:
     visible: (showPercentiles)
     clearWith:
         - snpCols
-        - weightsContent
+        - weightsFile
         - weightingMode
         - qcFilterMissing
         - qcMaxMissingPct
@@ -243,7 +243,7 @@ items:
     visible: (showPercentiles)
     clearWith:
         - snpCols
-        - weightsContent
+        - weightsFile
         - weightingMode
         - qcFilterMissing
         - qcMaxMissingPct
@@ -304,7 +304,7 @@ items:
     visible: (showAssoc)
     clearWith:
         - snpCols
-        - weightsContent
+        - weightsFile
         - weightingMode
         - qcFilterMissing
         - qcMaxMissingPct
@@ -374,7 +374,7 @@ items:
     visible: (showInteraction)
     clearWith:
         - snpCols
-        - weightsContent
+        - weightsFile
         - weightingMode
         - qcFilterMissing
         - qcMaxMissingPct
@@ -432,7 +432,7 @@ items:
     clearWith:
         - snpCols
         - responseCol
-        - weightsContent
+        - weightsFile
         - weightingMode
         - qcFilterMissing
         - qcMaxMissingPct
@@ -463,7 +463,7 @@ items:
     clearWith:
         - snpCols
         - responseCol
-        - weightsContent
+        - weightsFile
         - weightingMode
         - qcFilterMissing
         - qcMaxMissingPct
@@ -488,7 +488,7 @@ items:
     height: 400
     clearWith:
         - snpCols
-        - weightsContent
+        - weightsFile
         - weightingMode
         - qcFilterMissing
         - qcMaxMissingPct
@@ -518,7 +518,7 @@ items:
     height: 400
     clearWith:
         - snpCols
-        - weightsContent
+        - weightsFile
         - weightingMode
         - qcFilterMissing
         - qcMaxMissingPct
@@ -546,7 +546,7 @@ items:
     height: 400
     clearWith:
         - snpCols
-        - weightsContent
+        - weightsFile
         - weightingMode
         - qcFilterMissing
         - qcMaxMissingPct

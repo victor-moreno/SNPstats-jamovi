@@ -78,7 +78,10 @@ test('every browse button and Load are injected', () => {
     const mod = load([]);
     const ui = H.makeUi();
     mod.view_loaded(ui);
-    for (const cls of ['snpi-geno', 'snpi-snps', 'snpi-cov', 'snpi-load'])
+    // Covariate browsing is now the native FileSelector control (jamovi
+    // 28.3's File option type), not a custom-JS button, so it is not in
+    // this list any more.
+    for (const cls of ['snpi-geno', 'snpi-snps', 'snpi-load'])
         assert.strictEqual(H.find(ui.root, cls).length, 1, 'missing ' + cls);
 });
 
@@ -379,18 +382,34 @@ test('a good trio carries its dimensions across for R to re-check', async () => 
 
 // ── the other two slots ─────────────────────────────────────────────────────
 
-test('the ✕ buttons are visible from the moment the panel is drawn', () => {
-    // They used to be created display:none and un-hidden from view_updated,
-    // which the client only fires when the server re-initialises the options —
-    // never after a pick — so no file could ever be removed.
-    const mod = load([]);
+test('the SNP list box and ✕ are hidden until a file is picked, then shown immediately', async () => {
+    // Deliberately the opposite of what this test used to assert: the box+✕
+    // now start hidden (matching covFile's native FileSelector, whose file
+    // box is absent until something is picked) and must appear the instant
+    // _loadSnpList sets a value, not on some later view_updated. A version of
+    // this control that hides on empty but only re-checks from view_updated
+    // would fail here exactly as it failed the old (inverted) version of
+    // this test — see _syncClearable's own comment.
+    const mod = load([[H.file(path.join(FX, 'small', 'select.txt'))]]);
     const ui = H.makeUi();
     mod.view_loaded(ui);
-    for (const cls of ['snpi-snps-clr', 'snpi-cov-clr']) {
-        const btn = H.find(ui.root, cls)[0];
-        assert.ok(btn, 'missing ' + cls);
-        assert.notStrictEqual(btn.style.display, 'none', cls + ' is hidden');
-    }
+
+    let btn = H.find(ui.root, 'snpi-snps-clr')[0];
+    assert.ok(btn, 'missing snpi-snps-clr');
+    assert.strictEqual(btn.style.display, 'none',
+        'snpi-snps-clr should start hidden, nothing is loaded yet');
+
+    H.click(ui, 'snpi-snps');
+    await H.until(() => ui.values.snpListFilename !== '', 'the SNP list');
+    btn = H.find(ui.root, 'snpi-snps-clr')[0];
+    assert.notStrictEqual(btn.style.display, 'none',
+        'snpi-snps-clr should show as soon as a file is loaded');
+
+    H.click(ui, 'snpi-snps-clr');
+    assert.strictEqual(ui.values.snpListFilename, '');
+    btn = H.find(ui.root, 'snpi-snps-clr')[0];
+    assert.strictEqual(btn.style.display, 'none',
+        'snpi-snps-clr should hide again once the file is cleared');
 });
 
 test('clearing the SNP list drops the payload it selected', async () => {
@@ -413,9 +432,11 @@ test('clearing the SNP list drops the payload it selected', async () => {
     assert.match(ui.values.loadStatus, /press Load genotypes/);
 });
 
-test('the SNP list and covariate files load and can be cleared', async () => {
-    const mod = load([[H.file(path.join(FX, 'small', 'select.txt'))],
-                      [H.file(path.join(FX, 'small', 'covariates.tsv'))]]);
+test('the SNP list file loads and can be cleared', async () => {
+    // Covariate browsing moved to the native FileSelector control and is no
+    // longer exercised by this JS harness — see R/snpimport.b.R and
+    // jamovi/snpimport.a.yaml for covFile.
+    const mod = load([[H.file(path.join(FX, 'small', 'select.txt'))]]);
     const ui = H.makeUi();
     mod.view_loaded(ui);
 
@@ -424,17 +445,9 @@ test('the SNP list and covariate files load and can be cleared', async () => {
     assert.strictEqual(ui.values.snpListFilename, 'select.txt');
     assert.ok(ui.values.snpListContent.length > 0);
 
-    H.click(ui, 'snpi-cov');
-    await H.until(() => ui.values.covFilename !== '', 'the covariate file');
-    assert.strictEqual(ui.values.covFilename, 'covariates.tsv');
-    assert.ok(ui.values.covContent.length > 0);
-
     H.click(ui, 'snpi-snps-clr');
     assert.strictEqual(ui.values.snpListContent, '');
     assert.strictEqual(ui.values.snpListFilename, '');
-    H.click(ui, 'snpi-cov-clr');
-    assert.strictEqual(ui.values.covContent, '');
-    assert.strictEqual(ui.values.covFilename, '');
 });
 
 test('a loaded SNP list selects the variants, without a pasted list', async () => {

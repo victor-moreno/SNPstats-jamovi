@@ -41,11 +41,9 @@ children:
       - type: Label
         label: '3. Covariates  (optional)'
         children:
-          - type: TextBox
-            name: covFilename
+          - type: FileSelector
+            name: covFile
             label: ''
-            format: string
-            width: largest
           - type: TextBox
             name: covIdCol
             label: 'ID column (blank = detect):'

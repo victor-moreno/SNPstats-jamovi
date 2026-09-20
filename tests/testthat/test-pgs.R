@@ -107,26 +107,14 @@ test_that("unweighted proportion score matches the oracle", {
   expect_close(num(r$sd),   sd(o,   na.rm = TRUE), tol = 5e-4)
 })
 
-test_that("hand-rolled base64 weights match the pgs_weights() helper", {
-  b64 <- base64enc::base64encode(readBin(.pgs_weightsfile, "raw",
-                                         file.info(.pgs_weightsfile)$size))
-  res_helper <- run_pgs(data = .test_data, snpCols = .pgs_snps,
-                       weightsFile = .pgs_weightsfile, weightingMode = "weighted")
-  res_embed <- run_pgs(data = .test_data, snpCols = .pgs_snps,
-                       weightsContent = b64, weightsFilename = "weights.tsv",
-                       weightingMode = "weighted")
-  expect_equal(as_df(res_embed$summaryTable), as_df(res_helper$summaryTable))
-})
-
-test_that("gzipped embedded weights match the uncompressed route", {
+test_that("a gzipped weights file matches the uncompressed route", {
   raw <- readBin(.pgs_weightsfile, "raw", file.info(.pgs_weightsfile)$size)
-  gz  <- memCompress(raw, "gzip")
-  b64 <- base64enc::base64encode(gz)
+  gz_path <- tempfile(fileext = ".tsv.gz")
+  writeBin(memCompress(raw, "gzip"), gz_path)
   res_plain <- run_pgs(data = .test_data, snpCols = .pgs_snps,
                        weightsFile = .pgs_weightsfile, weightingMode = "weighted")
   res_gz    <- run_pgs(data = .test_data, snpCols = .pgs_snps,
-                       weightsContent = b64, weightsFilename = "weights.tsv.gz",
-                       weightingMode = "weighted")
+                       weightsFile = gz_path, weightingMode = "weighted")
   expect_equal(as_df(res_gz$summaryTable), as_df(res_plain$summaryTable))
 })
 
@@ -483,24 +471,23 @@ test_that("GOLDEN pgs scores and association", {
 })
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Weights source — content only, never a filesystem path
+# Weights source — a native File option
 #
-# Analysis options are serialised into the .omv and re-run when it is opened, so
-# a path option would be resolved against the *opener's* filesystem. These pin
-# the property that there is no path to resolve.
+# weightsFile is jamovi's File option type: picking it goes through jamovi's
+# own FileSelector (a resource carried inside the .omv), never a hand-typed
+# path option. These pin pgs_weights()'s validation and the security property
+# there is still no separate "weightsPath" option to bypass that.
 # ══════════════════════════════════════════════════════════════════════════════
 
-test_that("snpPGS exposes no file-path option", {
+test_that("snpPGS exposes no separate file-path option", {
   expect_false("weightsPath" %in% names(formals(SNPstats::snpPGS)))
   expect_false("weightsPath" %in% SNPstats::snpPGSOptions$new()$names)
 })
 
-test_that("pgs_weights round-trips a file into the content/name pair", {
+test_that("pgs_weights validates and passes the path through", {
   w <- SNPstats::pgs_weights(.pgs_weightsfile)
-  expect_named(w, c("weightsContent", "weightsFilename"))
-  expect_equal(w$weightsFilename, basename(.pgs_weightsfile))
-  expect_equal(rawToChar(base64enc::base64decode(w$weightsContent)),
-               paste0(paste(readLines(.pgs_weightsfile), collapse = "\n"), "\n"))
+  expect_named(w, "weightsFile")
+  expect_equal(w$weightsFile, .pgs_weightsfile)
   expect_error(SNPstats::pgs_weights(file.path(tempdir(), "no-such-file.csv")),
                "file not found")
 })
@@ -543,16 +530,16 @@ test_that("validation messages do not leak between runs", {
   expect_false(grepl("rsID", if (is.null(txt)) "" else txt, fixed = TRUE))
 })
 
-test_that("an oversized gunzipped payload is refused rather than expanded", {
-  # A '.gz' name makes .weightsRawLines gunzip the embedded bytes; the result is
-  # rejected above PGS_MAX_WEIGHTS_BYTES so a crafted .omv cannot exhaust the
+test_that("an oversized gunzipped file is refused rather than expanded", {
+  # A '.gz' name makes .weightsRawLines gunzip the file's bytes; the result is
+  # rejected above PGS_MAX_WEIGHTS_BYTES so a crafted file cannot exhaust the
   # engine. Scored output falls back to unit weights.
-  bomb <- memCompress(charToRaw(strrep("A", 70 * 1024^2)), "gzip")
-  expect_true(length(bomb) < 1e6)                     # small on the wire
+  bomb_path <- tempfile(fileext = ".tsv.gz")
+  writeBin(memCompress(charToRaw(strrep("A", 70 * 1024^2)), "gzip"), bomb_path)
+  expect_true(file.info(bomb_path)$size < 1e6)        # small on disk
   res <- run_pgs(data = .test_data, snpCols = .pgs_snps,
-                 weightsContent  = base64enc::base64encode(bomb),
-                 weightsFilename = "bomb.tsv.gz",
-                 weightingMode   = "weighted")
+                 weightsFile   = bomb_path,
+                 weightingMode = "weighted")
   expect_gt(nrow(as_df(res$summaryTable)), 0L)
 })
 

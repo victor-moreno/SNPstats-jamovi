@@ -103,13 +103,15 @@ function find(root, cls, out) {
 
 // ── the panel ───────────────────────────────────────────────────────────────
 
-const FIELDS = ['genoFilename', 'snpListFilename', 'covFilename', 'loadStatus'];
+// covFile (the covariate file) is a native FileSelector now, not a
+// TextBox-backed field this harness simulates, so it is not in FIELDS.
+const FIELDS = ['genoFilename', 'snpListFilename', 'loadStatus'];
 
 function makeUi(initial) {
     const values = Object.assign({
         genoContent: '', variantContent: '', sampleContent: '',
-        snpListContent: '', snpListText: '', covContent: '',
-        genoFilename: '', snpListFilename: '', covFilename: '',
+        snpListContent: '', snpListText: '',
+        genoFilename: '', snpListFilename: '',
         loadStatus: '', loadProblem: '', sourceFormat: 'bed',
         sourceDims: '',
         covIdCol: '', dosage: false, openNew: false

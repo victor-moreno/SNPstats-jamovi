@@ -178,7 +178,12 @@ test_that("naming a large selection is linear, not quadratic", {
 
 # ── through the analysis ─────────────────────────────────────────────────────
 
-cov_payload <- function(lines) as_payload(lines)
+# covFile is a native File option now, so the "payload" is a real path.
+cov_payload <- function(lines) {
+  f <- tempfile(fileext = ".tsv")
+  writeLines(lines, f)
+  f
+}
 
 test_that("covariates are emitted between the phenotype and the SNPs", {
   skip_without_fixture("small")
@@ -194,7 +199,7 @@ test_that("covariates are emitted between the phenotype and the SNPs", {
            paste(fam$iid, seq_along(fam$iid), 20 + seq_along(fam$iid),
                  sep = "\t"))
 
-  v <- out_values(run_import(p, ids, covContent = cov_payload(cov)))
+  v <- out_values(run_import(p, ids, covFile = cov_payload(cov)))
   nms <- names(v)
 
   expect_true(all(c("age", "bmi") %in% nms))
@@ -216,7 +221,7 @@ test_that("covariate types survive into the emitted columns", {
                  ifelse(seq_along(fam$iid) %% 2 == 0, "yes", "no"), sep = "\t"))
 
   v <- out_values(run_import(make_payloads("small", ids), ids,
-                             covContent = cov_payload(cov)))
+                             covFile = cov_payload(cov)))
   expect_type(v$age, "double")
   expect_s3_class(v$smoker, "factor")
   expect_setequal(levels(v$smoker), c("yes", "no"))
@@ -232,7 +237,7 @@ test_that("a partly matching covariate file reports both directions", {
                              c(seq_along(keep), 1, 2), sep = "\t"))
 
   r <- run_import(make_payloads("small", ids), ids,
-                  covContent = cov_payload(cov))
+                  covFile = cov_payload(cov))
   pv <- r$provenance$asDF
   val <- pv$value[pv$item == "Covariates matched"]
 
@@ -253,7 +258,7 @@ test_that("a name clash with an emitted column is renamed, not silently doubled"
   cov <- c("IID\tsex\tage", paste(fam$iid, "M", 1, sep = "\t"))
 
   v <- out_values(run_import(make_payloads("small", ids), ids,
-                             covContent = cov_payload(cov)))
+                             covFile = cov_payload(cov)))
   expect_true("sex" %in% names(v))       # the .fam's
   expect_true("sex_2" %in% names(v))     # the covariate file's
   expect_equal(sum(names(v) == "sex"), 1)
@@ -270,7 +275,7 @@ test_that("a covariate named after an imported SNP does not orphan a column", {
   cov <- c(paste("IID", ids[2], "age", sep = "\t"),
            paste(fam$iid, seq_along(fam$iid), 40 + seq_along(fam$iid), sep = "\t"))
 
-  r <- run_import(make_payloads("small", ids), ids, covContent = cov_payload(cov))
+  r <- run_import(make_payloads("small", ids), ids, covFile = cov_payload(cov))
   v <- out_values(r)
   expect_equal(anyDuplicated(names(v)), 0)
   expect_true(all(vapply(v, length, 0L) > 0))     # none left unwritten
@@ -292,7 +297,7 @@ test_that("covariates attach to the samples that survived filtering", {
   cov <- c("IID\tage", paste(fam$iid, seq_along(fam$iid), sep = "\t"))
 
   r <- run_import(make_payloads("small", ids), ids,
-                  covContent = cov_payload(cov),
+                  covFile = cov_payload(cov),
                   filterSamples = TRUE, maxIndMissing = 0)
   v <- out_values(r)
 
@@ -309,7 +314,7 @@ test_that("an unreadable covariate file fails the import loudly", {
   bim <- read_bim_file("small")
   ids <- bim$id[1:2]
   r <- run_import(make_payloads("small", ids), ids,
-                  covContent = as_payload("IID"))     # header only
+                  covFile = cov_payload("IID"))        # header only
   expect_true(r$notice$visible)
   expect_match(r$notice$content, "Import failed")
 })

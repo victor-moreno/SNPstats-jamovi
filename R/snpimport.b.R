@@ -223,7 +223,7 @@ snpImportClass <- R6::R6Class(
           !is.null(private$.cache) && !isTRUE(private$.cache$dims_checked))
         k <- c(k, "File consistency")
       if (self$options$applyFilters)  k <- c(k, "SNPs kept after filters")
-      if (nzchar(self$options$covContent))
+      if (!is.null(self$options$covFile))
         k <- c(k, "Covariates", "Covariates matched")
       c(k, "Format", "Genotype data")
     },
@@ -263,9 +263,10 @@ snpImportClass <- R6::R6Class(
         # Covariates are matched onto the samples that survived filtering, so a
         # dropped sample cannot reappear through the covariate file.
         cov <- NULL
-        if (nzchar(self$options$covContent)) {
+        covFile <- self$options$covFile
+        if (!is.null(covFile)) {
           tab <- read_covariate_table(
-            payload_lines(self$options$covContent, "covariate file"),
+            file_lines(covFile$path, covFile$filename, "covariate file"),
             self$options$covIdCol)
           cov <- merge_covariates(tab, fam)
         }

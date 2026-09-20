@@ -117,12 +117,13 @@ payload_bytes <- function(b64, what = "payload") {
   sum(as.double(as.integer(b[(n - 3):n])) * c(1, 256, 65536, 16777216))
 }
 
-#' Decode a base64 option into text lines.
+#' Split decoded bytes into text lines.
 #'
 #' Handles the three line endings and drops a UTF-8 BOM, both of which appear
 #' in real files often enough that failing on them would be a support burden.
-payload_lines <- function(b64, what = "file") {
-  b <- payload_bytes(b64, what)
+#' Shared by payload_lines() (a base64 option) and file_lines() (a File
+#' option's path) — the two differ only in where the bytes come from.
+.raw_to_lines <- function(b) {
   if (length(b) == 0) return(character(0))
 
   if (length(b) >= 3 && all(b[1:3] == as.raw(c(0xef, 0xbb, 0xbf))))
@@ -133,6 +134,64 @@ payload_lines <- function(b64, what = "file") {
   txt <- gsub("\r\n", "\n", txt, fixed = TRUE)
   txt <- gsub("\r",   "\n", txt, fixed = TRUE)
   strsplit(txt, "\n", fixed = TRUE)[[1]]
+}
+
+#' Decode a base64 option into text lines.
+payload_lines <- function(b64, what = "file") {
+  .raw_to_lines(payload_bytes(b64, what))
+}
+
+#' Read a File option's bytes from disk, transparently gunzipping.
+#'
+#' Mirrors payload_bytes(), but the source is a real path (a native File
+#' option) rather than a base64 string, so there is no transport ceiling to
+#' enforce on the way in -- only the same decompressed-size bound, since a
+#' '.gz' file is still attacker-controlled input in a shared engine. Gzip is
+#' detected by the filename's '.gz' extension (there is no CompressionStream
+#' flag here to trust or distrust, only the name jamovi restored alongside
+#' the file). NULL path (no file chosen) or a missing path (jmvcore's own
+#' File option 'needs to be re-selected' check runs first, but this is
+#' defensive) both return raw(0).
+file_bytes <- function(path, filename, what = "file", max_bytes = MAX_PAYLOAD_BYTES) {
+  if (is.null(path) || !nzchar(path) || !file.exists(path))
+    return(raw(0))
+
+  size <- file.info(path)$size
+  if (!is.na(size) && size > max_bytes)
+    stop(what, " is ", round(size / 1024^2, 1),
+         " MB — refusing to read more than ", max_bytes / 1024^2, " MB")
+
+  raw_bytes <- readBin(path, "raw", n = max_bytes + 1)
+  if (length(raw_bytes) > max_bytes)
+    stop(what, " is larger than ", max_bytes / 1024^2, " MB")
+
+  if (grepl("\\.gz$", filename %||% "", ignore.case = TRUE)) {
+    is_gzip <- length(raw_bytes) >= 2 &&
+      raw_bytes[1] == as.raw(0x1f) && raw_bytes[2] == as.raw(0x8b)
+    if (is_gzip) {
+      raw_bytes <- .gunzip_bounded(raw_bytes, max_bytes, what)
+    } else {
+      # R's own memCompress(x, "gzip") -- what pgs_weights()/scripted callers
+      # would produce -- writes a zlib stream (78 xx), not real gzip framing.
+      # gzcon() does not recognise that header and passes it through
+      # unchanged and silently (same fact payload_bytes() guards against by
+      # refusing it outright), so route it through memDecompress() instead.
+      # No streaming bound is available on this path; check after the fact,
+      # as .weightsRawLines always has, backstopped by max_bytes.
+      un <- tryCatch(memDecompress(raw_bytes, "gzip"), error = function(e) raw_bytes)
+      if (length(un) > max_bytes)
+        stop(what, " expands to more than ", max_bytes / 1024^2,
+             " MB — refusing (possible decompression bomb)")
+      raw_bytes <- un
+    }
+  }
+
+  raw_bytes
+}
+
+#' Read a File option's path into text lines (file_bytes() + .raw_to_lines()).
+file_lines <- function(path, filename, what = "file", max_bytes = MAX_PAYLOAD_BYTES) {
+  .raw_to_lines(file_bytes(path, filename, what, max_bytes))
 }
 
 

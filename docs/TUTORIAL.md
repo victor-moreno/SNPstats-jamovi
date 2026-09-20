@@ -370,11 +370,11 @@ To remove SNPs that do not pass QC from the table, use **Show valid SNPs only**.
 
 #### Weights file
 
-Click the **📁** button next to the **Weights file** field to choose a file in [PGS Catalog scoring file format](https://www.pgscatalog.org/downloads/#dl_ftp_scoring). The file may be plain text (`.csv`, `.tsv`, `.gz`) with tab, semicolon or comma separators.
+Click **Browse…** next to the **Weights file** field to choose a file in [PGS Catalog scoring file format](https://www.pgscatalog.org/downloads/#dl_ftp_scoring). The file may be plain text (`.csv`, `.tsv`, `.gz`) with tab, semicolon or comma separators. The chosen file appears below the button, with a × to remove it.
 
-The field itself is read-only and shows only the chosen file's *name*: the module stores the file's **contents** in the analysis, never its location. This is why it works identically in jamovi cloud, where the R engine runs on a different machine than the browser and a local path would mean nothing — and it is also what keeps a saved `.omv` safe to share, since re-opening it cannot make jamovi read a file from the new reader's own computer.
+This uses jamovi's own file picker rather than a plain filesystem path, so it works identically on the desktop and in jamovi cloud (where the R engine runs on a different machine than the browser), and a saved `.omv` keeps the file — reopening it does not need the original file to be present again.
 
-From R, use the `pgs_weights()` helper, which reads the file in your session and returns the two arguments that carry it:
+From R, use the `pgs_weights()` helper, which validates the file and returns the argument that carries it:
 
 ```r
 w <- pgs_weights("CRCgenet-PGS.txt")

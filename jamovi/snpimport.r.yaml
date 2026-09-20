@@ -52,7 +52,7 @@ items:
           - genoContent
           - variantContent
           - sampleContent
-          - covContent
+          - covFile
           - hweGroup
       columns:
           - {name: item,  title: '', type: text}

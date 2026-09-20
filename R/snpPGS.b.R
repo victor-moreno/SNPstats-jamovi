@@ -3,8 +3,8 @@
 # Weight / allele information flow:
 #   (a) weights file set — parse the catalog file; unknown columns are
 #       concatenated into the extra_cols field of the results table. The file
-#       always arrives as embedded base64 content (weightsContent, set by the
-#       browse button or by pgs_weights() from R) — never as a filesystem path.
+#       arrives via weightsFile, a native jamovi File option (set by the
+#       FileSelector control or by pgs_weights() from R).
 #       See the weights-source helpers (.hasWeights / .weightsRawLines).
 #   (b) No file          — unit weights (weight = 1) for all selected SNPs.
 #
@@ -866,60 +866,45 @@ snpPGSClass <- R6::R6Class(
     },
 
     # ════════════════════════════════════════════════════════════════════════
-    # Weights source — embedded content only, never a file path.
+    # Weights source — a native File option, never a hand-carried path.
     #
-    # The weights file reaches the analysis as base64 bytes in weightsContent:
-    # the file-browse button embeds them from the browser, and pgs_weights()
-    # does the same from R. There is deliberately no path option. Analysis
-    # options are serialised into the .omv and re-run when it is opened, so a
-    # path would be resolved against *the opener's* filesystem — a crafted
-    # document could read arbitrary files from a collaborator's machine and
-    # echo them into the results. Carrying the bytes removes that entirely, and
-    # is also what makes the analysis work in jamovi cloud, where the R engine
-    # runs on a different machine than the browser.
+    # weightsFile is a jamovi File option: the FileSelector control picks it
+    # (a local path on desktop, or an upload in jamovi cloud) and jamovi
+    # carries it as a resource inside the saved .omv, so a reopened analysis
+    # keeps working without the original file being present. pgs_weights()
+    # produces the same option value for scripted use.
     # ════════════════════════════════════════════════════════════════════════
 
     # TRUE when a weights file has been supplied.
     .hasWeights = function() {
-      nzchar(self$options$weightsContent %||% "")
+      !is.null(self$options$weightsFile)
     },
 
     # Raw text lines of the weights file (or NULL). n > 0 limits the count
     # (used for the cheap header-metadata scan). A '.gz' filename is gunzipped,
-    # bounded by PGS_MAX_WEIGHTS_BYTES so an embedded zip bomb cannot exhaust
-    # the engine process.
+    # bounded by PGS_MAX_WEIGHTS_BYTES so a crafted file cannot exhaust the
+    # engine process.
     .weightsRawLines = function(n = -1L) {
-      ct <- self$options$weightsContent %||% ""
-      if (!nzchar(ct)) return(NULL)
-      bytes <- tryCatch(base64enc::base64decode(ct), error = function(e) NULL)
-      if (is.null(bytes)) return(NULL)
-      fname <- self$options$weightsFilename %||% ""
-      if (grepl("\\.gz$", fname, ignore.case = TRUE)) {
-        un <- tryCatch(memDecompress(bytes, "gzip"), error = function(e) bytes)
-        # memDecompress has no size limit of its own, so check after the fact
-        # and refuse rather than carry an unbounded object forward.
-        if (length(un) > PGS_MAX_WEIGHTS_BYTES) return(NULL)
-        bytes <- un
-      }
-      if (length(bytes) > PGS_MAX_WEIGHTS_BYTES) return(NULL)
-      txt <- tryCatch(rawToChar(bytes), error = function(e) NULL)
-      if (is.null(txt)) return(NULL)
-      lines <- strsplit(txt, "\r\n|\r|\n")[[1]]
+      file <- self$options$weightsFile
+      if (is.null(file)) return(NULL)
+      lines <- tryCatch(
+        file_lines(file$path, file$filename, "weights file", PGS_MAX_WEIGHTS_BYTES),
+        error = function(e) NULL)
+      if (is.null(lines) || length(lines) == 0) return(NULL)
       if (n > 0L && length(lines) > n) lines <- lines[seq_len(n)]
       lines
     },
 
-    # A short, cheap identity of the active weights source for memo keys — the
-    # embedded content changes across files even when the name does not.
+    # A short, cheap identity of the active weights source for memo keys.
     .weightsSig = function() {
-      ct <- self$options$weightsContent %||% ""
-      if (!nzchar(ct)) return("")
-      paste0("embed:", self$options$weightsFilename %||% "", ":", nchar(ct))
+      file <- self$options$weightsFile
+      if (is.null(file)) return("")
+      paste0("file:", file$path %||% "", ":", file$filename %||% "")
     },
 
     # Display name of the weights source, for messages.
     .weightsLabel = function() {
-      trimws(self$options$weightsFilename %||% "")
+      trimws(self$options$weightsFile$filename %||% "")
     },
 
     # ════════════════════════════════════════════════════════════════════════

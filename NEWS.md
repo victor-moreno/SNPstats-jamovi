@@ -1,4 +1,29 @@
 History:
+- 260920 v1.2.0 snpPGS's weights file and snpImport's covariate file now use
+                jamovi 28.3's native File option (FileSelector control)
+                instead of a custom browse button that embedded base64
+                content into hidden String options. jamovi carries the picked
+                file as a resource inside the saved .omv, so a reopened
+                analysis still works without the original file present --
+                verified end to end (pick, save, quit jamovi, reopen) before
+                this change was made. snpImport's SNP-list file and genotype
+                trio (.bed/.bim/.fam etc.) are UNCHANGED: the genotype-trio
+                slicing JS (jamovi/js/snpimport.js) reads the SNP list's raw
+                text client-side before Load is pressed, which a native
+                FileSelector cannot support (it never exposes file bytes to
+                analysis JS, only {path, filename}), so both stay on the
+                existing mechanism. jamovi/js/snpPGS.js (183 lines) is
+                deleted entirely; jamovi/js/snpimport.js loses only its
+                covariate-browsing code.
+                minApp raised 28.1.0 -> 28.3.0 (the File option type needs
+                jamovi 28.3). Building this release needs jamovi-compiler's
+                own File-option support, which had not yet reached the
+                officially released jmvtools (still schema version 0.3.5) as
+                of this date -- see SNPstats/CLAUDE.md.
+                A .omv saved before this change carries the old
+                weightsContent/weightsFilename or covContent/covFilename
+                values, which are simply unknown options now; re-pick the
+                weights/covariate file once after opening it in this version.
 - 260420 v0.2.0 First public release
 - 260501 v0.3.0 Added PGS submodule
 - 260508 v0.4.0 Combined submenus for SNPstats and categorical response

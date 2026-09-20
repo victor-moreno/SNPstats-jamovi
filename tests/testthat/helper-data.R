@@ -28,15 +28,12 @@
 # inlines the values, so it accepts variables holding character vectors.
 run_snp <- function(...) do.call(SNPstats::snpStats, list(...))
 
-# snpPGS has no weights-file *path* option — the weights travel as base64
-# content so that a saved .omv never re-reads a file from whoever opens it.
-# `weightsFile = <path>` is a test-only convenience that expands to the real
-# weightsContent / weightsFilename pair via the public pgs_weights() helper,
-# which it therefore also exercises.
+# weightsFile is a native jamovi File option; `weightsFile = <path>` here
+# routes through the public pgs_weights() helper (rather than passing the
+# path straight through to snpPGS()), so the suite also exercises it.
 run_pgs <- function(...) {
   args <- list(...)
-  # [[ ]], not $: `$` partial-matches, so args$weightsFile would pick up a
-  # weightsFilename passed by the embedded-content tests.
+  # [[ ]], not $: `$` partial-matches names.
   if (!is.null(args[["weightsFile"]])) {
     args <- c(args[names(args) != "weightsFile"],
               SNPstats::pgs_weights(args[["weightsFile"]]))

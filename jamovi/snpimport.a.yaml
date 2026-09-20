@@ -4,7 +4,7 @@ title: Import genotypes
 menuGroup: SNPstats
 menuSubgroup: Data
 menuTitle: Import genotypes
-version: '1.1.0'
+version: '1.2.0'
 jas: '1.2'
 
 description:
@@ -157,24 +157,18 @@ options:
 
     # -- covariates --------------------------------------------------------
 
-    - name: covContent
-      title: Covariate file (base64)
-      type: String
-      default: ""
-      hidden: true
+    - name: covFile
+      title: Covariate file
+      type: File
+      extensions: [txt, csv, tsv, cov, gz]
       description:
           R: >
-              Base64 of a delimited covariate file. Matched onto the genotype
-              samples by ID; the genotype order is authoritative, so covariate
-              rows that match nothing are dropped and genotype samples with no
-              covariate row keep NA.
-
-    - name: covFilename
-      title: Covariate file
-      type: String
-      default: ""
-      description:
-          R: Display name of the loaded covariate file.
+              A delimited covariate file, picked with jamovi's native file
+              selector and carried as a resource inside the saved .omv (so a
+              reopened analysis keeps working without the original file).
+              Matched onto the genotype samples by ID; the genotype order is
+              authoritative, so covariate rows that match nothing are dropped
+              and genotype samples with no covariate row keep NA.
 
     - name: covIdCol
       title: ID column

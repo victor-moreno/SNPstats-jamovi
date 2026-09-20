@@ -161,12 +161,46 @@ function _inject(ui) {
                       function(files) { _loadSnpList(ui, files[0]); },
                       ['snpListContent', 'snpListFilename']);
     });
-    _guard('covariate browse', function() {
-        _browseButton(ui, 'covFilename', 'snpi-cov', '.txt,.csv,.tsv,.cov', false,
-                      function(files) { _loadCovariates(ui, files[0]); },
-                      ['covContent', 'covFilename']);
-    });
+    // Covariate file browsing is now the native FileSelector control on
+    // covFile (jamovi 28.3's File option type) -- no custom JS needed for
+    // reading or storing the file. _styleCovFileSelector below only makes
+    // its picked-file box sit beside Browse, cosmetic parity with the two
+    // custom controls above; see its own comment for why and its limits.
+    _guard('covariate file styling', function() { _styleCovFileSelector(ui); });
     _guard('load button', function() { _loadButton(ui); });
+}
+
+var COV_STYLE_ID = 'snpimport-inline-fileselector-css';
+var COV_ROW_CLASS = 'snpimport-inline-fs';
+
+// Repositions covFile's picked-file box beside its Browse button instead of
+// FileSelector's own default layout (button, then a plain list below it),
+// to match genoFilename/snpListFilename's look above. A class-based CSS
+// rule, not per-element inline styles, because FileSelector redraws its own
+// list on every value change (client/analysisui/fileselector.ts:update())
+// and a class rule keeps applying to whatever it redraws; only 'body' and
+// 'list' being public fields on the live control instance (exposed here as
+// ui.covFile.body) is relied on, which is not a documented/stable API — a
+// future jamovi client update could silently drop this styling, but nothing
+// here touches data or options, so it cannot break the analysis itself.
+function _styleCovFileSelector(ui) {
+    var ctrl = ui.covFile;
+    if (!ctrl || !ctrl.body) return;
+
+    if (!document.getElementById(COV_STYLE_ID)) {
+        var style = document.createElement('style');
+        style.id = COV_STYLE_ID;
+        style.textContent =
+            '.' + COV_ROW_CLASS + ' { display: flex; flex-direction: row; ' +
+            'align-items: center; flex-wrap: wrap; gap: 6px; }' +
+            '.' + COV_ROW_CLASS + ' .jmv-file-selector-list { flex: 1 1 auto; min-width: 0; }' +
+            '.' + COV_ROW_CLASS + ' .jmv-file-selector-item { width: 100%; box-sizing: border-box; ' +
+            'border: 1px solid #bbb; border-radius: 3px; padding: 3px 6px; ' +
+            'background: #f0f0f0; min-height: 14px; }';
+        document.head.appendChild(style);
+    }
+
+    ctrl.body.classList.add(COV_ROW_CLASS);
 }
 
 // The Load button. Choosing files only remembers them; this is what reads
@@ -761,6 +795,28 @@ function _wantedIds(ui) {
     return Promise.resolve(null);
 }
 
+// Shows $input and its $clr together when ctrlName has a value, hides both
+// (Browse stays visible) when it does not -- matching covFile's native
+// FileSelector, whose file box+remove-button are absent until a file is
+// picked (fileselector.css: '.jmv-file-selector-list:empty { display: none }').
+//
+// Called both from _browseButton on every view_updated/view_loaded, and
+// directly from wherever ctrlName's value is set (the $clr click handler,
+// _loadSnpList's callbacks) -- not only the former. An earlier version of
+// this control hid the box until a file was chosen and relied on
+// view_updated alone to un-hide it, which never ran in time: the client
+// fires view_updated from its `view.ready` event, only when the options are
+// re-initialised from the server under a new id, not when this file's own
+// code sets an option. The box stayed hidden display:none for the whole
+// session and there was no way to see or remove a chosen file at all.
+// Calling this at the point of change, synchronously, is what fixes that.
+function _syncClearable(ui, ctrlName, $input, $clr) {
+    var val = _getOpt(ui, ctrlName);
+    var has = val !== undefined && val !== null && String(val).length > 0;
+    $input.css('display', has ? '' : 'none');
+    if ($clr) $clr.css('display', has ? '' : 'none');
+}
+
 // `clears` names the options a ✕ button should empty. Without it there is no
 // way to unpick a file: the field is deliberately read-only, so a wrong choice
 // can only be replaced, never removed.
@@ -778,11 +834,21 @@ function _browseButton(ui, ctrlName, cls, accept, multiple, onPick, clears) {
     $input.prop('disabled', true);
     $input.css('cursor', 'default');
 
-    if ($input.prev('.' + cls).length !== 0) return;
+    if ($input.prev('.' + cls).length !== 0) {
+        // Already injected on an earlier cycle -- just keep visibility current.
+        if (clears && clears.length)
+            _syncClearable(ui, ctrlName, $input, $input.next('.' + cls + '-clr'));
+        return;
+    }
 
+    // Plain text, matching jamovi's own native FileSelector button (which
+    // reads 'Browse…' too, hardcoded in client/analysisui/fileselector.ts)
+    // rather than a hand-drawn folder icon — this control can't actually be
+    // a FileSelector (see the header comment on why), but it should still
+    // look like jamovi's own file pickers, not a one-off.
     var jq = $input.constructor;
-    var $btn = jq('<button type="button" class="' + cls + '" title="Browse…">📁</button>').css({
-        flexShrink: '0', cursor: 'pointer', padding: '1px 7px', fontSize: '14px',
+    var $btn = jq('<button type="button" class="' + cls + '">Browse…</button>').css({
+        flexShrink: '0', cursor: 'pointer', padding: '3px 12px', fontSize: '14px',
         lineHeight: '1.4', border: '1px solid #bbb', borderRadius: '3px',
         background: '#f0f0f0', whiteSpace: 'nowrap'
     });
@@ -801,14 +867,6 @@ function _browseButton(ui, ctrlName, cls, accept, multiple, onPick, clears) {
         });
         $input.after($clr);
 
-        // Always shown. It used to be hidden until a file was chosen and
-        // un-hidden from view_updated, which never happens in time: the client
-        // maps view_updated onto its `view.ready` event and fires it only when
-        // the options are re-initialised from the server under a new id, not
-        // when this file sets an option itself. So the ✕ was created
-        // display:none and stayed that way for the whole session — there was
-        // no way to remove a file at all. Clicking it with nothing loaded
-        // clears options that are already empty, which costs nothing.
         $clr.on('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
@@ -819,7 +877,10 @@ function _browseButton(ui, ctrlName, cls, accept, multiple, onPick, clears) {
             // saying so.
             if (ctrlName === 'snpListFilename')
                 _clearGeno(ui, 'SNP list removed — press Load genotypes to re-read', 'ok');
+            _syncClearable(ui, ctrlName, $input, $clr);
         });
+
+        _syncClearable(ui, ctrlName, $input, $clr);
     }
 
     $btn.on('click', function(e) {
@@ -872,9 +933,14 @@ function _lines(txt) {
 // in R, and an analysis that looks like it worked. Gzip buys ~5-10x on an
 // ID/weights list; the two refusals below are what happens past that.
 function _loadSnpList(ui, file) {
+    // The box+\u2715 are hidden until snpListFilename has a value (_syncClearable);
+    // _inject() re-runs it right away in every branch below rather than
+    // waiting for the next view_updated, which is what makes the box appear
+    // the moment a name (or an error) is actually there to show.
     var refuse = function(why) {
         _setOpt(ui, 'snpListContent', '');
         _setOpt(ui, 'snpListFilename', file.name + ' \u2014 ' + why);
+        _inject(ui);
     };
     _text(file).then(function(txt) {
         var raw = new TextEncoder().encode(txt);
@@ -891,30 +957,12 @@ function _loadSnpList(ui, file) {
             }
             _setOpt(ui, 'snpListContent', b64);
             _setOpt(ui, 'snpListFilename', file.name);
+            _inject(ui);
         });
     }).catch(function(err) {
         _setOpt(ui, 'snpListContent', '');
         _setOpt(ui, 'snpListFilename', '(could not read ' + file.name + ': ' + err.message + ')');
-    });
-}
-
-// Covariates go straight through: unlike the genotypes there is nothing to
-// select, and the file is small enough to send whole. R parses it — delimiter,
-// header and ID column included — so the rules live in one place.
-function _loadCovariates(ui, file) {
-    _text(file).then(function(txt) {
-        var b64 = _b64(new TextEncoder().encode(txt));
-        if (b64.length > PAYLOAD_SAFE) {
-            _setOpt(ui, 'covContent', '');
-            _setOpt(ui, 'covFilename', file.name + ' — too large ('
-                + (b64.length / 1048576).toFixed(1) + ' MB encoded)');
-            return;
-        }
-        _setOpt(ui, 'covContent', b64);
-        _setOpt(ui, 'covFilename', file.name);
-    }).catch(function(err) {
-        _setOpt(ui, 'covContent', '');
-        _setOpt(ui, 'covFilename', '(could not read ' + file.name + ': ' + err.message + ')');
+        _inject(ui);
     });
 }
 

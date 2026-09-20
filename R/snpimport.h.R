@@ -17,8 +17,7 @@ snpImportOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             snpListText = "",
             snpListContent = "",
             snpListFilename = "",
-            covContent = "",
-            covFilename = "",
+            covFile = NULL,
             covIdCol = "",
             emitSamples = TRUE,
             dosage = FALSE,
@@ -91,15 +90,15 @@ snpImportOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                 "snpListFilename",
                 snpListFilename,
                 default="")
-            private$..covContent <- jmvcore::OptionString$new(
-                "covContent",
-                covContent,
-                default="",
-                hidden=TRUE)
-            private$..covFilename <- jmvcore::OptionString$new(
-                "covFilename",
-                covFilename,
-                default="")
+            private$..covFile <- jmvcore::OptionFile$new(
+                "covFile",
+                covFile,
+                extensions=list(
+                    "txt",
+                    "csv",
+                    "tsv",
+                    "cov",
+                    "gz"))
             private$..covIdCol <- jmvcore::OptionString$new(
                 "covIdCol",
                 covIdCol,
@@ -181,8 +180,7 @@ snpImportOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             self$.addOption(private$..snpListText)
             self$.addOption(private$..snpListContent)
             self$.addOption(private$..snpListFilename)
-            self$.addOption(private$..covContent)
-            self$.addOption(private$..covFilename)
+            self$.addOption(private$..covFile)
             self$.addOption(private$..covIdCol)
             self$.addOption(private$..emitSamples)
             self$.addOption(private$..dosage)
@@ -210,8 +208,7 @@ snpImportOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         snpListText = function() private$..snpListText$value,
         snpListContent = function() private$..snpListContent$value,
         snpListFilename = function() private$..snpListFilename$value,
-        covContent = function() private$..covContent$value,
-        covFilename = function() private$..covFilename$value,
+        covFile = function() private$..covFile$value,
         covIdCol = function() private$..covIdCol$value,
         emitSamples = function() private$..emitSamples$value,
         dosage = function() private$..dosage$value,
@@ -238,8 +235,7 @@ snpImportOptions <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
         ..snpListText = NA,
         ..snpListContent = NA,
         ..snpListFilename = NA,
-        ..covContent = NA,
-        ..covFilename = NA,
+        ..covFile = NA,
         ..covIdCol = NA,
         ..emitSamples = NA,
         ..dosage = NA,
@@ -298,7 +294,7 @@ snpImportResults <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
                     "genoContent",
                     "variantContent",
                     "sampleContent",
-                    "covContent",
+                    "covFile",
                     "hweGroup"),
                 columns=list(
                     list(
@@ -391,7 +387,7 @@ snpImportBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             super$initialize(
                 package = "SNPstats",
                 name = "snpImport",
-                version = c(1,1,0),
+                version = c(1,2,0),
                 options = options,
                 results = snpImportResults$new(options=options),
                 data = data,
@@ -458,11 +454,12 @@ snpImportBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
 #'   line, or a PGS-Catalog weights file. A weights file additionally supplies
 #'   the effect allele, which enables the orientation check.
 #' @param snpListFilename Display name of the loaded selection file.
-#' @param covContent Base64 of a delimited covariate file. Matched onto the
+#' @param covFile A delimited covariate file, picked with jamovi's native file
+#'   selector and carried as a resource inside the saved .omv (so a reopened
+#'   analysis keeps working without the original file). Matched onto the
 #'   genotype samples by ID; the genotype order is authoritative, so covariate
 #'   rows that match nothing are dropped and genotype samples with no covariate
 #'   row keep NA.
-#' @param covFilename Display name of the loaded covariate file.
 #' @param covIdCol Name of the identifier column in the covariate file. Empty
 #'   detects it: IID first (the PLINK convention), then id / sample / subject,
 #'   and failing all of those the first column. FID is used as well when the
@@ -536,8 +533,7 @@ snpImport <- function(
     snpListText = "",
     snpListContent = "",
     snpListFilename = "",
-    covContent = "",
-    covFilename = "",
+    covFile = NULL,
     covIdCol = "",
     emitSamples = TRUE,
     dosage = FALSE,
@@ -573,8 +569,7 @@ snpImport <- function(
         snpListText = snpListText,
         snpListContent = snpListContent,
         snpListFilename = snpListFilename,
-        covContent = covContent,
-        covFilename = covFilename,
+        covFile = covFile,
         covIdCol = covIdCol,
         emitSamples = emitSamples,
         dosage = dosage,

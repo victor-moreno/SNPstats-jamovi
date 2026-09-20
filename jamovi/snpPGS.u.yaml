@@ -86,11 +86,9 @@ children:
       - type: Label
         label: Weights
         children:
-          - type: TextBox
-            name: weightsFilename
+          - type: FileSelector
+            name: weightsFile
             label: 'Weights file (PGS catalog format):'
-            format: string
-            width: largest
           - type: ComboBox
             name: weightingMode
             label: SNP weighting mode

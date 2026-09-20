@@ -57,13 +57,13 @@ check('the file dialog offers every readable extension', () => {
       'accept list is missing ' + ext + ' — the picker will hide those files');
 });
 
-check('the removable file slots get a clear button', () => {
-  // The filename fields are read-only by design, so without a clear button a
-  // wrongly chosen file can only be replaced, never removed.
+check('the removable file slot gets a clear button', () => {
+  // The filename field is read-only by design, so without a clear button a
+  // wrongly chosen file can only be replaced, never removed. The covariate
+  // slot moved to the native FileSelector control (which has its own remove
+  // button) and is no longer a custom _browseButton call here.
   assert.ok(src.includes("['snpListContent', 'snpListFilename']"),
     'the SNP list slot has no clear list, so its file cannot be removed');
-  assert.ok(src.includes("['covContent', 'covFilename']"),
-    'the covariate slot has no clear list, so its file cannot be removed');
 
   // and _browseButton must actually honour that argument
   assert.ok(/if \(clears && clears\.length\)/.test(src),
