@@ -14,7 +14,7 @@ This module extends jamovi's functionality to bring the analyses of the [SNPstat
 2. **Install the module in jamovi** — open jamovi and click the **+** (Modules) icon at the top right of the window, choose **Jamovi library**, write **SNPstats** in the search, and click **INSTALL**.
 3. **Check the installation** — an **SNPstats** menu appears in the *Analyses* ribbon, with the *Import genotypes*, *SNP Analysis* and *Polygenic Score (PGS)* entries described below.
 
-SNPstats 1.1.0 requires jamovi 28.1 or newer.
+SNPstats 1.2.0 requires jamovi 28.3 or newer.
 
 ## Open source
 
@@ -81,8 +81,9 @@ Two things worth knowing:
 - **Only the SNPs you ask for are read**, so the source file can be very large —
   the whole point of the SNP list. Selecting 1 000 variants from a 1.19 GB
   `.bed` takes a fraction of a second.
-- Files are read **in the browser**, not by path, which is what makes this work
-  on jamovi cloud as well as on the desktop. The consequence is that the loaded
+- The genotype files and the SNP list are read **in the browser**, not by path,
+  which is what makes this work on jamovi cloud as well as on the desktop (the
+  covariate file uses jamovi's own file picker). The consequence is that the loaded
   genotypes are held in the analysis while they are loaded, so an `.omv` saved
   with an import still in it contains that genotype data — clear the file
   selection before sharing such a file.

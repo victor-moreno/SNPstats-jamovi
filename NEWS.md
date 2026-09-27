@@ -16,10 +16,11 @@ History:
                 deleted entirely; jamovi/js/snpimport.js loses only its
                 covariate-browsing code.
                 minApp raised 28.1.0 -> 28.3.0 (the File option type needs
-                jamovi 28.3). Building this release needs jamovi-compiler's
-                own File-option support, which had not yet reached the
-                officially released jmvtools (still schema version 0.3.5) as
-                of this date -- see SNPstats/CLAUDE.md.
+                jamovi 28.3). Needs jmvcore 28.3 (on CRAN since 2026-09-24;
+                CRAN's earlier 2.7.38 has no OptionFile, which is what turned
+                CI red on this release until then) and builds with the
+                released jmvtools 28.3 -- re-verified 2026-09-27: full test
+                suite green in CI and a clean .jmo build.
                 A .omv saved before this change carries the old
                 weightsContent/weightsFilename or covContent/covFilename
                 values, which are simply unknown options now; re-pick the

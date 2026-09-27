@@ -20,7 +20,7 @@ See the mini [tutorial](https://victor-moreno.github.io/SNPstats-jamovi/TUTORIAL
 * **Multi-SNP analysis:** Linkage disequilibrium (D, D′, r²) statistics, matrices, and heatmaps.
 * **Haplotypes:** Frequency estimation (EM algorithm) and association testing with phase uncertainty propagation, including haplotype x covariate interactions.
 * **Interaction testing:** SNP × covariate and Haplotype × covariate interaction testing.
-* **Polygenic Risk Score:** Unweighted and weighted PGS using an auxiliary file in PGS Catalog format, loaded with the file-browse button (works on jamovi desktop and cloud) or, from R, via the exported `pgs_weights()` helper.
+* **Polygenic Risk Score:** Unweighted and weighted PGS using an auxiliary file in PGS Catalog format, loaded with jamovi's own file picker (works on jamovi desktop and cloud, and a saved `.omv` keeps the file) or, from R, via the exported `pgs_weights()` helper.
 
 ## Limitations
 
@@ -49,9 +49,10 @@ they are scanned once and only matching lines are kept.
 Covariates can be merged in by sample ID, and the usual QC filters (MAF, HWE,
 call rate) are applied and reported before anything is written.
 
-Files are chosen with a browse button and read in the browser — there is no
-file-path option, which is what lets the same analysis work on jamovi desktop
-and in jamovi cloud. One consequence worth knowing: the selected genotypes live
+The genotype files and the SNP list are chosen with a browse button and read in
+the browser — there is no file-path option for them, which is what lets the
+same analysis work on jamovi desktop and in jamovi cloud (the covariate file
+uses jamovi's own file picker). One consequence worth knowing: the selected genotypes live
 in the analysis's own options while they are loaded, so an `.omv` saved with an
 import still in it contains that genotype data. Clear the file selection before
 sharing such a file.
@@ -82,8 +83,8 @@ Missing values: `'', NA, 'NA', 'N/A', 'N|A', '0/0'`
 - `haplo.stats` — `setupGeno`, `haplo.em`, `haplo.glm` (haplotype estimation
   and association)
 - `ggplot2` — LD heatmap and all PGS plots
-- `base64enc` — decoding the embedded PGS weights file and the genotype
-  payloads the import panel sends from the browser
+- `base64enc` — decoding the genotype payloads the import panel sends from
+  the browser
 
 Genotype parsing, the Hardy-Weinberg exact test and pairwise LD are implemented
 in the module itself (`R/snp_genetics.R`); the `genetics` package was dropped in
