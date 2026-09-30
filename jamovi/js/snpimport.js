@@ -173,6 +173,18 @@ function _inject(ui) {
 var COV_STYLE_ID = 'snpimport-inline-fileselector-css';
 var COV_ROW_CLASS = 'snpimport-inline-fs';
 
+// Translucent neutral greys instead of hex greys, for every box and button
+// this panel draws: on jamovi's white panel they render as the old #bbb /
+// #f0f0f0 / #999 / #e8e8e8 exactly (alpha from 255 - a*127 = the hex value),
+// and on a darker background (jamovi 28.4 has no dark theme, but a future one)
+// they stay a subtle tint instead of a light box with dark text; OS
+// high-contrast mode replaces them either way. Buttons also take
+// `color: inherit` so their label follows the panel's text colour.
+var GREY_BORDER = 'rgba(128, 128, 128, 0.535)';
+var GREY_FILL = 'rgba(128, 128, 128, 0.118)';
+var GREY_BORDER_STRONG = 'rgba(128, 128, 128, 0.803)';
+var GREY_FILL_STRONG = 'rgba(128, 128, 128, 0.181)';
+
 // Repositions covFile's picked-file box beside its Browse button instead of
 // FileSelector's own default layout (button, then a plain list below it),
 // to match genoFilename/snpListFilename's look above. A class-based CSS
@@ -195,8 +207,8 @@ function _styleCovFileSelector(ui) {
             'align-items: center; flex-wrap: wrap; gap: 6px; }' +
             '.' + COV_ROW_CLASS + ' .jmv-file-selector-list { flex: 1 1 auto; min-width: 0; }' +
             '.' + COV_ROW_CLASS + ' .jmv-file-selector-item { width: 100%; box-sizing: border-box; ' +
-            'border: 1px solid #bbb; border-radius: 3px; padding: 3px 6px; ' +
-            'background: #f0f0f0; min-height: 14px; }';
+            'border: 1px solid ' + GREY_BORDER + '; border-radius: 3px; padding: 3px 6px; ' +
+            'background: ' + GREY_FILL + '; min-height: 14px; }';
         document.head.appendChild(style);
     }
 
@@ -223,7 +235,8 @@ function _loadButton(ui) {
     var jq = $input.constructor;
     var $btn = jq('<button type="button" class="snpi-load">Load genotypes</button>').css({
         flexShrink: '0', cursor: 'pointer', padding: '3px 12px', fontSize: '13px',
-        border: '1px solid #999', borderRadius: '3px', background: '#e8e8e8',
+        border: '1px solid ' + GREY_BORDER_STRONG, borderRadius: '3px',
+        background: GREY_FILL_STRONG, color: 'inherit',
         whiteSpace: 'nowrap', fontWeight: '600'
     });
 
@@ -849,8 +862,8 @@ function _browseButton(ui, ctrlName, cls, accept, multiple, onPick, clears) {
     var jq = $input.constructor;
     var $btn = jq('<button type="button" class="' + cls + '">Browse…</button>').css({
         flexShrink: '0', cursor: 'pointer', padding: '3px 12px', fontSize: '14px',
-        lineHeight: '1.4', border: '1px solid #bbb', borderRadius: '3px',
-        background: '#f0f0f0', whiteSpace: 'nowrap'
+        lineHeight: '1.4', border: '1px solid ' + GREY_BORDER, borderRadius: '3px',
+        background: GREY_FILL, color: 'inherit', whiteSpace: 'nowrap'
     });
 
     $input.wrap(jq('<div></div>').css({
@@ -862,8 +875,8 @@ function _browseButton(ui, ctrlName, cls, accept, multiple, onPick, clears) {
     if (clears && clears.length) {
         var $clr = jq('<button type="button" class="' + cls + '-clr" title="Remove this file">✕</button>').css({
             flexShrink: '0', cursor: 'pointer', padding: '1px 7px', fontSize: '13px',
-            lineHeight: '1.4', border: '1px solid #bbb', borderRadius: '3px',
-            background: '#f0f0f0', whiteSpace: 'nowrap'
+            lineHeight: '1.4', border: '1px solid ' + GREY_BORDER, borderRadius: '3px',
+            background: GREY_FILL, color: 'inherit', whiteSpace: 'nowrap'
         });
         $input.after($clr);
 

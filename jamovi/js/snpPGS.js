@@ -25,6 +25,14 @@ module.exports = {
 var STYLE_ID = 'snppgs-inline-fileselector-css';
 var ROW_CLASS = 'snppgs-inline-fs';
 
+// Translucent neutral grey instead of hex greys: on jamovi's white panel these
+// render as the old #bbb / #f0f0f0 exactly, and on a darker background (jamovi
+// 28.4 has no dark theme, but a future one) they stay a subtle tint instead of
+// a light box. OS high-contrast mode replaces them either way. Same values as
+// snpimport.js.
+var BORDER = 'rgba(128, 128, 128, 0.535)';
+var FILL = 'rgba(128, 128, 128, 0.118)';
+
 function _injectCss() {
     if (document.getElementById(STYLE_ID)) return;
     var style = document.createElement('style');
@@ -34,8 +42,8 @@ function _injectCss() {
         'align-items: center; flex-wrap: wrap; gap: 6px; }' +
         '.' + ROW_CLASS + ' .jmv-file-selector-list { flex: 1 1 auto; min-width: 0; }' +
         '.' + ROW_CLASS + ' .jmv-file-selector-item { width: 100%; box-sizing: border-box; ' +
-        'border: 1px solid #bbb; border-radius: 3px; padding: 3px 8px; ' +
-        'background: #f0f0f0; min-height: 14px; }';
+        'border: 1px solid ' + BORDER + '; border-radius: 3px; padding: 3px 8px; ' +
+        'background: ' + FILL + '; min-height: 14px; }';
     document.head.appendChild(style);
 }
 

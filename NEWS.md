@@ -11,6 +11,10 @@ History:
                 analysis version). minApp raised 28.3.0 -> 28.4.0: no single
                 .jmo serves both 28.3 and 28.4, and jmc 28.4 will not install
                 into jamovi 28.0-28.3 anyway. On jamovi 28.3, stay on 1.2.0.
+                Panel JS: the file boxes and buttons drawn by snpPGS.js and
+                snpimport.js use translucent greys instead of hex greys
+                (identical on jamovi's white panel, legible on any darker
+                background) and buttons inherit the text colour.
 - 260920 v1.2.0 snpPGS's weights file and snpImport's covariate file now use
                 jamovi 28.3's native File option (FileSelector control)
                 instead of a custom browse button that embedded base64
