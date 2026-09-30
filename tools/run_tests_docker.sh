@@ -20,11 +20,6 @@ if [ "${SKIP_INSTALL:-0}" = 1 ]; then
   echo ">> reusing the module already installed in $CONTAINER"
 else
   bash "$SRC/tools/install.sh" docker "$CONTAINER"
-  # install.sh restarts the container; wait for it back
-  for _ in $(seq 1 30); do
-    docker exec "$CONTAINER" true 2>/dev/null && break
-    sleep 1
-  done
 fi
 
 # helper-data.R resolves the fixtures relative to the package root, so tests/
@@ -38,8 +33,9 @@ echo ">> running suite (container R)"
 docker exec "$CONTAINER" bash -c '
 set -euo pipefail
 cd /tmp/snpstats-test
-# R appends its own library to .libPaths(), so only the module dirs are needed
-export R_LIBS="/usr/lib/jamovi/modules/SNPstats/R:/usr/lib/jamovi/modules/base/R"
+# R appends its own library to .libPaths(), so only the module dirs are needed.
+# install.sh installs into the user module dir (the jmc docker route).
+export R_LIBS="$HOME/.jamovi/modules/SNPstats/R:/usr/lib/jamovi/modules/base/R"
 # tests/run_tests.R came across in the tarball; use it rather than a second copy
 # of the invocation, so the pass/fail tally is defined in exactly one place
 Rscript --vanilla \

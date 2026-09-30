@@ -106,120 +106,84 @@ install_desktop() {
 }
 
 # ── docker ───────────────────────────────────────────────────────────────────
-# Runtime (ephemeral) install into a running container. Idempotent: Node, jmc
-# and the R deps are bootstrapped only once (they survive `docker restart` but
-# not `compose down/up`); every run recompiles the module and reloads jamovi.
+# jamovi's own route (jamovi >= 28.4): the jamovi compiler on this machine
+# builds the module in a throwaway container off the running container's image
+# (haplo.stats included, compiled against the image's R) and hands the .jmo to
+# the server over its stdin, which installs it into $HOME/.jamovi/modules in the
+# container. Nothing is added to the image. Needs here: docker, node, and a
+# jamovi-src checkout at the image's version (tools/jamovi-src, a sibling
+# ../jamovi-src, or JMC_COMPILER=/path/to/jamovi-compiler). The container must
+# run upstream's docker-compose.yaml (stdin_open and --stdin-slave), and the
+# Docker VM must see this repo read-write. To keep the module across
+# 'down'/'up', mount a volume at /root/.jamovi (jamovi-skill's
+# templates/docker/docker-compose.override.yaml).
+find_compiler() {
+  local c
+  for c in "${JMC_COMPILER:-}" "$HERE/tools/jamovi-src/jamovi-compiler" "$HERE/../jamovi-src/jamovi-compiler"; do
+    [ -n "$c" ] && [ -f "$c/index.js" ] && [ -f "$c/docker.js" ] && { (cd "$c" && pwd); return 0; }
+  done
+  return 1
+}
+
 install_docker() {
-  local JSRC NODE_VER
+  local JMC CHOME MODR OLD NEW i
   if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$CONTAINER"; then
     echo "!! docker: container '$CONTAINER' is not running — skipping"
     return 0
   fi
-
-  # jamovi-src is symlinked into tools/; older checkouts had it at the root.
-  # Only needed to bootstrap jmc and to read the pinned Node version.
-  if   [ -d "$HERE/tools/jamovi-src" ]; then JSRC="$HERE/tools/jamovi-src"
-  elif [ -d "$HERE/jamovi-src" ];       then JSRC="$HERE/jamovi-src"
-  else JSRC=""
+  JMC="$(find_compiler)" || {
+    echo "!! docker: no jamovi-compiler with docker support (jamovi >= 28.4) found." >&2
+    echo "!! Link a jamovi-src checkout at tools/jamovi-src, or set JMC_COMPILER." >&2
+    return 1; }
+  command -v node >/dev/null || { echo "!! docker: node is needed on this machine" >&2; return 1; }
+  if [ ! -d "$JMC/node_modules" ]; then
+    echo ">> docker: installing the compiler's npm dependencies (once)"
+    ( cd "$JMC" && npm install --no-audit --no-fund >/dev/null ) || return 1
+  fi
+  if [ "$(docker inspect -f '{{.Config.OpenStdin}}' "$CONTAINER")" != true ]; then
+    echo "!! docker: '$CONTAINER' was not started with stdin open (--stdin-slave);" >&2
+    echo "!! start it with jamovi-src's docker-compose.yaml" >&2
+    return 1
   fi
 
-  NODE_VER=""
-  if [ -n "$JSRC" ]; then
-    # Track whatever the Dockerfile pins rather than restating it here — they
-    # drifted apart once already (v22 hardcoded while the image had moved).
-    NODE_VER="$(grep -oE 'nodejs\.org/dist/v[0-9]+\.[0-9]+\.[0-9]+' "$JSRC/docker/jamovi-Dockerfile" \
-                | head -1 | grep -oE 'v[0-9.]+' || true)"
-  fi
-  if ! docker exec "$CONTAINER" sh -c 'command -v jmc >/dev/null 2>&1'; then
-    [ -n "$JSRC" ] && [ -n "$NODE_VER" ] || {
-      echo "!! docker: jmc is not in the container and there is no jamovi-src" >&2
-      echo "!! checkout to bootstrap it from. Install the compiler in the image." >&2
-      return 1
-    }
+  CHOME="$(docker exec "$CONTAINER" sh -c 'echo $HOME')"
+  MODR="$CHOME/.jamovi/modules/$MODULE/R"
+  OLD="$(docker exec "$CONTAINER" sh -c "grep '^build-time' '$CHOME/.jamovi/modules/$MODULE/jamovi.yaml' 2>/dev/null" || true)"
+
+  echo ">> docker: building $MODULE $VERSION in $(docker inspect -f '{{.Config.Image}}' "$CONTAINER")"
+  node "$JMC/index.js" --install "$HERE" --home "docker:$CONTAINER" || return 1
+  rm -f "$HERE/.jmc-docker.jmo"   # the build container's artifact, already handed over
+
+  # the server installs it asynchronously after reading its stdin
+  NEW=""
+  for i in $(seq 1 60); do
+    NEW="$(docker exec "$CONTAINER" sh -c "grep '^build-time' '$CHOME/.jamovi/modules/$MODULE/jamovi.yaml' 2>/dev/null" || true)"
+    [ -n "$NEW" ] && [ "$NEW" != "$OLD" ] && break
+    sleep 1
+  done
+  if [ -z "$NEW" ] || [ "$NEW" = "$OLD" ]; then
+    echo "!! docker: jamovi has not installed the new $MODULE after 60 s (docker logs $CONTAINER)" >&2
+    return 1
   fi
 
-  echo ">> docker: copying source into $CONTAINER"
-  # --no-mac-metadata/--no-xattrs: AppleDouble ._ files otherwise land in the
-  # container and jmc tries to compile them.
-  tar --no-mac-metadata --no-xattrs -C "$HERE" -cf - DESCRIPTION NAMESPACE NEWS.md R jamovi data \
+  # jmc regenerated R/snpPGS.h.R in this tree and dropped the caseLevel default,
+  # so the installed package has a snpPGS() no scripted call can use (the jamovi
+  # UI is unaffected). Re-apply the patch and rebuild the R package over the
+  # installed copy with the container's R; the yaml/ui jamovi installed stay.
+  bash "$HERE/tools/patch_h.sh" "$HERE/R/snpPGS.h.R" || [ $? -eq 10 ]
+  tar --no-mac-metadata --no-xattrs -C "$HERE" -cf - DESCRIPTION NAMESPACE NEWS.md R data \
     | docker exec -i "$CONTAINER" sh -c \
         "rm -rf /tmp/${MODULE}-src && mkdir -p /tmp/${MODULE}-src && tar -C /tmp/${MODULE}-src -xf -"
-  tar --no-mac-metadata --no-xattrs -C "$HERE/tools" -cf - patch_h.sh \
-    | docker exec -i "$CONTAINER" tar -C /tmp -xf -
+  docker exec "$CONTAINER" bash -c "source /usr/lib/jamovi/bin/env.conf 2>/dev/null || true; \
+    R_LIBS='$MODR:/usr/lib/jamovi/modules/base/R' R CMD INSTALL --no-byte-compile \
+      --library='$MODR' /tmp/${MODULE}-src >/dev/null" || return 1
+  echo ">> docker: installed at $CHOME/.jamovi/modules/$MODULE (patched)"
 
-  if docker exec "$CONTAINER" sh -c 'command -v jmc >/dev/null 2>&1'; then
-    echo ">> docker: jmc already present (baked image)"
-  else
-    echo ">> docker: copying compiler source for the jmc bootstrap"
-    tar --no-mac-metadata --no-xattrs -C "$JSRC" -cf - jamovi-compiler \
-      | docker exec -i "$CONTAINER" sh -c \
-          'rm -rf /tmp/jamovi-compiler && tar -C /tmp -xf -'
+  if ! docker inspect -f '{{range .Mounts}}{{println .Destination}}{{end}}' "$CONTAINER" | grep -qx "$CHOME/.jamovi"; then
+    echo "!! docker: $CHOME/.jamovi is not a volume: the module is lost when the container is"
+    echo "!! recreated (down/up). See jamovi-skill's templates/docker/docker-compose.override.yaml"
   fi
-
-  echo ">> docker: bootstrap toolchain (once) + jmc --install"
-  docker exec -i "$CONTAINER" bash -s "$MODULE" "$NODE_VER" <<'INCONTAINER'
-set -euo pipefail
-MODULE="$1"
-NODE_VER="${2:-}"
-source /usr/lib/jamovi/bin/env.conf 2>/dev/null || true
-# ask R where it lives rather than pinning a version that moves with the image
-RHOME="${R_HOME:-$(R RHOME 2>/dev/null || true)}"
-[ -n "$RHOME" ] || { echo "   error: no R in the container" >&2; exit 1; }
-RLIBS=/usr/lib/jamovi/modules/base/R
-
-if ! command -v node >/dev/null 2>&1; then
-  [ -n "$NODE_VER" ] || { echo "   error: node missing and no version to fetch" >&2; exit 1; }
-  echo "   installing Node ${NODE_VER}"
-  case "$(uname -m)" in
-    aarch64|arm64) NODEARCH=arm64 ;;
-    *)             NODEARCH=x64   ;;
-  esac
-  curl -L -f -o /tmp/node.tar.gz \
-    "https://nodejs.org/dist/${NODE_VER}/node-${NODE_VER}-linux-${NODEARCH}.tar.gz"
-  mkdir -p /opt/node && tar -xzf /tmp/node.tar.gz -C /opt/node --strip-components=1
-  ln -sf /opt/node/bin/node /usr/local/bin/node
-  ln -sf /opt/node/bin/npm  /usr/local/bin/npm
-fi
-export PATH=/opt/node/bin:$PATH
-
-if ! command -v jmc >/dev/null 2>&1; then
-  echo "   installing jamovi-compiler (jmc)"
-  ( cd /tmp/jamovi-compiler && npm install --no-audit --no-fund && npm install -g )
-  # only symlink our own /opt/node jmc; never clobber a jmc baked at /usr/local
-  [ -e /opt/node/bin/jmc ] && ln -sf /opt/node/bin/jmc /usr/local/bin/jmc
-fi
-
-# haplo.stats is compiled and is not in the base image; the rest of SNPstats'
-# dependencies already resolve from RLIBS.
-if [ ! -d "$RLIBS/haplo.stats" ]; then
-  echo "   installing R dep haplo.stats (this compiles, ~minutes)"
-  "$RHOME/bin/R" --vanilla -q -e \
-    "install.packages('haplo.stats', lib='$RLIBS', repos='https://cloud.r-project.org')"
-fi
-
-echo "   jmc --install"
-jmc --install "/tmp/${MODULE}-src" \
-    --to /usr/lib/jamovi/modules \
-    --rhome "$RHOME" \
-    --rlibs "$RLIBS" \
-    --patch-version --skip-deps
-
-[ -f "/usr/lib/jamovi/modules/${MODULE}/jamovi.yaml" ] || {
-  echo "   error: jmc did not install ${MODULE}" >&2; exit 1; }
-
-# jmc regenerates R/snpPGS.h.R in place and drops the caseLevel default, so the
-# module it just installed has a snpPGS() no scripted call can use (the jamovi
-# UI is unaffected — it goes through the options class). Re-apply the patch and
-# rebuild the R package over jmc's copy; the yaml/ui it wrote stay.
-bash /tmp/patch_h.sh "/tmp/${MODULE}-src/R/snpPGS.h.R" || [ $? -eq 10 ]
-echo "   re-installing patched R package"
-R_LIBS="$RLIBS" "$RHOME/bin/R" CMD INSTALL --no-byte-compile \
-    --library="/usr/lib/jamovi/modules/${MODULE}/R" "/tmp/${MODULE}-src" >/dev/null
-INCONTAINER
-
-  echo ">> docker: restarting $CONTAINER to load the module"
-  docker restart "$CONTAINER" >/dev/null
-  echo ">> docker: installed $MODULE. Open http://127.0.0.1:41337 (Analyses menu)."
+  echo ">> docker: installed $MODULE. Open jamovi in the browser (Analyses menu)."
 }
 
 case "$TARGET" in
