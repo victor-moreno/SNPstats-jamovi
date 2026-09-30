@@ -1,8 +1,8 @@
 Package: SNPstats
 Type: Package
 Title: SNP Statistics for Genetic Epidemiology
-Version: 1.2.0
-Date: 2026-09-20
+Version: 1.2.1
+Date: 2026-09-30
 Authors@R: person("Victor", "Moreno", role = c("aut", "cre"), email = "v.moreno@iconcologia.net")
 Description: Performs SNP analysis for genetic epidemiology studies. Imports genotypes from
     PLINK (.bed/.bim/.fam, .ped/.map, .tped/.tfam) and VCF (.vcf, .vcf.gz) files as a new

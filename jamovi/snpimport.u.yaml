@@ -41,7 +41,7 @@ children:
       - type: Label
         label: '3. Covariates  (optional)'
         children:
-          - type: FileSelector
+          - type: File
             name: covFile
             label: ''
           - type: TextBox

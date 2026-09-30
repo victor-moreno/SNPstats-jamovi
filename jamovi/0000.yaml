@@ -1,12 +1,12 @@
 ---
 title: Basic Genetic Epidemiology Analyses of SNP data
 name: SNPstats
-version: 1.2.0
+version: 1.2.1
 jms: '1.0'
 authors:
   - Victor Moreno
 maintainer: Victor Moreno <v.moreno@iconcologia.net>
-date: '2026-09-20'
+date: '2026-09-30'
 type: R
 description: >
   Performs SNP analysis for genetic epidemiology studies. Imports genotypes from
@@ -58,7 +58,7 @@ analyses:
       quantitative response variable.
     category: analyses
 usesNative: true
-minApp: 28.3.0
+minApp: 28.4.0
 datasets:
   - name: SNP sample1
     path: sample1.tsv

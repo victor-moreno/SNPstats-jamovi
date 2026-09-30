@@ -1,4 +1,16 @@
 History:
+- 260930 v1.2.1 jamovi 28.4 compatibility. jamovi 28.4 renamed the .u.yaml
+                control of a File option from FileSelector to File
+                (upstream ac3126b1). 1.2.0 was built with the old name, which
+                jamovi 28.4's client no longer knows, so the options panels
+                of snpPGS (weights file) and snpImport (covariate file) cannot
+                be built there; jmvtools 28.4 also refuses to compile it
+                ("Cannot read properties of undefined (reading
+                'isOptionControl')"). Both controls are renamed; nothing else
+                changes (the regenerated .h.R files differ only in the
+                analysis version). minApp raised 28.3.0 -> 28.4.0: no single
+                .jmo serves both 28.3 and 28.4, and jmc 28.4 will not install
+                into jamovi 28.0-28.3 anyway. On jamovi 28.3, stay on 1.2.0.
 - 260920 v1.2.0 snpPGS's weights file and snpImport's covariate file now use
                 jamovi 28.3's native File option (FileSelector control)
                 instead of a custom browse button that embedded base64

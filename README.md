@@ -8,6 +8,8 @@ The **SNPstats** module provides an interface for conducting single-SNP and mult
 
 See the mini [tutorial](https://victor-moreno.github.io/SNPstats-jamovi/TUTORIAL.html) for more detailed information.
 
+Requires jamovi 28.4 or newer (since v1.2.1). On jamovi 28.3, use v1.2.0: 28.4 renamed the file-picker control, so neither version works on the other's jamovi.
+
 ## Features
 
 * **Import:** Genotypes read straight from PLINK (`.bed`/`.bim`/`.fam`, `.ped`/`.map`, `.tped`/`.tfam`) and VCF (`.vcf`, `.vcf.gz`) files and opened as a new jamovi dataset, for a chosen list of SNPs.

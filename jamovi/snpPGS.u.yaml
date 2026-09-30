@@ -86,7 +86,7 @@ children:
       - type: Label
         label: Weights
         children:
-          - type: FileSelector
+          - type: File
             name: weightsFile
             label: 'Weights file (PGS catalog format):'
           - type: ComboBox
