@@ -10,6 +10,20 @@ See the mini [tutorial](https://victor-moreno.github.io/SNPstats-jamovi/TUTORIAL
 
 Requires jamovi 28.4 or newer (since v1.2.1). On jamovi 28.3, use v1.2.0: 28.4 renamed the file-picker control, so neither version works on the other's jamovi.
 
+## Installation
+
+Download the `.jmo` for your computer from the [latest release](https://github.com/victor-moreno/SNPstats-jamovi/releases/latest), then in jamovi use **Modules (+) → Sideload** and select it:
+
+| your computer | file |
+| --- | --- |
+| Windows (Intel/AMD, and Windows on ARM) | `SNPstats_<version>_windows-x64.jmo` |
+| macOS, Apple silicon (M1 and later) | `SNPstats_<version>_macos-arm64.jmo` |
+| macOS, Intel | `SNPstats_<version>_macos-x64.jmo` |
+| Linux (flatpak), x86_64 | `SNPstats_<version>_linux-x64.jmo` |
+| Linux (flatpak), ARM64 | `SNPstats_<version>_linux-arm64.jmo` |
+
+The files differ only in the compiled `haplo.stats` library they bundle. jamovi checks the R version and the CPU but not the operating system, so it would accept a file built for another OS, and the analyses would then fail to load. Use the file named for your system. Maintainers build all five with `bash tools/release.sh` (`--publish` creates the GitHub release).
+
 ## Features
 
 * **Import:** Genotypes read straight from PLINK (`.bed`/`.bim`/`.fam`, `.ped`/`.map`, `.tped`/`.tfam`) and VCF (`.vcf`, `.vcf.gz`) files and opened as a new jamovi dataset, for a chosen list of SNPs.

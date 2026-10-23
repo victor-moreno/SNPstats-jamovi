@@ -26,3 +26,4 @@
 ^docs/suggestion\.md$
 ^data-raw$
 ^tests/js$
+^dist$
