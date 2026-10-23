@@ -2,7 +2,7 @@
 # Build one SNPstats .jmo per OS x CPU, and optionally publish them as a
 # GitHub release.
 #
-#   bash tools/release.sh              # write dist/SNPstats_<version>_<os>-<cpu>.jmo
+#   bash tools/release.sh              # write build/SNPstats_<version>_<os>-<cpu>.jmo
 #   bash tools/release.sh --publish    # ... and create (or replace) release v<version>
 #
 # Why not the template's two-artifact release (tools/ template, prepare-jmo.sh):
@@ -43,7 +43,7 @@ esac
 POSIT="https://packagemanager.posit.co/cran/$SNAPSHOT"
 
 WORK="$HERE/.tmp/release"
-DIST="$HERE/dist"
+DIST="$HERE/build"
 rm -rf "$WORK"; mkdir -p "$WORK" "$DIST"
 rm -f "$DIST/${MODULE}_${VERSION}_"*.jmo
 
@@ -59,6 +59,9 @@ echo ">> building $MODULE $VERSION against $(basename "$APP") (R $R_VERSION)"
 [ -f "$BASE" ] || { echo "error: jmc did not produce $BASE" >&2; exit 1; }
 # jmc regenerated R/snpPGS.h.R; restore the caseLevel default (CLAUDE.md)
 bash "$HERE/tools/patch_h.sh" "$HERE/R/snpPGS.h.R" || [ $? -eq 10 ]
+# jmc keeps its dependency cache and compiled UI under build/; drop them so
+# build/ holds only the release, and so a stale cached package never ships
+rm -rf "$DIST"/R[0-9]*-* "$DIST/js" "$DIST/jamovi"
 
 # the dependencies jmc decided to bundle = everything under R/ but the module
 DEPS="$(unzip -Z1 "$BASE" | sed -n "s#^$MODULE/R/\([^/]*\)/DESCRIPTION\$#\1#p" | grep -vx "$MODULE" | sort -u | tr '\n' ' ')"
@@ -123,7 +126,7 @@ for TARGET in windows-x64 macos-arm64 macos-x64 linux-x64 linux-arm64; do
   done
   OUT="$DIST/${MODULE}_${VERSION}_${TARGET}.jmo"
   ( cd "$STAGE" && zip -q -r -X "$OUT" "$MODULE" )
-  echo "   wrote dist/$(basename "$OUT")"
+  echo "   wrote build/$(basename "$OUT")"
 done
 
 [ "$PUBLISH" = yes ] || { echo ">> built; re-run with --publish to release"; exit 0; }
