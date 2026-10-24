@@ -10,11 +10,30 @@ This module extends jamovi's functionality to bring the analyses of the [SNPstat
 
 ## How to install
 
-1. **Install jamovi** — download it from [www.jamovi.org/download.html](https://www.jamovi.org/download.html) and install it as any other application.
-2. **Install the module in jamovi** — open jamovi and click the **+** (Modules) icon at the top right of the window, choose **Jamovi library**, write **SNPstats** in the search, and click **INSTALL**.
+1. **Install jamovi** — download it from [www.jamovi.org/download.html](https://www.jamovi.org/download.html) and install it as any other application. SNPstats 1.2.1 requires **jamovi 28.4 or newer** (if you have an older jamovi, update it first).
+2. **Install the module** — open jamovi, click the **Modules** (**+**) icon at the top right of the window and choose **jamovi library**. Write **SNPstats** in the search box and click **INSTALL**. If SNPstats is not listed, or the library only offers an older version, install it by sideloading instead (see below).
 3. **Check the installation** — an **SNPstats** menu appears in the *Analyses* ribbon, with the *Import genotypes*, *SNP Analysis* and *Polygenic Score (PGS)* entries described below.
 
-SNPstats 1.2.1 requires jamovi 28.4 or newer (on jamovi 28.3, use SNPstats 1.2.0).
+### Sideloading the module from GitHub
+
+New versions are published on GitHub before they reach the jamovi library, and the library may not carry SNPstats for every jamovi version. In that case install the module file (`.jmo`) by hand:
+
+1. **Find out which computer you have.** The module includes compiled code, so there is one file per operating system and processor:
+
+   | your computer | how to check | file to download |
+   | --- | --- | --- |
+   | Windows (Intel/AMD, and also Windows on ARM) | — | `SNPstats_<version>_windows-x64.jmo` |
+   | macOS, Apple silicon (M1, M2, …) | Apple menu → *About This Mac* shows **Chip: Apple M…** | `SNPstats_<version>_macos-arm64.jmo` |
+   | macOS, Intel | Apple menu → *About This Mac* shows **Processor: … Intel** | `SNPstats_<version>_macos-x64.jmo` |
+   | Linux (flatpak), x86_64 | `uname -m` prints `x86_64` | `SNPstats_<version>_linux-x64.jmo` |
+   | Linux (flatpak), ARM64 | `uname -m` prints `aarch64` | `SNPstats_<version>_linux-arm64.jmo` |
+
+2. **Download the file** from the [latest release on GitHub](https://github.com/victor-moreno/SNPstats-jamovi/releases/latest): scroll down to *Assets* and click the `.jmo` named for your computer. Save it anywhere (e.g. *Downloads*); do not unzip it.
+3. **Sideload it in jamovi** — click the **Modules** (**+**) icon, choose **Sideload**, and select the downloaded `.jmo`. jamovi installs it and the **SNPstats** menu appears in the *Analyses* ribbon.
+
+Use the file named for your system: jamovi checks the R version and the processor but not the operating system, so it would accept a file built for another OS, and the analyses would then fail to load. If that happens, remove the module (**Modules** → **jamovi library** → *Installed* tab → **REMOVE**) and sideload the correct file.
+
+A sideloaded module is not updated automatically: to upgrade, download the new release and sideload it again.
 
 ## Open source
 
