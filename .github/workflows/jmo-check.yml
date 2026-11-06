@@ -1,0 +1,104 @@
+name: jmo-check
+
+# Runs each released .jmo inside the real jamovi for its OS: the files users
+# download, in the app they install. The weekly run is there because jamovi ships
+# every few days, and a change on its side breaks modules with no change on ours.
+on:
+  release:
+    types: [published]
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release to check (default latest)
+        required: false
+      jamovi_version:
+        description: jamovi version, e.g. 28.17.0.0 (default newest upstream)
+        required: false
+  push:
+    paths:
+      - .github/workflows/jmo-check.yml
+      - .github/scripts/**
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    # jamovi does not support Windows on ARM, so this one reports without failing the run
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Windows x64, runner: windows-latest, file: windows-x64, app: windows, experimental: false }
+          - { name: Windows on ARM (x64 jamovi emulated), runner: windows-11-arm, file: windows-x64, app: windows, experimental: true }
+          - { name: macOS Apple silicon, runner: macos-15, file: macos-arm64, app: macos-arm64, experimental: false }
+          - { name: macOS Intel, runner: macos-15-intel, file: macos-x64, app: macos-x64, experimental: false }
+          - { name: Linux x64 (Flathub), runner: ubuntu-24.04, file: linux-x64, app: flatpak, experimental: false }
+          # Flathub has no arm64 jamovi, so this tests the file in plain R
+          - { name: Linux arm64 (plain R), runner: ubuntu-24.04-arm, file: linux-arm64, app: none, experimental: false }
+    env:
+      GH_TOKEN: ${{ github.token }}
+      INPUT_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+      INPUT_JAMOVI: ${{ inputs.jamovi_version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Choose release and jamovi version
+        run: |
+          TAG="$INPUT_TAG"
+          [ -n "$TAG" ] || TAG="$(gh release view --json tagName --jq .tagName)"
+          JAMOVI="$INPUT_JAMOVI"
+          [ -n "$JAMOVI" ] || JAMOVI="$(gh api repos/jamovi/jamovi/contents/version --jq .content | base64 -d | tr -d '[:space:]')"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "JAMOVI=$JAMOVI" >> "$GITHUB_ENV"
+          echo "### ${{ matrix.name }}" >> "$GITHUB_STEP_SUMMARY"
+
+      # the tests that match the release, which main may have moved past
+      - name: Check out the release's test suite
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+          path: suite
+
+      - name: Download the release file
+        run: |
+          gh release download "$TAG" --pattern "SNPstats_*_${{ matrix.file }}.jmo" --dir jmo
+          echo "JMO=$(ls jmo/*.jmo)" >> "$GITHUB_ENV"
+
+      - name: Install jamovi
+        if: matrix.app != 'none'
+        run: bash .github/scripts/get_jamovi.sh "${{ matrix.app }}" "$JAMOVI"
+
+      - name: Set up plain R
+        if: matrix.app == 'none'
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: '4.6'
+          use-public-rspm: true
+
+      - name: Install CRAN dependencies
+        if: matrix.app == 'none'
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::testthat
+
+      # see tests.yml: jmvcore binds its RProtoBuf wrappers when it is installed
+      - name: Rebuild jmvcore against RProtoBuf
+        if: matrix.app == 'none'
+        run: |
+          Rscript -e 'install.packages("jmvcore", type = "source")'
+          echo "ENV_CONF=none" >> "$GITHUB_ENV"
+          echo "R_CMD=Rscript" >> "$GITHUB_ENV"
+
+      - name: Check the file
+        run: $R_CMD --vanilla .github/scripts/check_jmo.R "$JMO" "$ENV_CONF" suite

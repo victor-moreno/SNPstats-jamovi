@@ -22,7 +22,7 @@ Download the `.jmo` for your computer from the [latest release](https://github.c
 | Linux (flatpak), x86_64 | `SNPstats_<version>_linux-x64.jmo` |
 | Linux (flatpak), ARM64 | `SNPstats_<version>_linux-arm64.jmo` |
 
-The files differ only in the compiled `haplo.stats` library they bundle. jamovi checks the R version and the CPU but not the operating system, so it would accept a file built for another OS, and the analyses would then fail to load. Use the file named for your system. Maintainers build all five with `bash tools/release.sh` (`--publish` creates the GitHub release).
+The files differ only in the compiled `haplo.stats` library they bundle. jamovi checks the R version and the CPU but not the operating system, so it would accept a file built for another OS, and the analyses would then fail to load. Use the file named for your system. Maintainers build all five with `bash tools/release.sh` (`--publish` creates the GitHub release). The `jmo-check` workflow then runs each published file in jamovi for its OS, on every release and weekly.
 
 ## Features
 

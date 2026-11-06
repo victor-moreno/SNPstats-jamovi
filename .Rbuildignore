@@ -26,3 +26,6 @@
 ^docs/suggestion\.md$
 ^data-raw$
 ^tests/js$
+^task_plan\.md$
+^findings\.md$
+^progress\.md$

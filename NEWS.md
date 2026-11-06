@@ -1,4 +1,8 @@
 History:
+- next release  snpPGS() called from R no longer fails when caseLevel is omitted.
+                Every .jmo up to 1.2.1 had this problem, because the default was
+                restored after the package was built; the jamovi panel is
+                unaffected by this change. R/zzz.R now sets it in every build.
 - 260930 v1.2.1 jamovi 28.4 compatibility. jamovi 28.4 renamed the .u.yaml
                 control of a File option from FileSelector to File
                 (upstream ac3126b1). 1.2.0 was built with the old name, which
