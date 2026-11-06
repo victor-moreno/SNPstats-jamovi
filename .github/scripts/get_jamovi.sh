@@ -13,15 +13,16 @@ WORK="${RUNNER_TEMP:-.tmp}/jamovi"
 mkdir -p "$WORK"
 
 fetch() {
-  curl -fsSL --retry 3 -o "$2" "https://www.jamovi.org/downloads/$1"
+  curl -fsSL --retry 3 --retry-all-errors -C - -o "$2" "https://archives.jamovi.org/$1"
 }
 
 case "$APP" in
   windows)
-    fetch "jamovi-$VERSION-win-x64.zip" "$WORK/jamovi.zip"
-    unzip -q "$WORK/jamovi.zip" -d "$WORK/app"
-    CONF="$(find "$WORK/app" -name env.conf | head -1)"
-    RS="$(find "$WORK/app" -name Rscript.exe -path '*x64*' | head -1)"
+    fetch "jamovi-$VERSION-win-x64.exe" "$WORK/jamovi.exe"
+    # PowerShell, because Git Bash would rewrite the installer's /S and /D= as paths
+    powershell -NoProfile -Command "Start-Process -Wait -FilePath '$(cygpath -w "$WORK/jamovi.exe")' -ArgumentList '/S','/D=C:\jamovi'"
+    CONF="$(find /c/jamovi -name env.conf | head -1)"
+    RS="$(find /c/jamovi -name Rscript.exe -path '*x64*' | head -1)"
     CONF="$(cygpath -m "$CONF")"
     R_CMD="$(cygpath -m "$RS")"
     ;;
