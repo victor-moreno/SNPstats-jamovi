@@ -12,7 +12,7 @@ Requires jamovi 28.4 or newer (since v1.2.1). On jamovi 28.3, use v1.2.0: 28.4 r
 
 ## Installation
 
-Download the `.jmo` for your computer from the [latest release](https://github.com/victor-moreno/SNPstats-jamovi/releases/latest), then in jamovi use **Modules (+) → Sideload** and select it:
+Download the `.jmo` for your computer from the [latest release](https://github.com/victor-moreno/SNPstats-jamovi/releases/latest), then in jamovi use **Modules (+) → Sideload**, click the upload button and select it in the window that opens. Don't drag the file into jamovi or use File > Open: jamovi would try to read it as a data file and report "Unrecognised file format".
 
 | your computer | file |
 | --- | --- |

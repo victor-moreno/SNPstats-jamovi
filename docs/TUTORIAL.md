@@ -29,7 +29,7 @@ New versions are published on GitHub before they reach the jamovi library, and t
    | Linux (flatpak), ARM64 | `uname -m` prints `aarch64` | `SNPstats_<version>_linux-arm64.jmo` |
 
 2. **Download the file** from the [latest release on GitHub](https://github.com/victor-moreno/SNPstats-jamovi/releases/latest): scroll down to *Assets* and click the `.jmo` named for your computer. Save it anywhere (e.g. *Downloads*); do not unzip it.
-3. **Sideload it in jamovi** — click the **Modules** (**+**) icon, choose **Sideload**, and select the downloaded `.jmo`. jamovi installs it and the **SNPstats** menu appears in the *Analyses* ribbon.
+3. **Sideload it in jamovi** — click the **Modules** (**+**) icon, choose **Sideload**, click the upload button, and select the downloaded `.jmo` in the window that opens. jamovi installs it and the **SNPstats** menu appears in the *Analyses* ribbon. Don't drag the file into jamovi or use *File > Open*: jamovi would try to read it as a data file and report "Unrecognised file format".
 
 Use the file named for your system: jamovi checks the R version and the processor but not the operating system, so it would accept a file built for another OS, and the analyses would then fail to load. If that happens, remove the module (**Modules** → **jamovi library** → *Installed* tab → **REMOVE**) and sideload the correct file.
 
