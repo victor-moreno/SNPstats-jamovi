@@ -3,9 +3,8 @@
 #
 #   get_jamovi.sh <windows|macos-arm64|macos-x64|flatpak> <jamovi version>
 #
-# Appends R_CMD and ENV_CONF to $GITHUB_ENV. Flathub usually lags behind
-# dl.jamovi.org, so on Linux the version argument is ignored and the jamovi
-# actually tested is whatever Flathub has (check_jmo.R reports it).
+# Appends R_CMD and ENV_CONF to $GITHUB_ENV. On Linux the version argument is
+# ignored and the jamovi tested is whatever Flathub has (check_jmo.R reports it).
 set -euo pipefail
 
 APP="$1"
@@ -14,7 +13,7 @@ WORK="${RUNNER_TEMP:-.tmp}/jamovi"
 mkdir -p "$WORK"
 
 fetch() {
-  curl -fsSL --retry 3 -o "$2" "https://dl.jamovi.org/$1"
+  curl -fsSL --retry 3 -o "$2" "https://www.jamovi.org/downloads/$1"
 }
 
 case "$APP" in

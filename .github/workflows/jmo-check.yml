@@ -92,11 +92,13 @@ jobs:
         with:
           extra-packages: any::testthat
 
-      # see tests.yml: jmvcore binds its RProtoBuf wrappers when it is installed
+      # see tests.yml: jmvcore binds its RProtoBuf wrappers when it is installed.
+      # CRAN here because Posit's mirror answers type = "source" with a binary on arm64.
       - name: Rebuild jmvcore against RProtoBuf
         if: matrix.app == 'none'
         run: |
-          Rscript -e 'install.packages("jmvcore", type = "source")'
+          Rscript -e 'install.packages("jmvcore", type = "source", repos = "https://cran.r-project.org")'
+          Rscript -e 'stopifnot(is.function(jmvcore:::RProtoBuf_serialize), is.function(jmvcore:::RProtoBuf_read), is.function(jmvcore:::RProtoBuf_new))'
           echo "ENV_CONF=none" >> "$GITHUB_ENV"
           echo "R_CMD=Rscript" >> "$GITHUB_ENV"
 
