@@ -33,7 +33,11 @@ case "$APP" in
     cp -R "$WORK/mnt/jamovi.app" /Applications/
     hdiutil detach -quiet "$WORK/mnt"
     CONF=/Applications/jamovi.app/Contents/Resources/env.conf
-    R_CMD=/Applications/jamovi.app/Contents/Frameworks/R.framework/Versions/Current/Resources/bin/Rscript
+    RH=/Applications/jamovi.app/Contents/Frameworks/R.framework/Versions/Current/Resources
+    R_CMD="$RH/bin/Rscript"
+    # jamovi's Rscript has /Library/Frameworks/R.framework built in: without RHOME it
+    # fails, or on a machine with its own R, silently runs that R instead
+    echo "RHOME=$RH" >> "$GITHUB_ENV"
     ;;
   flatpak)
     sudo apt-get update -qq
