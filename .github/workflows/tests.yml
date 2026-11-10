@@ -19,7 +19,7 @@ jobs:
       RSPM: https://packagemanager.posit.co/cran/2026-07-01
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # 4.6 is what every environment the module actually runs in now uses:
       # jamovi 28.1 bundles R 4.6.0, the docker image builds on it, and the

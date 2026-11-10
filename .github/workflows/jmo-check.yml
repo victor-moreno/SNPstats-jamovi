@@ -51,7 +51,7 @@ jobs:
       INPUT_TAG: ${{ inputs.tag || github.event.release.tag_name }}
       INPUT_JAMOVI: ${{ inputs.jamovi_version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Choose release and jamovi version
         run: |
@@ -65,7 +65,7 @@ jobs:
 
       # the tests that match the release, which main may have moved past
       - name: Check out the release's test suite
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ env.TAG }}
           path: suite

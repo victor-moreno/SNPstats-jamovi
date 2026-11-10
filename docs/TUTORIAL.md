@@ -10,7 +10,7 @@ This module extends jamovi's functionality to bring the analyses of the [SNPstat
 
 ## How to install
 
-1. **Install jamovi** — download it from [www.jamovi.org/download.html](https://www.jamovi.org/download.html) and install it as any other application. SNPstats 1.2.1 requires **jamovi 28.4 or newer** (if you have an older jamovi, update it first).
+1. **Install jamovi** — download it from [www.jamovi.org/download.html](https://www.jamovi.org/download.html) and install it as any other application. SNPstats 1.2.2 requires **jamovi 28.4 or newer** (if you have an older jamovi, update it first).
 2. **Install the module** — open jamovi, click the **Modules** (**+**) icon at the top right of the window and choose **jamovi library**. Write **SNPstats** in the search box and click **INSTALL**. If SNPstats is not listed, or the library only offers an older version, install it by sideloading instead (see below).
 3. **Check the installation** — an **SNPstats** menu appears in the *Analyses* ribbon, with the *Import genotypes*, *SNP Analysis* and *Polygenic Score (PGS)* entries described below.
 

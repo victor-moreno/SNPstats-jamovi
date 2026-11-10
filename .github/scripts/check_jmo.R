@@ -16,9 +16,22 @@ report <- function(label, value) {
     if (nzchar(summary_file))
         cat(line, file = summary_file, append = TRUE)
 }
+# jamovi's x64 rlang and cli DLLs crash R's own exit under Windows-on-ARM emulation
+# (0xC00000FF, after everything has run; probed on windows-11-arm). Unloading the
+# package DLLs first lets R exit with the status this script decides.
+finish <- function(status) {
+    if (.Platform$OS.type == "windows") {
+        r_home <- normalizePath(R.home(), winslash = "/")
+        for (dll in rev(getLoadedDLLs())) {
+            path <- normalizePath(dll[["path"]], winslash = "/", mustWork = FALSE)
+            if (!startsWith(path, r_home)) try(dyn.unload(dll[["path"]]), silent = TRUE)
+        }
+    }
+    quit(save = "no", status = status)
+}
 fail <- function(...) {
     report("FAILED", paste0(...))
-    quit(save = "no", status = 1)
+    finish(1)
 }
 field <- function(lines, key, sep) {
     hit <- grep(paste0("^", key, sep), lines, value = TRUE)
@@ -112,5 +125,4 @@ counts <- as.data.frame(results)
 report("Test suite", sprintf("%d pass, %d fail, %d error, %d skipped",
                              sum(counts$passed), sum(counts$failed),
                              sum(counts$error), sum(counts$skipped)))
-if (sum(counts$failed) > 0 || any(counts$error))
-    quit(save = "no", status = 1)
+finish(if (sum(counts$failed) > 0 || any(counts$error)) 1 else 0)

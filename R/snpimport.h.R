@@ -387,7 +387,7 @@ snpImportBase <- if (requireNamespace("jmvcore", quietly=TRUE)) R6::R6Class(
             super$initialize(
                 package = "SNPstats",
                 name = "snpImport",
-                version = c(1,2,1),
+                version = c(1,2,2),
                 options = options,
                 results = snpImportResults$new(options=options),
                 data = data,
