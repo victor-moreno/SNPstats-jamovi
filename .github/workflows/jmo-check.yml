@@ -102,5 +102,17 @@ jobs:
           echo "ENV_CONF=none" >> "$GITHUB_ENV"
           echo "R_CMD=Rscript" >> "$GITHUB_ENV"
 
+      # Under Windows-on-ARM emulation, jamovi's own x64 rlang and cli DLLs crash R's
+      # exit (0xC00000FF) after the script has finished, with or without SNPstats.
+      # There, and only there, the script's written verdict decides.
       - name: Check the file
-        run: $R_CMD --vanilla .github/scripts/check_jmo.R "$JMO" "$ENV_CONF" suite
+        env:
+          JMO_VERDICT: ${{ runner.temp }}/jmo-verdict
+        run: |
+          status=0
+          $R_CMD --vanilla .github/scripts/check_jmo.R "$JMO" "$ENV_CONF" suite || status=$?
+          if [ "$status" -ne 0 ] && [ "${{ matrix.experimental }}" = true ] && [ "$(cat "$JMO_VERDICT" 2>/dev/null)" = pass ]; then
+            echo "::notice::check passed; R then exited with $status (jamovi's rlang/cli under ARM emulation)"
+            status=0
+          fi
+          exit "$status"
